@@ -8,12 +8,12 @@ import { marked } from 'marked';
 import { createClient } from '@supabase/supabase-js';
 
 // --- CONFIGURATION ---
-const N8N_WEBHOOK_URL = 'https://auto.mamadev.org/webhook-test/cc7b0f00-c6a3-4465-a7b9-49d52424c10f';
-const SUPABASE_URL = 'https://dylnxdjycakxxnlgqvsj.supabase.co'; // Inserisci il tuo URL Supabase
-const SUPABASE_ANON_KEY = 'sb_publishable_IEEzRCSSGQbO_T5weDSS8g_EpmN6vBY'; // Inserisci la tua Anon Key
+const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Initialize Supabase (Safe initialization)
-const supabase = (SUPABASE_URL && !SUPABASE_URL.includes('TUO_URL'))
+const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
 
