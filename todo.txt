@@ -1,0 +1,52 @@
+Progetto: W4U Writing Assistant - Roadmap Tecnica
+STATO ATTUALE (Criticità rilevate):
+
+Word Count Control: L'agente ignora i vincoli di lunghezza (output incoerente).
+
+Workflow Loop: Il ciclo non è autonomo, richiede restart manuali.
+
+State Failure: Il sistema crasha/si blocca alla transizione post-intervista.
+
+LLM Overload: DeepSeek fallisce sui testi lunghi (limite token/contesto).
+
+TODO LIST: Modifiche Workflow & Database
+1. Database & Architettura (Supabase)
+[ ] Tabella progetti_libri: Aggiungere/Verificare colonna stato (Valori: intervista, outlining, scrittura).
+
+[ ] Nuova Tabella capitoli: Creare campi id, progetto_id, ordine, titolo, contenuto_testo, stato_capitolo.
+
+[ ] Relazione: Collegare capitoli.progetto_id a progetti_libri.id.
+
+2. Workflow n8n: Macchina a Stati (State Machine)
+[ ] Nodo Router Iniziale: Implementare un Postgres Select post-webhook per leggere lo stato del libro.
+
+[ ] Switch Logic: Creare 3 binari separati in base allo stato:
+
+Intervista: Agente conversazionale (attuale).
+
+Outlining: Agente che genera il JSON dei capitoli.
+
+Scrittura: Agente "Worker" per stesura testi.
+
+[ ] Trigger di Transizione: Nodo IF che intercetta la fine dell'intervista (parola chiave "CONFERMA") e aggiorna il DB a stato = 'outlining'.
+
+3. Gestione Scrittura & Umanizzazione
+[ ] Chunking System: Funzione loop per scrivere un solo capitolo alla volta (risolve il limite di DeepSeek).
+
+[ ] Prompt Engineering: Inserire parametri di "Perplexity" e "Burstiness" nel System Prompt dell'agente scrittore per umanizzare il testo.
+
+[ ] RAG (File Upload): Aggiungere nodo Extract Text per permettere l'upload di PDF/Word come base di partenza.
+
+4. Funzioni Sito (Frontend React)
+[ ] State Listener: Mostrare la UI corretta (Chat vs Progress Bar) in base allo stato del DB.
+
+[ ] Markdown Renderer: Integrare react-markdown per visualizzare i capitoli formattati.
+
+[ ] File Input: Creare l'uploader per i materiali di riferimento dell'utente.
+
+ Appunti per la revisione in ufficio (martedì)
+Problema Memoria: La Postgres Chat Memory va scollegata durante la scrittura dei capitoli per liberare contesto.
+
+Problema Token: DeepSeek non regge il libro intero; dobbiamo passare alla logica "un nodo = un capitolo".
+
+Check Anti-Plagio: Valutare API esterne (Copyscape) solo per la fase finale.

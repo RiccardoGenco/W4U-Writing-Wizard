@@ -1,0 +1,238 @@
+{
+  "name": "W4U Writing Assistant - Professional Fix",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cc7b0f00-c6a3-4465-a7b9-49d52424c10f",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        512
+      ],
+      "id": "e41bde67-c8af-4470-9f9c-f276440136ad",
+      "name": "Webhook",
+      "webhookId": "cc7b0f00-c6a3-4465-a7b9-49d52424c10f"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-r1-0528:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        608,
+        688
+      ],
+      "id": "2f015465-ac6c-456d-adf0-a2d64e392007",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "lqU1y1K65uc6DxSO",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO progetti_libri (titolo, parole_target, stato) \nVALUES (\n  '{{ ($json.titolo || $json.body.titolo || \"Senza Titolo\").replace(/'/g, \"''\") }}', \n  {{ $json.parole_target || $json.body.parole_target || 15000 }}, \n  'intervista'\n)\nRETURNING id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        512,
+        416
+      ],
+      "name": "DB: Create Project",
+      "id": "165351b2-b41e-4118-857a-2fd589c08856",
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check_titolo",
+              "leftValue": "={{ $json.body.titolo }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        272,
+        528
+      ],
+      "name": "Is New Project?1",
+      "id": "43094273-e995-4292-9a77-58d992c40c75",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body?.risposta || \"Ho appena creato il progetto per il mio nuovo libro intitolato '\" + ($node[\"Webhook\"].json.body.titolo || \"Senza Titolo\") + \"'. Presentati brevemente e fammi la prima domanda per iniziare l'intervista.\" }}",
+        "options": {
+          "systemMessage": "{{ \"Sei il Senior Editor di GhostWriter AI. Il tuo obiettivo è collaborare con l'autore per trasformare l'idea iniziale in una struttura solida per un libro di tipo: \" + ($json.body.tipo_modulo || \"Narrativa\") + \" con un obiettivo di \" + ($json.body.parole_target || 15000) + \" parole.\n\nID PROGETTO: \" + ($json.id || $json.body.id_libro) + \"\n\n### REGOLE DI COMPORTAMENTO:\n1. COLLABORAZIONE: Non scrivere il libro ora. Sei nella fase di INTERVISTA. Devi estrarre informazioni cruciali (trama, stile, pubblico, temi).\n2. MINIMALISMO: Fai una sola domanda alla volta per non saturare l'utente.\n3. CONTESTO: Usa la cronologia per non ripetere domande già fatte.\n4. TONO: Professionale, incoraggiante, analitico e colto.\n\n### FASI DELL'INTERVISTA:\n- Fase 1 (Concetto): Esplora l'idea centrale e il 'perché' del libro.\n- Fase 2 (Struttura): Definisci l'arco narrativo o i capitoli principali.\n- Fase 3 (Stile): Accorda il tono di voce (es: formale, cinico, poetico).\n\n### TRAGUARDO:\nQuando ritieni di avere abbastanza informazioni (solitamente dopo 5-6 messaggi), genera una sezione chiamata 'SINTESI DEL PROGETTO' con i punti chiave e chiedi: 'Sei soddisfatto di questa struttura? Scrivi CONFERMA per passare alla generazione della prima bozza'.\n\nNOTE TECNICHE:\n- Se l'utente scrive 'CONFERMA', rispondi confermando che il blueprint è stato salvato e che sei pronto a procedere.\" }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        752,
+        528
+      ],
+      "id": "2b8caa7d-9ad8-435a-a7af-638236ef6374",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.id_libro || $node[\"DB: Create Project\"].json.id }}",
+        "tableName": "conversation_history",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        800,
+        704
+      ],
+      "id": "1b7e374a-e091-40b9-abc6-e12a9f701798",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{\nJSON.stringify({\n  id_libro: $json.body?.id_libro || $json.id || ($node[\"DB: Create Project\"]?.isExecuted ? $node[\"DB: Create Project\"].json.id : null),\n  output: $json.output || \"Errore: output non ricevuto\",\n  status: \"success\"\n})\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1168,
+        640
+      ],
+      "id": "2b279de4-2603-4c0f-a2e1-0215a8bc16a3",
+      "name": "Respond to Webhook1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Is New Project?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DB: Create Project": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Project?1": {
+      "main": [
+        [
+          {
+            "node": "DB: Create Project",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2e86f967-2fbf-428c-b7dc-374b930a87b5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6e886da68f5367daa0e3870b7be67336a858c521a1f653709b4406ff2f5e1505"
+  },
+  "id": "QfAyvt8hvWaDDzar",
+  "tags": []
+}
