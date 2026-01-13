@@ -218,7 +218,17 @@ const App: React.FC = () => {
     setLoading(true);
     setIsSynced(false);
 
-    // Optimistic Update
+/*
+
+  ╱|、
+ (˚ˎ 。7  
+  |、˜〵          
+  じしˍ,)ノ
+
+*/
+
+
+    
     setMessages(prev => [...prev, { role: 'user', content: currentMsg }]);
 
     try {

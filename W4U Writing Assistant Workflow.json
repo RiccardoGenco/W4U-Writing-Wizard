@@ -4,19 +4,19 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "cc7b0f00-c6a3-4465-a7b9-49d52424c10f",
+        "path": "WEBHOOK_PATH_PLACEHOLDER",
         "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        512
+        -144,
+        656
       ],
-      "id": "e41bde67-c8af-4470-9f9c-f276440136ad",
+      "id": "WEBHOOK_NODE_ID",
       "name": "Webhook",
-      "webhookId": "cc7b0f00-c6a3-4465-a7b9-49d52424c10f"
+      "webhookId": "WEBHOOK_ID_PLACEHOLDER"
     },
     {
       "parameters": {
@@ -26,14 +26,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
       "position": [
-        608,
-        688
+        800,
+        288
       ],
-      "id": "2f015465-ac6c-456d-adf0-a2d64e392007",
+      "id": "OPENROUTER_MODEL_ID",
       "name": "OpenRouter Chat Model",
       "credentials": {
         "openRouterApi": {
-          "id": "lqU1y1K65uc6DxSO",
+          "id": "OPENROUTER_CRED_ID",
           "name": "OpenRouter account"
         }
       }
@@ -47,14 +47,14 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        512,
-        416
+        384,
+        448
       ],
       "name": "DB: Create Project",
-      "id": "165351b2-b41e-4118-857a-2fd589c08856",
+      "id": "POSTGRES_INSERT_ID",
       "credentials": {
         "postgres": {
-          "id": "0AsoTCNHEls3AaYu",
+          "id": "POSTGRES_CRED_ID",
           "name": "Postgres account"
         }
       }
@@ -86,29 +86,13 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        272,
-        528
+        16,
+        512
       ],
       "name": "Is New Project?1",
-      "id": "43094273-e995-4292-9a77-58d992c40c75",
-      "alwaysOutputData": false
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.body?.risposta || \"Ho appena creato il progetto per il mio nuovo libro intitolato '\" + ($node[\"Webhook\"].json.body.titolo || \"Senza Titolo\") + \"'. Presentati brevemente e fammi la prima domanda per iniziare l'intervista.\" }}",
-        "options": {
-          "systemMessage": "{{ \"Sei il Senior Editor di GhostWriter AI. Il tuo obiettivo è collaborare con l'autore per trasformare l'idea iniziale in una struttura solida per un libro di tipo: \" + ($json.body.tipo_modulo || \"Narrativa\") + \" con un obiettivo di \" + ($json.body.parole_target || 15000) + \" parole.\n\nID PROGETTO: \" + ($json.id || $json.body.id_libro) + \"\n\n### REGOLE DI COMPORTAMENTO:\n1. COLLABORAZIONE: Non scrivere il libro ora. Sei nella fase di INTERVISTA. Devi estrarre informazioni cruciali (trama, stile, pubblico, temi).\n2. MINIMALISMO: Fai una sola domanda alla volta per non saturare l'utente.\n3. CONTESTO: Usa la cronologia per non ripetere domande già fatte.\n4. TONO: Professionale, incoraggiante, analitico e colto.\n\n### FASI DELL'INTERVISTA:\n- Fase 1 (Concetto): Esplora l'idea centrale e il 'perché' del libro.\n- Fase 2 (Struttura): Definisci l'arco narrativo o i capitoli principali.\n- Fase 3 (Stile): Accorda il tono di voce (es: formale, cinico, poetico).\n\n### TRAGUARDO:\nQuando ritieni di avere abbastanza informazioni (solitamente dopo 5-6 messaggi), genera una sezione chiamata 'SINTESI DEL PROGETTO' con i punti chiave e chiedi: 'Sei soddisfatto di questa struttura? Scrivi CONFERMA per passare alla generazione della prima bozza'.\n\nNOTE TECNICHE:\n- Se l'utente scrive 'CONFERMA', rispondi confermando che il blueprint è stato salvato e che sei pronto a procedere.\" }}"
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2.2,
-      "position": [
-        752,
-        528
-      ],
-      "id": "2b8caa7d-9ad8-435a-a7af-638236ef6374",
-      "name": "AI Agent"
+      "id": "IF_NODE_ID",
+      "alwaysOutputData": false,
+      "disabled": true
     },
     {
       "parameters": {
@@ -120,14 +104,14 @@
       "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
       "typeVersion": 1.3,
       "position": [
-        800,
-        704
+        896,
+        288
       ],
-      "id": "1b7e374a-e091-40b9-abc6-e12a9f701798",
+      "id": "MEMORY_NODE_ID",
       "name": "Postgres Chat Memory",
       "credentials": {
         "postgres": {
-          "id": "0AsoTCNHEls3AaYu",
+          "id": "POSTGRES_CRED_ID",
           "name": "Postgres account"
         }
       }
@@ -141,11 +125,337 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1168,
-        640
+        1664,
+        608
       ],
-      "id": "2b279de4-2603-4c0f-a2e1-0215a8bc16a3",
+      "id": "RESPONSE_NODE_ID",
       "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "content": "dobbiamo inserire più agenti, ognuno delegato ad un compito, \n1. L'Agente \"Intervistatore\" \n\n2. L'Agente \"Architetto\" (Fase Outlining)\n\n3. L'Agente \"Scrittore\" (Fase Bulk Writing)\n\n4. L'Agente \"Editor/Impaginatore\"\nRuolo: Pulizia finale.\n",
+        "height": 256,
+        "width": 256
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        128,
+        208
+      ],
+      "id": "NOTE_NODE_ID",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Get State\"].json.stato }}",
+                    "rightValue": "=intervista",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b0f7fc18-02ff-42d5-8b57-37fe8bf01eec"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d455b453-4002-4a3f-8f82-ab046c2b6d71",
+                    "leftValue": "={{ $node[\"Get State\"].json.stato }}",
+                    "rightValue": "outlining",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "fa96ec9d-b78e-49c3-97c7-fc5f11a9ec26",
+                    "leftValue": "={{ $node[\"Get State\"].json.stato }}",
+                    "rightValue": "scrittura",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        384,
+        592
+      ],
+      "id": "SWITCH_NODE_ID",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT stato FROM progetti_libri WHERE id = '{{ $json.body.id_libro }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        176,
+        656
+      ],
+      "id": "POSTGRES_SELECT_ID",
+      "name": "Get State",
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CRED_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-r1-0528:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        816,
+        784
+      ],
+      "id": "OPENROUTER_MODEL_ID2",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPENROUTER_CRED_ID",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.id_libro || $node[\"DB: Create Project\"].json.id }}",
+        "tableName": "conversation_history",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        912,
+        784
+      ],
+      "id": "MEMORY_NODE_ID2",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CRED_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-r1-0528:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        816,
+        1088
+      ],
+      "id": "OPENROUTER_MODEL_ID3",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "OPENROUTER_CRED_ID",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.id_libro || $node[\"DB: Create Project\"].json.id }}",
+        "tableName": "conversation_history",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        912,
+        1088
+      ],
+      "id": "MEMORY_NODE_ID3",
+      "name": "Postgres Chat Memory2",
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CRED_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body?.risposta || \"Ho appena creato il progetto per il mio nuovo libro intitolato '\" + ($node[\"Webhook\"].json.body.titolo || \"Senza Titolo\") + \"'. Presentati brevemente e fammi la prima domanda per iniziare l'intervista.\" }}",
+        "options": {
+          "systemMessage": "{{ \"Sei il Senior Editor di GhostWriter AI. Il tuo obiettivo è collaborare con l'autore per trasformare l'idea iniziale in una struttura solida per un libro di tipo: \" + ($json.body.tipo_modulo || \"Narrativa\") + \" con un obiettivo di \" + ($json.body.parole_target || 15000) + \" parole.\n\nID PROGETTO: \" + ($json.id || $json.body.id_libro) + \"\n\n### REGOLE DI COMPORTAMENTO:\n1. COLLABORAZIONE: Non scrivere il libro ora. Sei nella fase di INTERVISTA. Devi estrarre informazioni cruciali (trama, stile, pubblico, temi).\n2. MINIMALISMO: Fai una sola domanda alla volta per non saturare l'utente.\n3. CONTESTO: Usa la cronologia per non ripetere domande già fatte.\n4. TONO: Professionale, incoraggiante, analitico e colto.\n\n### FASI DELL'INTERVISTA:\n- Fase 1 (Concetto): Esplora l'idea centrale e il 'perché' del libro.\n- Fase 2 (Struttura): Definisci l'arco narrativo o i capitoli principali.\n- Fase 3 (Stile): Accorda il tono di voce (es: formale, cinico, poetico).\n\n### TRAGUARDO:\nQuando ritieni di avere abbastanza informazioni (solitamente dopo 5-6 messaggi), genera una sezione chiamata 'SINTESI DEL PROGETTO' con i punti chiave e chiedi: 'Sei soddisfatto di questa struttura? Scrivi CONFERMA per passare alla generazione della prima bozza'.\n\nNOTE TECNICHE:\n- Se l'utente scrive 'CONFERMA', rispondi confermando che il blueprint è stato salvato e che sei pronto a procedere.\" }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        432
+      ],
+      "id": "AGENT_INTERVISTA_ID",
+      "name": "intervista"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ \"Analizza tutta la conversazione precedente e genera l'indice dei capitoli in formato JSON, come richiesto nelle istruzioni di sistema. Non rispondere all'utente, scrivi solo il codice JSON.\" }}",
+        "options": {
+          "systemMessage": "Sei un Editor Senior e un esperto Architetto Letterario. Il tuo compito è analizzare la cronologia della conversazione tra l'utente e l'assistente per estrarre tutti i dettagli chiave del libro.\n\nOBIETTIVO: Generare un indice strutturato e dettagliato. REGOLE:\n\nRestituisci un elenco di 10 capitoli.\n\nPer ogni capitolo, fornisci un Titolo accattivante e un Riassunto Operativo di almeno 3-4 frasi che spieghi cosa deve essere scritto in quel capitolo.\n\nMantieni lo stile e il tono concordati durante l'intervista.\n\nNon salutare e non aggiungere commenti, restituisci solo l'indice.\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        816,
+        608
+      ],
+      "id": "AGENT_OUTLINING_ID",
+      "name": "outlining"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body?.risposta || \"Ho appena creato il progetto per il mio nuovo libro intitolato '\" + ($node[\"Webhook\"].json.body.titolo || \"Senza Titolo\") + \"'. Presentati brevemente e fammi la prima domanda per iniziare l'intervista.\" }}",
+        "options": {
+          "systemMessage": "{{ \"Sei il Senior Editor di GhostWriter AI. Il tuo obiettivo è collaborare con l'autore per trasformare l'idea iniziale in una struttura solida per un libro di tipo: \" + ($json.body.tipo_modulo || \"Narrativa\") + \" con un obiettivo di \" + ($json.body.parole_target || 15000) + \" parole.\n\nID PROGETTO: \" + ($json.id || $json.body.id_libro) + \"\n\n### REGOLE DI COMPORTAMENTO:\n1. COLLABORAZIONE: Non scrivere il libro ora. Sei nella fase di INTERVISTA. Devi estrarre informazioni cruciali (trama, stile, pubblico, temi).\n2. MINIMALISMO: Fai una sola domanda alla volta per non saturare l'utente.\n3. CONTESTO: Usa la cronologia per non ripetere domande già fatte.\n4. TONO: Professionale, incoraggiante, analitico e colto.\n\n### FASI DELL'INTERVISTA:\n- Fase 1 (Concetto): Esplora l'idea centrale e il 'perché' del libro.\n- Fase 2 (Struttura): Definisci l'arco narrativo o i capitoli principali.\n- Fase 3 (Stile): Accorda il tono di voce (es: formale, cinico, poetico).\n\n### TRAGUARDO:\nQuando ritieni di avere abbastanza informazioni (solitamente dopo 5-6 messaggi), genera una sezione chiamata 'SINTESI DEL PROGETTO' con i punti chiave e chiedi: 'Sei soddisfatto di questa struttura? Scrivi CONFERMA per passare alla generazione della prima bozza'.\n\nNOTE TECNICHE:\n- Se l'utente scrive 'CONFERMA', rispondi confermando che il blueprint è stato salvato e che sei pronto a procedere.\" }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        816,
+        928
+      ],
+      "id": "AGENT_SCRITTURA_ID",
+      "name": "scrittura"
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "// Estrae il JSON pulito dal messaggio dell'IA\nconst rawContent = $json.output;\nconst jsonMatch = rawContent.match(/\\[[\\s\\S]*\\]/); // Cerca le parentesi quadre dell'array\n\nif (jsonMatch) {\n  return JSON.parse(jsonMatch[0]); // Restituisce i capitoli come singoli item di n8n\n} else {\n  throw new Error(\"L'IA non ha generato un formato JSON valido\");\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        608
+      ],
+      "id": "CODE_NODE_ID",
+      "name": "puliziaJson"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO capitoli (\n    progetto_id, \n    ordine, \n    titolo, \n    riassunto, \n    stato_scrittura\n) \nVALUES (\n    '{{ $node[\"Webhook\"].json.body.id_libro }}', \n    {{ $json.ordine }}, \n    '{{ $json.titolo.replace(/'/g, \"''\") }}', \n    '{{ $json.riassunto.replace(/'/g, \"''\") }}', \n    'da_scrivere'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1232,
+        608
+      ],
+      "id": "POSTGRES_INSERT_CAPITOLI_ID",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CRED_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 0.7
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1360,
+        608
+      ],
+      "id": "WAIT_NODE_ID",
+      "name": "Wait",
+      "webhookId": "WAIT_WEBHOOK_ID"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE progetti_libri \nSET stato = 'scrittura' \nWHERE id = '{{ $node[\"Webhook\"].json.body.id_libro }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1504,
+        608
+      ],
+      "id": "POSTGRES_UPDATE_ID",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "POSTGRES_CRED_ID",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -165,7 +475,7 @@
       "ai_languageModel": [
         [
           {
-            "node": "AI Agent",
+            "node": "intervista",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -176,7 +486,7 @@
       "main": [
         [
           {
-            "node": "AI Agent",
+            "node": "intervista",
             "type": "main",
             "index": 0
           }
@@ -187,14 +497,14 @@
       "main": [
         [
           {
-            "node": "DB: Create Project",
+            "node": "Get State",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "AI Agent",
+            "node": "DB: Create Project",
             "type": "main",
             "index": 0
           }
@@ -205,14 +515,165 @@
       "ai_memory": [
         [
           {
-            "node": "AI Agent",
+            "node": "intervista",
             "type": "ai_memory",
             "index": 0
           }
         ]
       ]
     },
-    "AI Agent": {
+    "Get State": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "intervista",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "outlining",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "scrittura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "outlining",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "outlining",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "scrittura",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory2": {
+      "ai_memory": [
+        [
+          {
+            "node": "scrittura",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "intervista": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "outlining": {
+      "main": [
+        [
+          {
+            "node": "puliziaJson",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "scrittura": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "puliziaJson": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook1": {
+      "main": [
+        []
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query1": {
       "main": [
         [
           {
@@ -228,11 +689,11 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "2e86f967-2fbf-428c-b7dc-374b930a87b5",
+  "versionId": "VERSION_ID_PLACEHOLDER",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "6e886da68f5367daa0e3870b7be67336a858c521a1f653709b4406ff2f5e1505"
+    "instanceId": "INSTANCE_ID_PLACEHOLDER"
   },
-  "id": "QfAyvt8hvWaDDzar",
+  "id": "WORKFLOW_ID_PLACEHOLDER",
   "tags": []
 }

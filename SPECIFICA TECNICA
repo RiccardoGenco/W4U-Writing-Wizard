@@ -1,0 +1,79 @@
+SPECIFICA TECNICA: STACK TECNOLOGICA "W4U WRITING ASSISTANT"
+Documento di Rendicontazione e Pianificazione Infrastrutturale
+
+1. CORE ORCHESTRATION (Logica di Business)
+L'architettura si basa su un motore a stati che gestisce il flusso di lavoro.
+
+Tecnologia Attuale (Testing):
+
+n8n Cloud/Desktop: Utilizzato per la prototipazione rapida dei workflow.
+
+Workflow Monolitico: Un unico schema che gestisce Intervista, Outlining e Scrittura.
+
+Tecnologia Prevista (Production Ready):
+
+n8n Self-Hosted (Docker su VPS): Per garantire la sovranità dei dati e abbattere i costi di esecuzione.
+
+Micro-Workflow: Separazione dei rami in sotto-workflow richiamati tramite API interne per migliorare la manutenzione.
+
+Error Handling Avanzato: Workflow paralleli dedicati esclusivamente alla gestione dei fallimenti (Retry logic).
+
+2. DATA & PERSISTENCE LAYER (Gestione Dati)
+Il sistema richiede una coerenza assoluta tra lo stato della conversazione e i capitoli generati.
+
+Tecnologia Attuale (Testing):
+
+Supabase (Free Tier): Database PostgreSQL condiviso.
+
+Postgres Chat Memory: Per la gestione della cronologia dei messaggi.
+
+Tecnologia Prevista (Production Ready):
+
+Supabase Pro/Enterprise: Con istanze dedicate e connessioni ottimizzate (PgBouncer).
+
+Vector Database (pgvector): Per implementare la ricerca semantica sui file caricati dall'utente (RAG - Retrieval Augmented Generation).
+
+Redis: Per la gestione della cache e per velocizzare il recupero delle sessioni utente.
+
+3. ARTIFICIAL INTELLIGENCE (LLM Layer)
+Il "motore" che genera i contenuti letterari.
+
+Tecnologia Attuale (Testing):
+
+OpenRouter (DeepSeek-V3/R1): Utilizzato per l'ottimo rapporto qualità/prezzo in fase di test.
+
+Tecnologia Prevista (Production Ready):
+
+Model Routing Dinamico: Utilizzo di modelli diversi per task diversi (es. Claude 3.5 Sonnet per la prosa creativa, GPT-4o per la logica dell'indice).
+
+Prompt Caching: Per ridurre i costi operativi dei token ricorrenti.
+
+Agenti IA Specializzati: Implementazione di un sistema di "Revisione" dove un secondo agente IA controlla e corregge il lavoro del primo.
+
+4. FRONTEND & INTERFACE (Esperienza Utente)
+L'interfaccia attraverso la quale l'utente interagisce con il sistema.
+
+Tecnologia Attuale (Testing):
+
+Webhook & JSON: Comunicazione diretta tra frontend di test (Bubble/HTML) e n8n.
+
+Tecnologia Prevista (Production Ready):
+
+Next.js (React): Framework principale per un'applicazione web veloce e SEO friendly.
+
+WebSockets / SSE: Per permettere lo "streaming" del testo dell'IA in tempo reale mentre viene scritto.
+
+Tailwind CSS: Per un'interfaccia utente professionale, responsiva e scalabile.
+
+5. INFRASTRUTTURA E SICUREZZA
+Tecnologia Attuale (Testing):
+
+Accesso Libero: Webhook pubblici senza autenticazione forte.
+
+Tecnologia Prevista (Production Ready):
+
+Supabase Auth: Gestione completa degli accessi (Email, Google, MFA).
+
+Cloudflare: Protezione contro attacchi DDoS e gestione dei certificati SSL.
+
+Monitoring: Integrazione con Sentry (errori codice) e LogSnag (eventi utente).
