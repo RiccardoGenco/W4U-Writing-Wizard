@@ -11,8 +11,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -144,
-        656
+        -400,
+        672
       ],
       "id": "e41bde67-c8af-4470-9f9c-f276440136ad",
       "name": "Webhook",
@@ -40,72 +40,16 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO progetti_libri (titolo, parole_target, stato) \nVALUES (\n  '{{ ($node[\"Webhook\"].json.body.titolo || \"Senza Titolo\").replace(/'/g, \"''\") }}', \n  {{ $node[\"Webhook\"].json.body.parole_target || 15000 }}, \n  'intervista'\n)\nRETURNING id, titolo, stato;",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        368,
-        704
-      ],
-      "name": "DB: Create Project",
-      "id": "165351b2-b41e-4118-857a-2fd589c08856",
-      "credentials": {
-        "postgres": {
-          "id": "0AsoTCNHEls3AaYu",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "check_titolo",
-              "leftValue": "={{ $json.body.id_libro }}",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        32,
-        656
-      ],
-      "name": "Is New Project?1",
-      "id": "43094273-e995-4292-9a77-58d992c40c75",
-      "alwaysOutputData": false,
-      "disabled": true
-    },
-    {
-      "parameters": {
-        "sessionIdType": "={{ $json.body.id_libro }}",
-        "sessionKey": "",
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.id }}",
         "tableName": "conversation_history",
         "contextWindowLength": 10
       },
       "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
       "typeVersion": 1.3,
       "position": [
-        896,
-        288
+        928,
+        272
       ],
       "id": "1b7e374a-e091-40b9-abc6-e12a9f701798",
       "name": "Postgres Chat Memory",
@@ -119,14 +63,14 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\nJSON.stringify({\n  id_libro: $json.body?.id_libro || $json.id || ($node[\"DB: Create Project\"]?.isExecuted ? $node[\"DB: Create Project\"].json.id : null),\n  output: $json.output || \"Errore: output non ricevuto\",\n  status: \"success\"\n})\n}}",
+        "responseBody": "={{\nJSON.stringify({\n  id_libro: $('Webhook').item.json.body.id,\n  output: $json.output || \"Errore: output non ricevuto\",\n  status: \"success\"\n})\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1616,
-        928
+        1664,
+        832
       ],
       "id": "2b279de4-2603-4c0f-a2e1-0215a8bc16a3",
       "name": "Respond to Webhook1"
@@ -160,7 +104,7 @@
                 },
                 "conditions": [
                   {
-                    "leftValue": "={{ $node[\"Get State\"].json.stato }}",
+                    "leftValue": "={{ $node[\"Upsert_Database\"].json.stato }}",
                     "rightValue": "=intervista",
                     "operator": {
                       "type": "string",
@@ -183,7 +127,7 @@
                 "conditions": [
                   {
                     "id": "d455b453-4002-4a3f-8f82-ab046c2b6d71",
-                    "leftValue": "={{ $node[\"Get State\"].json.stato }}",
+                    "leftValue": "={{ $node[\"Upsert_Database\"].json.stato }}",
                     "rightValue": "outlining",
                     "operator": {
                       "type": "string",
@@ -206,12 +150,35 @@
                 "conditions": [
                   {
                     "id": "fa96ec9d-b78e-49c3-97c7-fc5f11a9ec26",
-                    "leftValue": "={{ $node[\"Get State\"].json.stato }}",
+                    "leftValue": "={{ $node[\"Upsert_Database\"].json.stato }}",
                     "rightValue": "scrittura",
                     "operator": {
                       "type": "string",
                       "operation": "equals",
                       "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0a1bfed3-3b12-4b79-b5ed-a176a32bfbbd",
+                    "leftValue": "{{ $json.stato }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "empty",
+                      "singleValue": true
                     }
                   }
                 ],
@@ -225,32 +192,12 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.3,
       "position": [
-        416,
-        464
+        320,
+        640
       ],
       "id": "818f54aa-3f63-485a-928c-e4e84a0c6912",
-      "name": "Switch"
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT stato FROM progetti_libri WHERE id = '{{ $json.body.id_libro }}';",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        240,
-        512
-      ],
-      "id": "c9759348-14d0-4f55-b84b-2f67827d9b2c",
-      "name": "Get State",
-      "credentials": {
-        "postgres": {
-          "id": "0AsoTCNHEls3AaYu",
-          "name": "Postgres account"
-        }
-      }
+      "name": "Switch",
+      "alwaysOutputData": false
     },
     {
       "parameters": {
@@ -275,7 +222,7 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $node[\"Webhook\"].json.body?.id_libro || $node[\"DB: Create Project\"]?.json?.id || \"sessione-di-emergenza\" }}",
+        "sessionKey": "={{ $node[\"Webhook\"].json.body.id.toString() }}",
         "tableName": "conversation_history",
         "contextWindowLength": 10
       },
@@ -317,7 +264,7 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $node[\"Webhook\"].json.body?.id_libro || $node[\"DB: Create Project\"]?.json?.id || \"sessione-di-emergenza\" }}",
+        "sessionKey": "={{ $node[\"Webhook\"].json.body.id.toString() }}",
         "tableName": "conversation_history",
         "contextWindowLength": 10
       },
@@ -339,7 +286,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $json.body?.risposta || \"Ho appena creato il progetto per il mio nuovo libro intitolato '\" + ($node[\"Webhook\"].json.body.titolo || \"Senza Titolo\") + \"'. Presentati brevemente e fammi la prima domanda per iniziare l'intervista.\" }}",
+        "text": "={{ $node[\"Webhook\"].json.body?.risposta || \"Ho appena creato il progetto per il mio nuovo libro intitolato '\" + ($node[\"Upsert_Database\"].json.titolo || \"Senza Titolo\") + \"'. Presentati brevemente e fammi la prima domanda per iniziare l'intervista.\" }}",
         "options": {
           "systemMessage": "{{ \"Sei il Senior Editor di GhostWriter AI. Il tuo obiettivo è collaborare con l'autore per trasformare l'idea iniziale in una struttura solida per un libro di tipo: \" + ($json.body.tipo_modulo || \"Narrativa\") + \" con un obiettivo di \" + ($json.body.parole_target || 15000) + \" parole.\n\nID PROGETTO: \" + ($json.id || $json.body.id_libro) + \"\n\n### REGOLE DI COMPORTAMENTO:\n1. COLLABORAZIONE: Non scrivere il libro ora. Sei nella fase di INTERVISTA. Devi estrarre informazioni cruciali (trama, stile, pubblico, temi).\n2. MINIMALISMO: Fai una sola domanda alla volta per non saturare l'utente.\n3. CONTESTO: Usa la cronologia per non ripetere domande già fatte.\n4. TONO: Professionale, incoraggiante, analitico e colto.\n\n### FASI DELL'INTERVISTA:\n- Fase 1 (Concetto): Esplora l'idea centrale e il 'perché' del libro.\n- Fase 2 (Struttura): Definisci l'arco narrativo o i capitoli principali.\n- Fase 3 (Stile): Accorda il tono di voce (es: formale, cinico, poetico).\n\n### TRAGUARDO:\nQuando ritieni di avere abbastanza informazioni (solitamente dopo 5-6 messaggi), genera una sezione chiamata 'SINTESI DEL PROGETTO' con i punti chiave e chiedi: 'Sei soddisfatto di questa struttura? Scrivi CONFERMA per passare alla generazione della prima bozza'.\n\nNOTE TECNICHE:\n- Se l'utente scrive 'CONFERMA', rispondi confermando che il blueprint è stato salvato e che sei pronto a procedere.\" }}"
         }
@@ -348,7 +295,7 @@
       "typeVersion": 2.2,
       "position": [
         800,
-        432
+        400
       ],
       "id": "2b8caa7d-9ad8-435a-a7af-638236ef6374",
       "name": "intervista"
@@ -456,6 +403,85 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO progetti_libri (id, titolo, parole_target, stato, tipo_modulo)\nVALUES (\n  '{{ $('Webhook').item.json.body.id }}'::uuid, \n  '{{ $('Webhook').item.json.body.titolo }}', \n  {{ $('Webhook').item.json.body.parole_target }}, \n  '{{ $('Decisione Stato').item.json.nuovo_stato }}',\n  '{{ $('Webhook').item.json.body.tipo_modulo }}'\n)\nON CONFLICT (id) \nDO UPDATE SET \n  titolo = EXCLUDED.titolo,\n  -- Qui sta la magia: aggiorniamo lo stato solo con quello calcolato dal nostro contatore\n  stato = EXCLUDED.stato,\n  tipo_modulo = EXCLUDED.tipo_modulo\nRETURNING id, stato, titolo;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        144,
+        672
+      ],
+      "id": "c9759348-14d0-4f55-b84b-2f67827d9b2c",
+      "name": "Upsert_Database",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Creare un nodo Custom Tool che l'agente può richiamare quando si sente pronto.\nper cambiare lo state in quello successivo\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        400
+      ],
+      "id": "e1263bfe-3ceb-42ac-86c4-b05de45bab2d",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as totale \nFROM conversation_history \nWHERE session_id = '{{ $('Webhook').item.json.body.id }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -208,
+        672
+      ],
+      "id": "cf89ba3e-18b3-41ff-840f-c7a8c61a360b",
+      "name": "Controllo Conteggio",
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6d35e493-e646-4391-8936-132550c3892e",
+              "name": "nuovo_stato",
+              "value": "={{ $json.totale >= 4 ? 'outlining' : 'intervista' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -32,
+        672
+      ],
+      "id": "afbdd372-b43f-406d-be77-25342347eafc",
+      "name": "Edit Fields"
     }
   ],
   "pinData": {},
@@ -464,7 +490,7 @@
       "main": [
         [
           {
-            "node": "Is New Project?1",
+            "node": "Controllo Conteggio",
             "type": "main",
             "index": 0
           }
@@ -482,35 +508,6 @@
         ]
       ]
     },
-    "DB: Create Project": {
-      "main": [
-        [
-          {
-            "node": "intervista",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Is New Project?1": {
-      "main": [
-        [
-          {
-            "node": "DB: Create Project",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Get State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Postgres Chat Memory": {
       "ai_memory": [
         [
@@ -522,20 +519,15 @@
         ]
       ]
     },
-    "Get State": {
+    "Switch": {
       "main": [
         [
           {
-            "node": "Switch",
+            "node": "intervista",
             "type": "main",
             "index": 0
           }
-        ]
-      ]
-    },
-    "Switch": {
-      "main": [
-        [],
+        ],
         [
           {
             "node": "outlining",
@@ -546,6 +538,13 @@
         [
           {
             "node": "scrittura",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "intervista",
             "type": "main",
             "index": 0
           }
@@ -677,13 +676,46 @@
           }
         ]
       ]
+    },
+    "Upsert_Database": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Controllo Conteggio": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Upsert_Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "601daed3-8a85-47f6-8a62-6d22e928750b",
+  "versionId": "35bbc9ff-8431-49c9-b97f-2d7329d336a1",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "6e886da68f5367daa0e3870b7be67336a858c521a1f653709b4406ff2f5e1505"

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Send, Book, Plus, Loader2, MessageSquare, AlertCircle,
-  RefreshCw, ChevronRight, Layout, Settings, History,
+  Send, Book, Plus, Loader2, AlertCircle,
+  Layout, Settings, History,
   BarChart3, CheckCircle2, Cloud
 } from 'lucide-react';
 import { marked } from 'marked';
@@ -133,7 +133,7 @@ const App: React.FC = () => {
 
   const fetchProjects = async () => {
     if (!supabase) return;
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('progetti_libri')
       .select('*')
       .order('created_at', { ascending: false });
@@ -188,32 +188,32 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
 
+    const nuovoId = crypto.randomUUID();
+
     try {
+      const payload = {
+        id: nuovoId,
+        titolo: formData.titolo || "Senza Titolo",
+        parole_target: Number(formData.parole_target) || 15000,
+        stato: "intervista",
+        tipo_modulo: formData.tipo_modulo || "narrativa",
+        risposta: ""
+      };
+
+      // SALVATAGGIO FONDAMENTALE (Sincronizzato con il resto dell'app)
+      localStorage.setItem('active_book_id', nuovoId);
+
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Inviamo i dati del form. n8n capirà che è nuovo perché manca id_libro
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) throw new Error(`Status: ${response.status}`);
 
-      const data = await response.json();
-
-      // PRENDIAMO L'ID: cerchiamo in tutte le possibili chiavi che n8n potrebbe restituire
-      const bookId = data.id || (data.body && data.body.id); // Cerchiamo solo 'id'
-
-      if (!bookId) {
-        console.error("Risposta n8n senza ID:", data);
-        throw new Error("ID del libro non ricevuto dal server");
-      }
-
-      // SALVATAGGIO FONDAMENTALE:
-      localStorage.setItem('active_book_id', bookId);
-
       // Sincronizziamo la lista progetti e carichiamo il nuovo libro
       await fetchProjects();
-      await loadBook(bookId);
+      await loadBook(nuovoId);
 
     } catch (err: any) {
       console.error("Errore creazione:", err);
@@ -232,12 +232,12 @@ const App: React.FC = () => {
     setIsSynced(false);
 
     /*
-    
+
       ╱|、
-     (˚ˎ 。7  
-      |、˜〵          
+     (˚ˎ 。7
+      |、˜〵
       じしˍ,)ノ
-    
+
     */
 
 
@@ -245,14 +245,19 @@ const App: React.FC = () => {
     setMessages(prev => [...prev, { role: 'user', content: currentMsg }]);
 
     try {
+      const payload = {
+        id: currentBook.id,
+        titolo: currentBook.titolo || "",
+        parole_target: Number(currentBook.parole_target) || 0,
+        stato: currentBook.stato || "intervista",
+        tipo_modulo: currentBook.tipo_modulo || "narrativa",
+        risposta: currentMsg
+      };
+
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: currentBook.id, // <--- Modificato da id_libro a id
-          risposta: currentMsg,     // Il messaggio dell'utente
-          titolo: currentBook.titolo // Opzionale, ma utile per n8n
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) throw new Error("Errore nella risposta di n8n");
