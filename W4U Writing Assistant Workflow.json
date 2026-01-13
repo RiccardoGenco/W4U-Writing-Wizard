@@ -4,7 +4,7 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "WEBHOOK_PATH_PLACEHOLDER",
+        "path": "cc7b0f00-c6a3-4465-a7b9-49d52424c10f",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -14,9 +14,9 @@
         -144,
         656
       ],
-      "id": "WEBHOOK_NODE_ID",
+      "id": "e41bde67-c8af-4470-9f9c-f276440136ad",
       "name": "Webhook",
-      "webhookId": "WEBHOOK_ID_PLACEHOLDER"
+      "webhookId": "cc7b0f00-c6a3-4465-a7b9-49d52424c10f"
     },
     {
       "parameters": {
@@ -27,13 +27,13 @@
       "typeVersion": 1,
       "position": [
         800,
-        288
+        272
       ],
-      "id": "OPENROUTER_MODEL_ID",
+      "id": "2f015465-ac6c-456d-adf0-a2d64e392007",
       "name": "OpenRouter Chat Model",
       "credentials": {
         "openRouterApi": {
-          "id": "OPENROUTER_CRED_ID",
+          "id": "lqU1y1K65uc6DxSO",
           "name": "OpenRouter account"
         }
       }
@@ -41,20 +41,20 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO progetti_libri (titolo, parole_target, stato) \nVALUES (\n  '{{ ($json.titolo || $json.body.titolo || \"Senza Titolo\").replace(/'/g, \"''\") }}', \n  {{ $json.parole_target || $json.body.parole_target || 15000 }}, \n  'intervista'\n)\nRETURNING id;",
+        "query": "INSERT INTO progetti_libri (titolo, parole_target, stato) \nVALUES (\n  '{{ ($node[\"Webhook\"].json.body.titolo || \"Senza Titolo\").replace(/'/g, \"''\") }}', \n  {{ $node[\"Webhook\"].json.body.parole_target || 15000 }}, \n  'intervista'\n)\nRETURNING id, titolo, stato;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        384,
-        448
+        368,
+        704
       ],
       "name": "DB: Create Project",
-      "id": "POSTGRES_INSERT_ID",
+      "id": "165351b2-b41e-4118-857a-2fd589c08856",
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CRED_ID",
+          "id": "0AsoTCNHEls3AaYu",
           "name": "Postgres account"
         }
       }
@@ -71,7 +71,7 @@
           "conditions": [
             {
               "id": "check_titolo",
-              "leftValue": "={{ $json.body.titolo }}",
+              "leftValue": "={{ $json.body.id_libro }}",
               "operator": {
                 "type": "string",
                 "operation": "notEmpty",
@@ -86,18 +86,18 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        16,
-        512
+        32,
+        656
       ],
       "name": "Is New Project?1",
-      "id": "IF_NODE_ID",
+      "id": "43094273-e995-4292-9a77-58d992c40c75",
       "alwaysOutputData": false,
       "disabled": true
     },
     {
       "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "={{ $json.body.id_libro || $node[\"DB: Create Project\"].json.id }}",
+        "sessionIdType": "={{ $json.body.id_libro }}",
+        "sessionKey": "",
         "tableName": "conversation_history",
         "contextWindowLength": 10
       },
@@ -107,11 +107,11 @@
         896,
         288
       ],
-      "id": "MEMORY_NODE_ID",
+      "id": "1b7e374a-e091-40b9-abc6-e12a9f701798",
       "name": "Postgres Chat Memory",
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CRED_ID",
+          "id": "0AsoTCNHEls3AaYu",
           "name": "Postgres account"
         }
       }
@@ -125,10 +125,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        1664,
-        608
+        1616,
+        928
       ],
-      "id": "RESPONSE_NODE_ID",
+      "id": "2b279de4-2603-4c0f-a2e1-0215a8bc16a3",
       "name": "Respond to Webhook1"
     },
     {
@@ -143,7 +143,7 @@
         128,
         208
       ],
-      "id": "NOTE_NODE_ID",
+      "id": "65f3e27b-5ac0-4c4f-8ac5-fad356092d17",
       "name": "Sticky Note"
     },
     {
@@ -225,10 +225,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.3,
       "position": [
-        384,
-        592
+        416,
+        464
       ],
-      "id": "SWITCH_NODE_ID",
+      "id": "818f54aa-3f63-485a-928c-e4e84a0c6912",
       "name": "Switch"
     },
     {
@@ -240,14 +240,14 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        176,
-        656
+        240,
+        512
       ],
-      "id": "POSTGRES_SELECT_ID",
+      "id": "c9759348-14d0-4f55-b84b-2f67827d9b2c",
       "name": "Get State",
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CRED_ID",
+          "id": "0AsoTCNHEls3AaYu",
           "name": "Postgres account"
         }
       }
@@ -263,11 +263,11 @@
         816,
         784
       ],
-      "id": "OPENROUTER_MODEL_ID2",
+      "id": "c0ae2908-a35c-46c1-8d2b-344214516f18",
       "name": "OpenRouter Chat Model1",
       "credentials": {
         "openRouterApi": {
-          "id": "OPENROUTER_CRED_ID",
+          "id": "lqU1y1K65uc6DxSO",
           "name": "OpenRouter account"
         }
       }
@@ -275,7 +275,7 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $json.body.id_libro || $node[\"DB: Create Project\"].json.id }}",
+        "sessionKey": "={{ $node[\"Webhook\"].json.body?.id_libro || $node[\"DB: Create Project\"]?.json?.id || \"sessione-di-emergenza\" }}",
         "tableName": "conversation_history",
         "contextWindowLength": 10
       },
@@ -283,13 +283,13 @@
       "typeVersion": 1.3,
       "position": [
         912,
-        784
+        800
       ],
-      "id": "MEMORY_NODE_ID2",
+      "id": "c44dbb89-f40c-45a9-8837-9c1381f072fb",
       "name": "Postgres Chat Memory1",
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CRED_ID",
+          "id": "0AsoTCNHEls3AaYu",
           "name": "Postgres account"
         }
       }
@@ -305,11 +305,11 @@
         816,
         1088
       ],
-      "id": "OPENROUTER_MODEL_ID3",
+      "id": "fdd5153d-b7a4-4d76-8712-7cd827321c01",
       "name": "OpenRouter Chat Model2",
       "credentials": {
         "openRouterApi": {
-          "id": "OPENROUTER_CRED_ID",
+          "id": "lqU1y1K65uc6DxSO",
           "name": "OpenRouter account"
         }
       }
@@ -317,7 +317,7 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "={{ $json.body.id_libro || $node[\"DB: Create Project\"].json.id }}",
+        "sessionKey": "={{ $node[\"Webhook\"].json.body?.id_libro || $node[\"DB: Create Project\"]?.json?.id || \"sessione-di-emergenza\" }}",
         "tableName": "conversation_history",
         "contextWindowLength": 10
       },
@@ -325,13 +325,13 @@
       "typeVersion": 1.3,
       "position": [
         912,
-        1088
+        1104
       ],
-      "id": "MEMORY_NODE_ID3",
+      "id": "62c16c99-e5d0-459c-9394-435c3584ff2f",
       "name": "Postgres Chat Memory2",
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CRED_ID",
+          "id": "0AsoTCNHEls3AaYu",
           "name": "Postgres account"
         }
       }
@@ -350,7 +350,7 @@
         800,
         432
       ],
-      "id": "AGENT_INTERVISTA_ID",
+      "id": "2b8caa7d-9ad8-435a-a7af-638236ef6374",
       "name": "intervista"
     },
     {
@@ -367,7 +367,7 @@
         816,
         608
       ],
-      "id": "AGENT_OUTLINING_ID",
+      "id": "96e0a062-3768-4f58-9261-d415114b50f8",
       "name": "outlining"
     },
     {
@@ -384,7 +384,7 @@
         816,
         928
       ],
-      "id": "AGENT_SCRITTURA_ID",
+      "id": "345cefda-5968-48c3-892b-a08840d2f897",
       "name": "scrittura"
     },
     {
@@ -398,7 +398,7 @@
         1088,
         608
       ],
-      "id": "CODE_NODE_ID",
+      "id": "c8fd4bd5-01a3-498e-9096-c34d0f1fc3ae",
       "name": "puliziaJson"
     },
     {
@@ -413,11 +413,11 @@
         1232,
         608
       ],
-      "id": "POSTGRES_INSERT_CAPITOLI_ID",
+      "id": "2d59598e-480b-4a7c-9b80-7e3f2e576e3c",
       "name": "Execute a SQL query",
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CRED_ID",
+          "id": "0AsoTCNHEls3AaYu",
           "name": "Postgres account"
         }
       }
@@ -432,9 +432,9 @@
         1360,
         608
       ],
-      "id": "WAIT_NODE_ID",
+      "id": "3017f430-e1b9-46c5-84a8-fdd8ab7fb46f",
       "name": "Wait",
-      "webhookId": "WAIT_WEBHOOK_ID"
+      "webhookId": "0d18b61a-6278-492f-b02c-76d01b6b9efb"
     },
     {
       "parameters": {
@@ -448,11 +448,11 @@
         1504,
         608
       ],
-      "id": "POSTGRES_UPDATE_ID",
+      "id": "1515e33f-7d54-4b3e-bd0c-a2f0bdd2f54e",
       "name": "Execute a SQL query1",
       "credentials": {
         "postgres": {
-          "id": "POSTGRES_CRED_ID",
+          "id": "0AsoTCNHEls3AaYu",
           "name": "Postgres account"
         }
       }
@@ -497,14 +497,14 @@
       "main": [
         [
           {
-            "node": "Get State",
+            "node": "DB: Create Project",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "DB: Create Project",
+            "node": "Get State",
             "type": "main",
             "index": 0
           }
@@ -535,13 +535,7 @@
     },
     "Switch": {
       "main": [
-        [
-          {
-            "node": "intervista",
-            "type": "main",
-            "index": 0
-          }
-        ],
+        [],
         [
           {
             "node": "outlining",
@@ -689,11 +683,11 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "VERSION_ID_PLACEHOLDER",
+  "versionId": "601daed3-8a85-47f6-8a62-6d22e928750b",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "INSTANCE_ID_PLACEHOLDER"
+    "instanceId": "6e886da68f5367daa0e3870b7be67336a858c521a1f653709b4406ff2f5e1505"
   },
-  "id": "WORKFLOW_ID_PLACEHOLDER",
+  "id": "QfAyvt8hvWaDDzar",
   "tags": []
 }

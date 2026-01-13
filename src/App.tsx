@@ -60,12 +60,14 @@ const App: React.FC = () => {
 
   // 1. Initial Load & Sidebar Projects
   useEffect(() => {
+    console.log("%c ฅ^•ﻌ•^ฅ GhostWriter Initialized!", "color: #6366f1; font-weight: bold; font-size: 14px;");
     fetchProjects();
 
-    // Recovery from last session
     const savedId = localStorage.getItem('active_book_id');
-    if (savedId && savedId !== 'null') {
+    // Se l'ID è valido, carichiamo il libro e cambiamo vista su 'chat'
+    if (savedId && savedId !== 'null' && savedId !== 'undefined') {
       loadBook(savedId);
+      setView('chat'); // Forza la vista chat se c'è un libro attivo
     }
   }, []);
 
@@ -190,21 +192,32 @@ const App: React.FC = () => {
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Inviamo i dati del form. n8n capirà che è nuovo perché manca id_libro
         body: JSON.stringify(formData)
       });
 
       if (!response.ok) throw new Error(`Status: ${response.status}`);
 
       const data = await response.json();
-      const bookId = data.id || data.id_libro;
 
-      if (!bookId) throw new Error("ID non ricevuto");
+      // PRENDIAMO L'ID: cerchiamo in tutte le possibili chiavi che n8n potrebbe restituire
+      const bookId = data.id || (data.body && data.body.id); // Cerchiamo solo 'id'
 
-      // Reload all to sync
+      if (!bookId) {
+        console.error("Risposta n8n senza ID:", data);
+        throw new Error("ID del libro non ricevuto dal server");
+      }
+
+      // SALVATAGGIO FONDAMENTALE:
+      localStorage.setItem('active_book_id', bookId);
+
+      // Sincronizziamo la lista progetti e carichiamo il nuovo libro
       await fetchProjects();
       await loadBook(bookId);
-    } catch (err) {
-      setError("Impossibile connettersi a n8n. Controlla il webhook.");
+
+    } catch (err: any) {
+      console.error("Errore creazione:", err);
+      setError(err.message || "Impossibile creare il progetto.");
     } finally {
       setLoading(false);
     }
@@ -218,17 +231,17 @@ const App: React.FC = () => {
     setLoading(true);
     setIsSynced(false);
 
-/*
-
-  ╱|、
- (˚ˎ 。7  
-  |、˜〵          
-  じしˍ,)ノ
-
-*/
-
-
+    /*
     
+      ╱|、
+     (˚ˎ 。7  
+      |、˜〵          
+      じしˍ,)ノ
+    
+    */
+
+
+
     setMessages(prev => [...prev, { role: 'user', content: currentMsg }]);
 
     try {
@@ -236,35 +249,27 @@ const App: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id_libro: currentBook.id,
-          risposta: currentMsg
+          id: currentBook.id, // <--- Modificato da id_libro a id
+          risposta: currentMsg,     // Il messaggio dell'utente
+          titolo: currentBook.titolo // Opzionale, ma utile per n8n
         })
       });
 
-      if (!response.ok) throw new Error();
+      if (!response.ok) throw new Error("Errore nella risposta di n8n");
 
       const data = await response.json();
-      console.log("n8n Response Data:", data);
 
-      if (data.status === 'success') {
-        const nuovoMessaggioAI: ChatMessage = {
-          role: 'ai',
-          content: data.output
-        };
+      // Gestione risposta AI (se n8n risponde direttamente via HTTP)
+      if (data.output || data.text) {
+        const content = data.output || data.text;
+        const nuovoMessaggioAI: ChatMessage = { role: 'ai', content };
 
         setMessages(prev => {
-          if (prev.some(m => m.content === nuovoMessaggioAI.content)) return prev;
+          if (prev.some(m => m.content === content)) return prev;
           return [...prev, nuovoMessaggioAI];
         });
         setIsSynced(true);
-      } else {
-        // Fallback se n8n non risponde col formato atteso o è in corso
-        setTimeout(() => loadBook(currentBook.id, true), 1500);
       }
-
-      // SBLOCCO SEMPRE IL LOADER qui per evitare che l'interfaccia rimanga ferma
-      setLoading(false);
-
     } catch (err) {
       console.error("Fetch Error:", err);
       setError("Errore di invio. Prova a ricaricare.");
