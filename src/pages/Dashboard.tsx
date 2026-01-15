@@ -24,6 +24,9 @@ const Dashboard: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         try {
+            // Calculate target chapters (approx 1 chapter every 20 pages)
+            const chapterCount = Math.max(5, Math.min(30, Math.ceil(parseInt(pages || '100') / 20)));
+
             // 1. Create row in Supabase
             const { data, error } = await supabase
                 .from('books')
@@ -32,6 +35,7 @@ const Dashboard: React.FC = () => {
                         status: 'INTERVIEW',
                         title: title || 'Nuovo Progetto',
                         genre: theme,
+                        target_chapters: chapterCount,
                         context_data: {
                             target_pages: pages,
                             initial_theme: theme

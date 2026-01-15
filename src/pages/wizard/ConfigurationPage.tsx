@@ -10,9 +10,9 @@ const ConfigurationPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
 
     // State
-    const [toneSerious, setToneSerious] = useState(50); // 0 = Playful, 100 = Serious
-    const [toneConcise, setToneConcise] = useState(50); // 0 = Verbose, 100 = Concise
-    const [toneSimple, setToneSimple] = useState(50);   // 0 = Complex, 100 = Simple
+    const [toneSerious, setToneSerious] = useState(0.5); // 0 = Playful, 1 = Serious
+    const [toneConcise, setToneConcise] = useState(0.5); // 0 = Verbose, 1 = Concise
+    const [toneSimple, setToneSimple] = useState(0.5);   // 0 = Complex, 1 = Simple
 
     const [targets, setTargets] = useState<string[]>([]);
 
@@ -104,9 +104,9 @@ const ConfigurationPage: React.FC = () => {
                             </div>
                             <input
                                 type="range"
-                                min="0" max="100"
+                                min="0" max="1" step="0.1"
                                 value={toneSerious}
-                                onChange={(e) => setToneSerious(parseInt(e.target.value))}
+                                onChange={(e) => setToneSerious(parseFloat(e.target.value))}
                                 style={{ width: '100%' }}
                             />
                         </div>
@@ -118,9 +118,9 @@ const ConfigurationPage: React.FC = () => {
                             </div>
                             <input
                                 type="range"
-                                min="0" max="100"
+                                min="0" max="1" step="0.1"
                                 value={toneConcise}
-                                onChange={(e) => setToneConcise(parseInt(e.target.value))}
+                                onChange={(e) => setToneConcise(parseFloat(e.target.value))}
                                 style={{ width: '100%' }}
                             />
                         </div>
@@ -132,9 +132,9 @@ const ConfigurationPage: React.FC = () => {
                             </div>
                             <input
                                 type="range"
-                                min="0" max="100"
+                                min="0" max="1" step="0.1"
                                 value={toneSimple}
-                                onChange={(e) => setToneSimple(parseInt(e.target.value))}
+                                onChange={(e) => setToneSimple(parseFloat(e.target.value))}
                                 style={{ width: '100%' }}
                             />
                         </div>
