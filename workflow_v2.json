@@ -64,7 +64,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"mistralai/mistral-7b-instruct:free\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Basandoti sulla chat, genera 4 'Concept Cards'. Context: Titolo \" + ($node['Get Book Context Concept'].json.title || \"Senza Titolo\") + \", Genere \" + ($node['Get Book Context Concept'].json.genre || \"Non definito\") + \". Output JSON format: { \\\"concepts\\\": [ { \\\"title\\\": \\\"...\\\", \\\"description\\\": \\\"...\\\", \\\"style\\\": \\\"...\\\" } ] }\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": ($node['Webhook Router1'].json.body.userInput || \"Genera concetti basati sulla nostra conversazione precedente.\")\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"mistralai/devstral-2512:free\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Basandoti sulla chat, genera 4 'Concept Cards'. Context: Titolo \" + ($node['Get Book Context Concept'].json.title || \"Senza Titolo\") + \", Genere \" + ($node['Get Book Context Concept'].json.genre || \"Non definito\") + \". Output JSON format: { \\\"concepts\\\": [ { \\\"title\\\": \\\"...\\\", \\\"description\\\": \\\"...\\\", \\\"style\\\": \\\"...\\\" } ] }\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": ($node['Webhook Router1'].json.body.userInput || \"Genera concetti basati sulla nostra conversazione precedente.\")\n    }\n  ]\n} }}",
         "options": {}
       },
       "id": "f5e8f73a-8abe-44ab-8489-ddb3ea46652c",
@@ -257,7 +257,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"mistralai/mistral-7b-instruct:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un editor letterario. Il progetto è \" + $node['Get Book Context'].json.title + \", genere \" + $node['Get Book Context'].json.genre + \", target \" + $node['Get Book Context'].json.context_data.target_pages + \" pagine. Intervista l'utente in 1 sola domanda.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": $node['Webhook Router1'].json.body.userInput\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"mistralai/devstral-2512:free\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un editor letterario. Il progetto è \" + $node['Get Book Context'].json.title + \", genere \" + $node['Get Book Context'].json.genre + \", target \" + $node['Get Book Context'].json.context_data.target_pages + \" pagine. Intervista l'utente in 1 sola domanda.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": $node['Webhook Router1'].json.body.userInput\n    }\n  ]\n} }}",
         "options": {}
       },
       "id": "72e29c30-51d4-4e68-a3e7-b2bceff255c2",
@@ -304,7 +304,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ \n{\n  \"model\": \"mistralai/mistral-7b-instruct:free\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei l'Architetto Letterario. Genera un indice (chapters) basato sui seguenti dettagli.\\n\\n\" + \n      \"CONTEXT:\\n\" + \n      \"- Titolo: \" + ($node[\"Get Book Context Concept Architect\"].json.title || \"Senza Titolo\") + \"\\n\" +\n      \"- Genere: \" + ($node[\"Get Book Context Concept Architect\"].json.genre || \"Non definito\") + \"\\n\" +\n      \"- Stile Scelto: \" + JSON.stringify($node[\"Webhook Router1\"].json.body.configuration || {}) + \"\\n\\n\" +\n      \"REQUISITI:\\n\" + \n      \"- Genera esattamente tra 10 e 15 capitoli.\\n\" + \n      \"- Output JSON strict: { \\\"chapters\\\": [ { \\\"title\\\": \\\"...\\\", \\\"summary\\\": \\\"...\\\" } ] }\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Genera l'indice per questo libro.\"\n    }\n  ]\n} \n}}",
+        "jsonBody": "={{ \n{\n  \"model\": \"mistralai/devstral-2512:free\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei l'Architetto Letterario. Genera un indice (chapters) basato sui seguenti dettagli.\\n\\n\" + \n      \"CONTEXT:\\n\" + \n      \"- Titolo: \" + ($node[\"Get Book Context Concept Architect\"].json.title || \"Senza Titolo\") + \"\\n\" +\n      \"- Genere: \" + ($node[\"Get Book Context Concept Architect\"].json.genre || \"Non definito\") + \"\\n\" +\n      \"- Stile Scelto: \" + JSON.stringify($node[\"Webhook Router1\"].json.body.configuration || {}) + \"\\n\\n\" +\n      \"REQUISITI:\\n\" + \n      \"- Genera esattamente tra 10 e 15 capitoli.\\n\" + \n      \"- Output JSON strict: { \\\"chapters\\\": [ { \\\"title\\\": \\\"...\\\", \\\"summary\\\": \\\"...\\\" } ] }\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Genera l'indice per questo libro.\"\n    }\n  ]\n} \n}}",
         "options": {}
       },
       "id": "1b90ae25-3971-4b45-a3ae-cfa8433fd8a5",
@@ -564,13 +564,13 @@
     },
     {
       "parameters": {
-        "content": "questo nodo rompe un po' il cazzo va sistemato il parametro $1 però funziona \ntendenzialmente"
+        "content": "questo nodo  va sistemato il parametro $1 "
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2440,
-        3184
+        2480,
+        3248
       ],
       "id": "8a68f2d5-4fb3-4a1f-8c1b-f59e9d49f058",
       "name": "Sticky Note"
@@ -765,7 +765,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "3dec56aa-d814-4f8a-8a76-619e8c0cce42",
+  "versionId": "b363b25a-2af4-4d41-a881-d7714fdd61c2",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "6e886da68f5367daa0e3870b7be67336a858c521a1f653709b4406ff2f5e1505"

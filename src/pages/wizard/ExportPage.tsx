@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, FileText, Smartphone, Book, CheckCircle, Loader2 } from 'lucide-react';
+import { Download, FileText, Smartphone, Image, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ExportPage: React.FC = () => {
@@ -29,7 +29,7 @@ const ExportPage: React.FC = () => {
                         {[
                             { id: 'PDF', icon: FileText, label: 'Documento PDF' },
                             { id: 'EPUB', icon: Smartphone, label: 'ePub (E-reader)' },
-                            { id: 'KINDLE', icon: Book, label: 'Formato Kindle' },
+                            { id: 'PNG', icon: Image, label: 'Immagine PNG' },
                         ].map((fmt) => (
                             <motion.div
                                 key={fmt.id}
