@@ -341,7 +341,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT * FROM chapters WHERE id = $1::uuid",
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ $node[\"Webhook Router1\"].json.body.chapterId }}"
+        }
       },
       "id": "c642e2be-8a2e-49ca-a0fb-ff79525d802f",
       "name": "Get Chapter1",
