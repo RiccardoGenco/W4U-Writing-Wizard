@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 interface Project {
     id: string;
-    titolo: string;
+    title: string;
 }
 
 interface SidebarProps {
@@ -47,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject }) => {
                     >
                         <History size={16} />
                         <span style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {p.titolo}
+                            {p.title}
                         </span>
                     </div>
                 ))}
