@@ -14,7 +14,7 @@ const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
 
 interface Project {
     id: string;
-    titolo: string;
+    title: string;
 }
 
 const MainLayout: React.FC = () => {
@@ -28,8 +28,8 @@ const MainLayout: React.FC = () => {
     const fetchProjects = async () => {
         if (!supabase) return;
         const { data } = await supabase
-            .from('progetti_libri')
-            .select('id, titolo')
+            .from('books')
+            .select('id, title')
             .order('created_at', { ascending: false });
 
         if (data) setProjects(data);
