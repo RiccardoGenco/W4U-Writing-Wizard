@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, BookOpen, Loader2 } from 'lucide-react';
+import { Plus, BookOpen, Loader2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createClient } from '@supabase/supabase-js';
@@ -60,40 +60,66 @@ const Dashboard: React.FC = () => {
         }
     };
 
+
+
+    const continueProject = (id: string, status: string) => {
+        localStorage.setItem('active_book_id', id);
+        // Navigate based on status if needed, defaulting to concept for now
+        navigate('/create/concept');
+    };
+
     return (
-        <div className="container-narrow fade-in" style={{ height: '100%', justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
-            <div style={{ textAlign: 'center', maxWidth: '600px', width: '100%' }}>
+        <div className="container-narrow fade-in" style={{ height: '100%', overflowY: 'auto', padding: '2rem 0' }}>
+            <div style={{ textAlign: 'center', maxWidth: '800px', width: '100%', margin: '0 auto' }}>
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.5 }}
                 >
-                    <div style={{ background: 'rgba(79, 70, 229, 0.1)', display: 'inline-flex', padding: '1.5rem', borderRadius: '50%', marginBottom: '2rem' }}>
-                        <BookOpen size={48} color="var(--primary)" />
-                    </div>
-
-                    <h1 style={{ fontSize: '3.5rem', marginBottom: '1.5rem', lineHeight: 1.1 }}>
-                        Il tuo prossimo <br />
-                        <span style={{ background: 'linear-gradient(to right, var(--primary), var(--accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            Best Seller
-                        </span>
-                    </h1>
-
                     {!showForm ? (
                         <>
+                            <div style={{ background: 'rgba(79, 70, 229, 0.1)', display: 'inline-flex', padding: '1.5rem', borderRadius: '50%', marginBottom: '2rem' }}>
+                                <BookOpen size={48} color="var(--primary)" />
+                            </div>
+
+                            <h1 style={{ fontSize: '3.5rem', marginBottom: '1.5rem', lineHeight: 1.1 }}>
+                                Il tuo prossimo <br />
+                                <span style={{ background: 'linear-gradient(to right, var(--primary), var(--accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                    Best Seller
+                                </span>
+                            </h1>
+
                             <p style={{ color: 'var(--text-muted)', fontSize: '1.25rem', marginBottom: '3rem', lineHeight: 1.6 }}>
                                 Dall'idea alla pubblicazione. Un assistente AI che ti guida in ogni passo del processo creativo.
                             </p>
 
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="btn-primary"
-                                style={{ fontSize: '1.2rem', padding: '1.2rem 2.5rem', borderRadius: '50px', margin: '0 auto', boxShadow: '0 20px 25px -5px rgba(79, 70, 229, 0.4)' }}
-                                onClick={() => setShowForm(true)}
-                            >
-                                <Plus size={24} style={{ marginRight: '10px' }} /> Inizia Nuovo Progetto
-                            </motion.button>
+                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '4rem' }}>
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="btn-primary"
+                                    style={{ fontSize: '1.2rem', padding: '1.2rem 2.5rem', borderRadius: '50px', boxShadow: '0 20px 25px -5px rgba(79, 70, 229, 0.4)' }}
+                                    onClick={() => setShowForm(true)}
+                                >
+                                    <Plus size={24} style={{ marginRight: '10px' }} /> Inizia Nuovo Progetto
+                                </motion.button>
+
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="glass-panel"
+                                    style={{ fontSize: '1rem', padding: '1.2rem 2rem', borderRadius: '50px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                    onClick={() => {
+                                        const id = prompt("Inserisci il Codice Identificativo del Progetto (UUID):");
+                                        if (id) continueProject(id, 'UNKNOWN');
+                                    }}
+                                >
+                                    Hai un codice progetto?
+                                </motion.button>
+                            </div>
+
+                            {/* Projects Grid */}
+
                         </>
                     ) : (
                         <motion.form
@@ -103,6 +129,13 @@ const Dashboard: React.FC = () => {
                             className="glass-panel"
                             style={{ textAlign: 'left', padding: '2rem' }}
                         >
+                            <button
+                                type="button"
+                                onClick={() => setShowForm(false)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', marginBottom: '1rem', cursor: 'pointer', padding: 0 }}
+                            >
+                                ← Indietro
+                            </button>
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Titolo del Progetto</label>
                                 <input

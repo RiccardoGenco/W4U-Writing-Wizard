@@ -13,6 +13,7 @@ const ConfigurationPage: React.FC = () => {
     const [toneSerious, setToneSerious] = useState(0.5); // 0 = Playful, 1 = Serious
     const [toneConcise, setToneConcise] = useState(0.5); // 0 = Verbose, 1 = Concise
     const [toneSimple, setToneSimple] = useState(0.5);   // 0 = Complex, 1 = Simple
+    const [chaptersRate, setChaptersRate] = useState(10); // Pages per chapter default
 
     const [targets, setTargets] = useState<string[]>([]);
 
@@ -28,14 +29,15 @@ const ConfigurationPage: React.FC = () => {
 
     const handleGenerateOutline = async () => {
         setLoading(true);
-        const config = { toneSerious, toneConcise, toneSimple, targets };
+        const config = { toneSerious, toneConcise, toneSimple, targets, chaptersRate };
         const bookId = localStorage.getItem('active_book_id');
+        let currentContext: any = {};
 
         try {
             // Save config to Supabase first
             if (bookId) {
                 const { data: currentBook } = await supabase.from('books').select('context_data').eq('id', bookId).single();
-                const currentContext = currentBook?.context_data || {};
+                currentContext = currentBook?.context_data || {};
 
                 await supabase.from('books').update({
                     context_data: { ...currentContext, configuration: config }
@@ -43,8 +45,10 @@ const ConfigurationPage: React.FC = () => {
             }
 
             // 1. Call n8n to generate outline
+            const targetPages = currentContext.target_pages;
             const data = await callBookAgent('OUTLINE', {
-                configuration: config
+                configuration: config,
+                targetPages: targetPages
             }, bookId);
 
             const resData = data.data || data;
@@ -141,6 +145,33 @@ const ConfigurationPage: React.FC = () => {
                     </div>
                 </section>
 
+
+
+                {/* Structure Settings */}
+                <section style={{ marginBottom: '4rem' }}>
+                    <h3 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <SlidersHorizontal size={20} color="var(--accent)" /> Struttura
+                    </h3>
+
+                    <div className="slider-group">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                            <span>Densità Capitoli (1 cap. ogni {chaptersRate} pag.)</span>
+                            <span>{chaptersRate} pagine</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="5" max="30" step="1"
+                            value={chaptersRate}
+                            onChange={(e) => setChaptersRate(parseInt(e.target.value))}
+                            style={{ width: '100%' }}
+                        />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            <span>Frequente (Brevi)</span>
+                            <span>Rado (Lunghi)</span>
+                        </div>
+                    </div>
+                </section>
+
                 {/* Target Chips */}
                 <section style={{ marginBottom: '3rem' }}>
                     <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -179,8 +210,8 @@ const ConfigurationPage: React.FC = () => {
                     </button>
                 </div>
 
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

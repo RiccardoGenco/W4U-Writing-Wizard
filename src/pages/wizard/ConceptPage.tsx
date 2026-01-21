@@ -74,12 +74,23 @@ const ConceptPage: React.FC = () => {
         if (!bookId) return;
 
         try {
+            // 1. Fetch current context to preserve target_pages
+            const { data: currentBook } = await supabase
+                .from('books')
+                .select('context_data')
+                .eq('id', bookId)
+                .single();
+
+            const currentContext = currentBook?.context_data || {};
+
+            // 2. Update with merge
             await supabase
                 .from('books')
                 .update({
                     status: 'CONFIGURATION',
                     title: concept.title,
-                    context_data: { // Updated column name
+                    context_data: {
+                        ...currentContext,
                         selected_concept: concept,
                         chat_history: messages
                     }
