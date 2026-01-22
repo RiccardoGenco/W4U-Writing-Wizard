@@ -291,7 +291,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"bookId\": \"{{ $node['Init Book (Optional)'].json.id }}\",\n  \"aiResponse\": {{ JSON.stringify(JSON.parse($node['Agent: Interviewer'].json.choices[0].message.content).question) }}\n}",
+        "responseBody": "={\n  \"bookId\": \"{{ $node['Init Book (Optional)'].json.id }}\",\n  \"aiResponse\": {{ JSON.stringify(JSON.parse($node['Agent: Interviewer'].json.choices[0].message.content).question) }}\n}",
         "options": {}
       },
       "id": "feaa9d0c-5246-48e8-98ef-d132fb77ea20",
@@ -539,7 +539,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO books (id, title, genre, status, context_data) \nVALUES (\n  $1::uuid, \n  COALESCE($2, 'Nuovo Libro'), \n  $3, \n  'INTERVIEW', \n  jsonb_build_object(\n    'messages', CASE WHEN $4 IS NOT NULL AND $4 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $4)) ELSE '[]'::jsonb END,\n    'target_pages', $5::integer\n  )\n) \nON CONFLICT (id) DO UPDATE SET \n  title = COALESCE(EXCLUDED.title, books.title),\n  genre = COALESCE(EXCLUDED.genre, books.genre),\n  context_data = jsonb_set(\n    jsonb_set(\n      books.context_data,\n      '{target_pages}',\n      COALESCE(EXCLUDED.context_data->'target_pages', books.context_data->'target_pages', '100'::jsonb)\n    ),\n    '{messages}',\n    COALESCE(books.context_data->'messages', '[]'::jsonb) || \n    CASE WHEN $4 IS NOT NULL AND $4 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $4)) ELSE '[]'::jsonb END\n  )\nRETURNING id;",
+        "query": "INSERT INTO books (id, title, genre, status, context_data) \nVALUES (\n  $1::uuid, \n  $2, \n  $3, \n  'INTERVIEW', \n  jsonb_build_object(\n    'messages', CASE WHEN $4 IS NOT NULL AND $4 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $4)) ELSE '[]'::jsonb END,\n    'target_pages', $5::integer\n  )\n) \nON CONFLICT (id) DO UPDATE SET \n  title = CASE WHEN EXCLUDED.title IS NOT NULL AND EXCLUDED.title NOT IN ('', 'Nuovo Libro', 'Nuovo Progetto') THEN EXCLUDED.title ELSE books.title END,\n  genre = COALESCE(EXCLUDED.genre, books.genre),\n  context_data = jsonb_set(\n    jsonb_set(\n      books.context_data,\n      '{target_pages}',\n      COALESCE(EXCLUDED.context_data->'target_pages', books.context_data->'target_pages', '100'::jsonb)\n    ),\n    '{messages}',\n    COALESCE(books.context_data->'messages', '[]'::jsonb) || \n    CASE WHEN $4 IS NOT NULL AND $4 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $4)) ELSE '[]'::jsonb END\n  )\nRETURNING id;",
         "options": {
           "queryReplacement": "={{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Webhook Router\"].json.body.book_id }}, {{ $node[\"Webhook Router\"].json.body.title || null }}, {{ $node[\"Webhook Router\"].json.body.genre || null }}, {{ $node[\"Webhook Router\"].json.body.userInput || null }}, {{ $node[\"Webhook Router\"].json.body.targetPages || 100 }}"
         }
@@ -746,6 +746,19 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "content": "l'agente coi suggerimenti nell'editor sarebbe saggio disattivarlo, o magari inserirgli delle ottimizzazioni pre impostate.\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        544,
+        1680
+      ],
+      "id": "cbcd93e7-79d3-43d0-a240-72133cbf3f1a",
+      "name": "Sticky Note3"
     }
   ],
   "pinData": {},
@@ -992,7 +1005,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "afce1ced-5621-42ef-a845-6facf6cd8781",
+  "versionId": "79af26a9-f206-4c8c-8aa1-8932ac4ec15e",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "6e886da68f5367daa0e3870b7be67336a858c521a1f653709b4406ff2f5e1505"

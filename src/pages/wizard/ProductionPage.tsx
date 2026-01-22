@@ -27,17 +27,27 @@ const ProductionPage: React.FC = () => {
         fetchChapters();
 
         // Realtime Subscription
+        console.log("Subscribing to chapters for book:", bookId);
         const channel = supabase
-            .channel('chapters-changes')
+            .channel(`chapters-changes-${bookId}`)
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'chapters', filter: `book_id=eq.${bookId}` },
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'chapters',
+                    filter: `book_id=eq.${bookId}`
+                },
                 (payload) => {
+                    console.log("Realtime Update Received:", payload);
                     const updated = payload.new as DBChapter;
                     setChapters(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log("Subscription status:", status);
+            });
+
 
         return () => {
             supabase.removeChannel(channel);
@@ -102,16 +112,26 @@ const ProductionPage: React.FC = () => {
                     <div className="progress-container">
                         <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', gap: '0.5rem' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{completedCount} / {chapters.length} completati</span>
-                        <button
-                            onClick={generateAll}
-                            disabled={globalGenerating || completedCount === chapters.length}
-                            className="btn-primary"
-                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                        >
-                            <Play size={14} /> Genera Tutto
-                        </button>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            <button
+                                onClick={fetchChapters}
+                                className="btn-secondary"
+                                style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                                title="Aggiorna manualment"
+                            >
+                                <ChevronRight size={14} style={{ transform: 'rotate(90deg)' }} />
+                            </button>
+                            <button
+                                onClick={generateAll}
+                                disabled={globalGenerating || completedCount === chapters.length}
+                                className="btn-primary"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                            >
+                                <Play size={14} /> Genera Tutto
+                            </button>
+                        </div>
                     </div>
                 </div>
 
