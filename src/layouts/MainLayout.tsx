@@ -1,16 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
-import { createClient } from '@supabase/supabase-js';
-
-// --- CONFIGURATION ---
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-// Initialize Supabase
-const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY)
-    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    : null;
+import { supabase } from '../lib/api';
 
 interface Project {
     id: string;
@@ -20,10 +12,29 @@ interface Project {
 const MainLayout: React.FC = () => {
     const navigate = useNavigate();
     const [projects, setProjects] = useState<Project[]>([]);
+    const [activeBookPages, setActiveBookPages] = useState<number | null>(null);
+    const [activeBookId, setActiveBookId] = useState<string | null>(localStorage.getItem('active_book_id'));
 
     useEffect(() => {
         fetchProjects();
-    }, []);
+        // Sync state with localStorage and fetch project list if it changed
+        const interval = setInterval(() => {
+            const storedId = localStorage.getItem('active_book_id');
+            if (storedId !== activeBookId) {
+                setActiveBookId(storedId);
+                fetchProjects(); // Refresh sidebar list when project changes
+            }
+        }, 1500);
+        return () => clearInterval(interval);
+    }, [activeBookId]);
+
+    useEffect(() => {
+        if (activeBookId) {
+            fetchActiveBookDetails();
+        } else {
+            setActiveBookPages(null);
+        }
+    }, [activeBookId]);
 
     const fetchProjects = async () => {
         if (!supabase) return;
@@ -35,15 +46,24 @@ const MainLayout: React.FC = () => {
         if (data) setProjects(data);
     };
 
+    const fetchActiveBookDetails = async () => {
+        if (!supabase || !activeBookId) return;
+        const { data } = await supabase
+            .from('books')
+            .select('context_data')
+            .eq('id', activeBookId)
+            .single();
+
+        if (data?.context_data?.target_pages) {
+            setActiveBookPages(parseInt(data.context_data.target_pages));
+        }
+    };
+
     const handleSelectProject = (id: string) => {
-        // For now, navigating to production as a fallback for viewing valid projects
-        // In the full implementation, we'd check the project state (concept, blueprint, etc.)
-        // But the user asked for specific routes for creation. 
-        // Viewing old projects might need a dedicated Viewer page.
-        // For now, let's assume we go to production view to see chapters/content.
         localStorage.setItem('active_book_id', id);
-        // We probably need to fetch the project data again in the target page, 
-        // but for now let's just navigate.
+        setActiveBookId(id);
+        fetchProjects(); // Refresh list to ensure titles are up to date
+
         navigate('/create/production');
     };
 
@@ -52,8 +72,43 @@ const MainLayout: React.FC = () => {
             <Sidebar
                 projects={projects}
                 onSelectProject={handleSelectProject}
+                activeProjectId={activeBookId}
             />
             <main className="main-content">
+                {activeBookPages && (
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        style={{
+                            position: 'fixed',
+                            top: '2rem',
+                            right: '2rem',
+                            zIndex: 100,
+                            background: 'rgba(5, 5, 5, 0.8)',
+                            backdropFilter: 'blur(20px)',
+                            padding: '0.8rem 1.5rem',
+                            borderRadius: '20px',
+                            border: '1px solid rgba(0, 242, 255, 0.2)',
+                            color: 'var(--primary)',
+                            fontSize: '0.9rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.8rem',
+                            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                            letterSpacing: '0.02em'
+                        }}
+                    >
+                        <div style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: 'var(--primary)',
+                            boxShadow: '0 0 10px var(--primary)'
+                        }}></div>
+                        Target: {activeBookPages} Pagine
+                    </motion.div>
+                )}
                 <Outlet />
             </main>
         </div>

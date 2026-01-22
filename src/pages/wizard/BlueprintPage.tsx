@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Loader2 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-import { callBookAgent } from '../../lib/api';
+import { supabase, callBookAgent } from '../../lib/api';
 
 interface Chapter {
     id: string;
@@ -10,10 +9,6 @@ interface Chapter {
     summary: string;
 }
 
-const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const BlueprintPage: React.FC = () => {
     const navigate = useNavigate();
