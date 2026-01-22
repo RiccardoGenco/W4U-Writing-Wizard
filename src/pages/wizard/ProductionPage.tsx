@@ -26,26 +26,36 @@ const ProductionPage: React.FC = () => {
         if (!bookId) return;
         fetchChapters();
 
-        // Realtime Subscription
+        // Realtime Subscription with better error handling
         console.log("Subscribing to chapters for book:", bookId);
         const channel = supabase
             .channel(`chapters-changes-${bookId}`)
             .on(
                 'postgres_changes',
                 {
-                    event: 'UPDATE',
+                    event: '*',
                     schema: 'public',
                     table: 'chapters',
                     filter: `book_id=eq.${bookId}`
                 },
                 (payload) => {
                     console.log("Realtime Update Received:", payload);
-                    const updated = payload.new as DBChapter;
-                    setChapters(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+                    if (payload.eventType === 'UPDATE') {
+                        const updated = payload.new as DBChapter;
+                        setChapters(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+                    }
                 }
             )
             .subscribe((status) => {
                 console.log("Subscription status:", status);
+                if (status === 'SUBSCRIBED') {
+                    console.log("Realtime subscription active for book:", bookId);
+                } else if (status === 'CHANNEL_ERROR') {
+                    console.error("Realtime subscription error - falling back to polling");
+                    // Fallback to polling every 10 seconds
+                    const interval = setInterval(fetchChapters, 10000);
+                    return () => clearInterval(interval);
+                }
             });
 
 
@@ -78,6 +88,10 @@ const ProductionPage: React.FC = () => {
             }, bookId);
 
             // n8n will update the DB, which triggers Realtime update
+            // Fallback: poll for updates after delay
+            setTimeout(() => {
+                fetchChapters();
+            }, 5000); // Check after 5 seconds
         } catch (e) {
             console.error(e);
             alert("Errore avvio generazione.");
