@@ -160,7 +160,7 @@ const ConfigurationPage: React.FC = () => {
                         </div>
                         <input
                             type="range"
-                            min="5" max="30" step="1"
+                            min="10" max="20" step="1"
                             value={chaptersRate}
                             onChange={(e) => setChaptersRate(parseInt(e.target.value))}
                             style={{ width: '100%' }}

@@ -48,6 +48,10 @@ const ConceptPage: React.FC = () => {
             const data = await callBookAgent('INTERVIEW', { userInput: userMsg }, bookId);
             const generatedData = data.data || data;
 
+            if (generatedData.bookId) {
+                localStorage.setItem('active_book_id', generatedData.bookId);
+            }
+
             if (generatedData.concepts) {
                 setConcepts(generatedData.concepts);
             } else if (generatedData.title_options) {
@@ -114,6 +118,10 @@ const ConceptPage: React.FC = () => {
             // Use a specific action 'GENERATE_CONCEPTS' to tell N8N to switch mode
             const data = await callBookAgent('GENERATE_CONCEPTS', { userInput: context }, bookId);
             const generatedData = data.data || data;
+
+            if (generatedData.bookId) {
+                localStorage.setItem('active_book_id', generatedData.bookId);
+            }
 
             if (generatedData.concepts) {
                 setConcepts(generatedData.concepts);
