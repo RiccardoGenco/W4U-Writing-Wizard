@@ -73,8 +73,15 @@ const BlueprintPage: React.FC = () => {
         const bookId = localStorage.getItem('active_book_id');
         setRefreshing(true);
         try {
-            const data = await callBookAgent('OUTLINE', { feedback }, bookId);
+            const data = await callBookAgent('OUTLINE', {
+                feedback,
+                currentChapters: chapters.map(c => ({ title: c.title, summary: c.summary }))
+            }, bookId);
             const resData = data.data || data;
+
+            if (resData.bookId) {
+                localStorage.setItem('active_book_id', resData.bookId);
+            }
 
             if (resData.chapters) {
                 const chaptersWithIds = resData.chapters.map((c: any, i: number) => ({
