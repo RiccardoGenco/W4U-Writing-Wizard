@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Loader2 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-import { callBookAgent } from '../../lib/api';
+import { supabase, callBookAgent } from '../../lib/api';
 
 interface Chapter {
     id: string;
@@ -10,10 +9,6 @@ interface Chapter {
     summary: string;
 }
 
-const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 const BlueprintPage: React.FC = () => {
     const navigate = useNavigate();
@@ -73,8 +68,15 @@ const BlueprintPage: React.FC = () => {
         const bookId = localStorage.getItem('active_book_id');
         setRefreshing(true);
         try {
-            const data = await callBookAgent('OUTLINE', { feedback }, bookId);
+            const data = await callBookAgent('OUTLINE', {
+                feedback,
+                currentChapters: chapters.map(c => ({ title: c.title, summary: c.summary }))
+            }, bookId);
             const resData = data.data || data;
+
+            if (resData.bookId) {
+                localStorage.setItem('active_book_id', resData.bookId);
+            }
 
             if (resData.chapters) {
                 const chaptersWithIds = resData.chapters.map((c: any, i: number) => ({

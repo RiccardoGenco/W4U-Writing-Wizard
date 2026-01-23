@@ -1,6 +1,7 @@
 import React from 'react';
 import { Book, Plus, History, Layout, Settings } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 interface Project {
     id: string;
@@ -10,19 +11,24 @@ interface Project {
 interface SidebarProps {
     projects: Project[];
     onSelectProject: (id: string) => void;
+    activeProjectId?: string | null;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject }) => {
+const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProjectId }) => {
     const navigate = useNavigate();
-    const location = useLocation();
 
     return (
         <aside className="sidebar">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2.5rem', padding: '0 0.5rem' }}>
-                <div style={{ background: 'var(--primary)', padding: '0.4rem', borderRadius: '10px' }}>
-                    <Book size={20} color="white" />
+                <div style={{
+                    background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                    padding: '0.5rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 0 15px rgba(0, 242, 255, 0.3)'
+                }}>
+                    <Book size={20} color="black" />
                 </div>
-                <h2 style={{ fontSize: '1.25rem' }}>GhostWriter</h2>
+                <h2 style={{ fontSize: '1.4rem', letterSpacing: '-0.05em', color: 'white' }}>GhostWriter</h2>
             </div>
 
             <button
@@ -30,30 +36,37 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject }) => {
                     navigate('/');
                 }}
                 className="btn-primary"
-                style={{ width: '100%', marginBottom: '2rem', padding: '0.6rem' }}
+                style={{ width: '100%', marginBottom: '2.5rem', padding: '0.8rem', borderRadius: '16px' }}
             >
                 <Plus size={18} /> Nuovo Libro
             </button>
 
             <div style={{ flex: 1, overflowY: 'auto' }}>
-                <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '1rem', paddingLeft: '0.5rem' }}>
-                    I TUOI PROGETTI
+                <p style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: '1.2rem', paddingLeft: '0.5rem', opacity: 0.6 }}>
+                    PROGETTI RECENTI
                 </p>
                 {projects.map(p => (
                     <div
                         key={p.id}
-                        className={`sidebar-item ${location.pathname.includes(p.id) ? 'active' : ''}`}
+                        className={`sidebar-item ${activeProjectId === p.id ? 'active' : ''}`}
                         onClick={() => onSelectProject(p.id)}
+                        style={{ position: 'relative' }}
                     >
+                        {activeProjectId === p.id && (
+                            <motion.div
+                                layoutId="active-pill"
+                                style={{ position: 'absolute', left: 0, width: '3px', height: '60%', background: 'var(--primary)', borderRadius: '0 4px 4px 0' }}
+                            />
+                        )}
                         <History size={16} />
-                        <span style={{ fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: activeProjectId === p.id ? 600 : 400 }}>
                             {p.title}
                         </span>
                     </div>
                 ))}
             </div>
 
-            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem' }}>
+            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', gap: '0.2rem', display: 'flex', flexDirection: 'column' }}>
                 <div className="sidebar-item" onClick={() => navigate('/')}>
                     <Layout size={18} /> <span>Dashboard</span>
                 </div>
