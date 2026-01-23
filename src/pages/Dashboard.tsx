@@ -1,173 +1,218 @@
-import React from 'react';
-import { Plus, BookOpen, Loader2, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { motion, useMotionValue, useSpring } from 'framer-motion';
+import { supabase } from '../lib/api';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
-    const [loading, setLoading] = React.useState(false);
+    const [loading, setLoading] = useState(false);
+    const [title, setTitle] = useState('');
+    const [pages, setPages] = useState('');
+    const [theme, setTheme] = useState('');
+    const [showForm, setShowForm] = useState(false);
 
-    // Form State
-    const [title, setTitle] = React.useState('');
-    const [pages, setPages] = React.useState('');
-    const [theme, setTheme] = React.useState('');
-    const [showForm, setShowForm] = React.useState(false);
+    // Interactive Background Logic
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
 
-    // Helper to create project
+    const springConfig = { damping: 25, stiffness: 150 };
+    const dotX = useSpring(mouseX, springConfig);
+    const dotY = useSpring(mouseY, springConfig);
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            mouseX.set(e.clientX);
+            mouseY.set(e.clientY);
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, [mouseX, mouseY]);
+
     const createProject = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            // Calculate target chapters (approx 1 chapter every 20 pages)
             const chapterCount = Math.max(5, Math.min(30, Math.ceil(parseInt(pages || '100') / 20)));
-
-            // 1. Create row in Supabase
             const { data, error } = await supabase
                 .from('books')
-                .insert([
-                    {
-                        status: 'INTERVIEW',
-                        title: title || 'Nuovo Progetto',
-                        genre: theme,
-                        target_chapters: chapterCount,
-                        context_data: {
-                            target_pages: pages,
-                            initial_theme: theme
-                        }
-                    }
-                ])
-                .select()
-                .single();
+                .insert([{
+                    status: 'INTERVIEW',
+                    title: title || 'Nuovo Progetto',
+                    genre: theme,
+                    target_chapters: chapterCount,
+                    context_data: { target_pages: pages, initial_theme: theme }
+                }])
+                .select().single();
 
             if (error) throw error;
-
             if (data) {
-                // 2. Save ID and Navigate
                 localStorage.setItem('active_book_id', data.id);
                 navigate('/create/concept');
             }
         } catch (err) {
             console.error("Error creating project:", err);
-            alert("Errore nella creazione del progetto. Controlla la console.");
+            alert("Errore nella creazione del progetto.");
         } finally {
             setLoading(false);
         }
     };
 
-
-
-    const continueProject = (id: string, status: string) => {
+    const continueProject = (id: string) => {
         localStorage.setItem('active_book_id', id);
-        // Navigate based on status if needed, defaulting to concept for now
         navigate('/create/concept');
     };
 
     return (
-        <div className="container-narrow fade-in" style={{ height: '100%', overflowY: 'auto', padding: '2rem 0' }}>
-            <div style={{ textAlign: 'center', maxWidth: '800px', width: '100%', margin: '0 auto' }}>
+        <div className="container-narrow fade-in" style={{ height: '100%', overflowY: 'auto', padding: '4rem 0', position: 'relative' }}>
+
+            {/* Interactive Background Elements */}
+            <div className="interactive-bg">
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    className="bg-dot"
+                    style={{
+                        width: '400px',
+                        height: '400px',
+                        left: -200,
+                        top: -200,
+                        x: dotX,
+                        y: dotY,
+                        opacity: 0.2
+                    }}
+                />
+                <motion.div
+                    className="bg-dot"
+                    style={{
+                        width: '300px',
+                        height: '300px',
+                        right: 100,
+                        bottom: 100,
+                        background: 'var(--accent)',
+                        opacity: 0.1,
+                        scale: 1.2
+                    }}
+                    animate={{
+                        y: [0, 50, 0],
+                        scale: [1, 1.1, 1]
+                    }}
+                    transition={{
+                        duration: 10,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                    }}
+                />
+            </div>
+
+            <div style={{ textAlign: 'center', maxWidth: '800px', width: '100%', margin: '0 auto', position: 'relative', zIndex: 1 }}>
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 0.8 }}
                 >
                     {!showForm ? (
                         <>
-                            <div style={{ background: 'rgba(79, 70, 229, 0.1)', display: 'inline-flex', padding: '1.5rem', borderRadius: '50%', marginBottom: '2rem' }}>
-                                <BookOpen size={48} color="var(--primary)" />
-                            </div>
+                            <motion.div
+                                style={{
+                                    background: 'rgba(0, 242, 255, 0.05)',
+                                    display: 'inline-flex',
+                                    padding: '2rem',
+                                    borderRadius: '30px',
+                                    marginBottom: '2rem',
+                                    border: '1px solid rgba(0, 242, 255, 0.1)'
+                                }}
+                                whileHover={{ rotate: 5, scale: 1.1 }}
+                            >
+                                <BookOpen size={64} color="var(--primary)" />
+                            </motion.div>
 
-                            <h1 style={{ fontSize: '3.5rem', marginBottom: '1.5rem', lineHeight: 1.1 }}>
-                                Il tuo prossimo <br />
-                                <span style={{ background: 'linear-gradient(to right, var(--primary), var(--accent))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                    Best Seller
+                            <h1 style={{ fontSize: '4rem', marginBottom: '1.5rem', lineHeight: 1.1, letterSpacing: '-0.05em' }}>
+                                Scrivi il tuo <br />
+                                <span style={{
+                                    background: 'linear-gradient(to right, #ffffff, var(--primary))',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    filter: 'drop-shadow(0 0 10px rgba(0, 242, 255, 0.3))'
+                                }}>
+                                    Capolavoro
                                 </span>
                             </h1>
 
-                            <p style={{ color: 'var(--text-muted)', fontSize: '1.25rem', marginBottom: '3rem', lineHeight: 1.6 }}>
-                                Dall'idea alla pubblicazione. Un assistente AI che ti guida in ogni passo del processo creativo.
+                            <p style={{ color: 'var(--text-muted)', fontSize: '1.4rem', marginBottom: '4rem', lineHeight: 1.6, maxWidth: '600px', margin: '0 auto 4rem' }}>
+                                L'intelligenza artificiale al servizio della tua creatività. <br />
+                                Dallo schema alla bozza finale.
                             </p>
 
-                            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '4rem' }}>
+                            <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '4rem' }}>
                                 <motion.button
-                                    whileHover={{ scale: 1.05 }}
+                                    whileHover={{ scale: 1.05, y: -5 }}
                                     whileTap={{ scale: 0.95 }}
                                     className="btn-primary"
-                                    style={{ fontSize: '1.2rem', padding: '1.2rem 2.5rem', borderRadius: '50px', boxShadow: '0 20px 25px -5px rgba(79, 70, 229, 0.4)' }}
+                                    style={{ fontSize: '1.2rem', padding: '1.4rem 3rem' }}
                                     onClick={() => setShowForm(true)}
                                 >
-                                    <Plus size={24} style={{ marginRight: '10px' }} /> Inizia Nuovo Progetto
+                                    <Plus size={24} /> Inizia Ora
                                 </motion.button>
 
                                 <motion.button
-                                    whileHover={{ scale: 1.05 }}
+                                    whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.08)' }}
                                     whileTap={{ scale: 0.95 }}
-                                    className="glass-panel"
-                                    style={{ fontSize: '1rem', padding: '1.2rem 2rem', borderRadius: '50px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                    className="btn-secondary"
+                                    style={{ fontSize: '1rem', borderRadius: '16px' }}
                                     onClick={() => {
-                                        const id = prompt("Inserisci il Codice Identificativo del Progetto (UUID):");
-                                        if (id) continueProject(id, 'UNKNOWN');
+                                        const id = prompt("Codice Progetto:");
+                                        if (id) continueProject(id);
                                     }}
                                 >
-                                    Hai un codice progetto?
+                                    Riprendi Progetto
                                 </motion.button>
                             </div>
-
-                            {/* Projects Grid */}
-
                         </>
                     ) : (
                         <motion.form
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 40 }}
                             animate={{ opacity: 1, y: 0 }}
                             onSubmit={createProject}
                             className="glass-panel"
-                            style={{ textAlign: 'left', padding: '2rem' }}
+                            style={{ textAlign: 'left', padding: '3rem', maxWidth: '600px', margin: '0 auto' }}
                         >
                             <button
                                 type="button"
                                 onClick={() => setShowForm(false)}
-                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', marginBottom: '1rem', cursor: 'pointer', padding: 0 }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', marginBottom: '2rem', cursor: 'pointer', padding: 0, fontSize: '1rem' }}
                             >
-                                ← Indietro
+                                ← Torna alla Dashboard
                             </button>
-                            <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Titolo del Progetto</label>
+                            <h2 style={{ marginBottom: '2rem', fontSize: '2rem' }}>Nuovo Progetto</h2>
+
+                            <div style={{ marginBottom: '2rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Titolo</label>
                                 <input
-                                    className="input-field"
                                     required
-                                    placeholder="Es. Le Cronache di Marte"
+                                    placeholder="Es. L'ombra del tempo"
                                     value={title}
                                     onChange={e => setTitle(e.target.value)}
-                                    style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', color: 'white' }}
+                                    style={{ width: '100%' }}
                                 />
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Pagine Previste</label>
+                                    <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Pagine</label>
                                     <input
-                                        className="input-field"
                                         type="number"
-                                        placeholder="Es. 200"
+                                        placeholder="200"
                                         value={pages}
                                         onChange={e => setPages(e.target.value)}
-                                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', color: 'white' }}
+                                        style={{ width: '100%' }}
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Tema / Genere</label>
+                                    <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Genere</label>
                                     <input
-                                        className="input-field"
-                                        placeholder="Es. Fantascienza"
+                                        placeholder="Thriller / Noir"
                                         value={theme}
                                         onChange={e => setTheme(e.target.value)}
-                                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', color: 'white' }}
+                                        style={{ width: '100%' }}
                                     />
                                 </div>
                             </div>
@@ -175,10 +220,10 @@ const Dashboard: React.FC = () => {
                             <button
                                 type="submit"
                                 className="btn-primary"
-                                style={{ width: '100%', padding: '1rem' }}
+                                style={{ width: '100%', padding: '1.2rem' }}
                                 disabled={loading || !title || !theme}
                             >
-                                {loading ? <Loader2 className="animate-spin" /> : 'Crea Progetto'}
+                                {loading ? <Loader2 className="animate-spin" /> : 'Crea il tuo Libro'}
                             </button>
                         </motion.form>
                     )}

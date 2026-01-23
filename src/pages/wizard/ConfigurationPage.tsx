@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { SlidersHorizontal, Users, ArrowRight, Loader2 } from 'lucide-react';
+import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
 
 import { callBookAgent, supabase } from '../../lib/api';
 
@@ -160,7 +160,7 @@ const ConfigurationPage: React.FC = () => {
                         </div>
                         <input
                             type="range"
-                            min="5" max="30" step="1"
+                            min="10" max="20" step="1"
                             value={chaptersRate}
                             onChange={(e) => setChaptersRate(parseInt(e.target.value))}
                             style={{ width: '100%' }}
@@ -206,7 +206,7 @@ const ConfigurationPage: React.FC = () => {
                         disabled={loading}
                         style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}
                     >
-                        {loading ? <><Loader2 className="animate-spin" /> Elaborazione...</> : <>Genera Architettura <ArrowRight size={18} /></>}
+                        {loading ? <><Loader2 className="animate-spin" /> Elaborazione...</> : <>Genera Architettura <ChevronRight size={18} /></>}
                     </button>
                 </div>
 
