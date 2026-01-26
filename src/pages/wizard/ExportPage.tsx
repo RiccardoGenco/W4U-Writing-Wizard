@@ -1,19 +1,77 @@
 import React, { useState } from 'react';
 import { Download, FileText, Smartphone, Image, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 
 const ExportPage: React.FC = () => {
     const [exporting, setExporting] = useState(false);
     const [finished, setFinished] = useState(false);
     const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
 
-    const handleExport = () => {
+    const handleExport = async () => {
         if (!selectedFormat) return;
+
+        const bookId = localStorage.getItem('active_book_id');
+        if (!bookId) {
+            alert("Errore: ID libro non trovato.");
+            return;
+        }
+
         setExporting(true);
-        setTimeout(() => {
-            setExporting(false);
+        try {
+            const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+
+            const response = await fetch(WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'EXPORT',
+                    bookId,
+                    format: selectedFormat.toLowerCase()
+                })
+            });
+
+            if (!response.ok) throw new Error(`Errore server: ${response.statusText}`);
+
+            const responseData = await response.json();
+            const data = Array.isArray(responseData) ? responseData[0] : responseData;
+
+            if (selectedFormat === 'PDF') {
+                const opt = {
+                    margin: 1,
+                    filename: `libro_${bookId}.pdf`,
+                    image: { type: 'jpeg' as const, quality: 0.98 },
+                    html2canvas: { scale: 2 },
+                    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
+                };
+
+                // Create a temporary element to hold the HTML
+                const element = document.createElement('div');
+                element.innerHTML = data.html;
+
+                await html2pdf().set(opt).from(element).save();
+            } else {
+                // For now, if format is not PDF (like EPUB), download as HTML or show message
+                // This is a placeholder since user wanted to focus on SaaS-ready PDF via Gotenberg alternative
+                const blob = new Blob([data.html], { type: 'text/html' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `libro_${bookId}.${selectedFormat.toLowerCase()}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }
+
             setFinished(true);
-        }, 3000);
+        } catch (err: any) {
+            console.error("Export failed:", err);
+            alert(`Errore durante l'esportazione: ${err.message}`);
+        } finally {
+            setExporting(false);
+        }
     };
 
     return (
