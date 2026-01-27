@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Download, FileText, Smartphone, Image, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
+import { supabase } from '../../lib/api';
 
 const ExportPage: React.FC = () => {
     const [exporting, setExporting] = useState(false);
     const [finished, setFinished] = useState(false);
     const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
+    const [progress, setProgress] = useState<string>("");
 
     const handleExport = async () => {
         if (!selectedFormat) return;
@@ -20,95 +20,56 @@ const ExportPage: React.FC = () => {
 
         setExporting(true);
         try {
-            const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
-
-            const response = await fetch(WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'EXPORT',
-                    bookId,
-                    format: selectedFormat.toLowerCase()
-                })
-            });
-
-            if (!response.ok) throw new Error(`Errore server: ${response.statusText}`);
-
-            const responseData = await response.json();
-            const data = Array.isArray(responseData) ? responseData[0] : responseData;
-
             if (selectedFormat === 'PDF') {
-                const doc = new jsPDF({
-                    orientation: 'portrait',
-                    unit: 'pt',
-                    format: 'a4'
-                });
+                setProgress("Il server sta impaginando il tuo libro (Richiede circa 10-30 secondi)...");
 
-                // Creiamo un contenitore visibile ma fuori dallo schermo per il rendering
-                const container = document.createElement('div');
-                container.id = "pdf-render-container";
-                container.innerHTML = data.html;
+                // Get current session for Edge Function authentication
+                const { data: { session } } = await supabase.auth.getSession();
 
-                // Per assicurarci che jsPDF trovi html2canvas in un ambiente modulare
-                // @ts-ignore
-                window.html2canvas = html2canvas;
-
-                console.log("PDF Export - Starting process. HTML length:", data.html?.length);
-
-                // STILI PER IL RENDERING (Usiamo PX per coerenza con windowWidth)
-                Object.assign(container.style, {
-                    position: 'fixed',
-                    left: '0',
-                    top: '0',
-                    width: '650px', // Larghezza fissa in pixel
-                    padding: '20px',
-                    background: 'white',
-                    color: '#333',
-                    fontSize: '16px', // Leggermente più grande per compensare la scala
-                    lineHeight: '1.6',
-                    fontFamily: 'serif',
-                    zIndex: '-10000',
-                    visibility: 'visible', // Deve essere visibile per html2canvas, ma spostato
-                    opacity: '0.01' // Quasi invisibile
-                });
-
-                document.body.appendChild(container);
-
-                // Importante: attendiamo che il DOM si assesti
-                setTimeout(async () => {
-                    try {
-                        console.log("PDF Export - Rendering...");
-                        await doc.html(container, {
-                            html2canvas: {
-                                scale: 1,
-                                useCORS: true,
-                                logging: true
-                            },
-                            x: 0,
-                            y: 0,
-                            width: 515, // Larghezza finale nel PDF (pt)
-                            windowWidth: 650, // Deve coincidere esattamene con la larghezza del container
-                            autoPaging: 'text',
-                            margin: [40, 40, 40, 40],
-                            callback: (doc) => {
-                                console.log("PDF Export - Save triggered.");
-                                doc.save(`libro_${bookId}.pdf`);
-                                document.body.removeChild(container);
-                                setFinished(true);
-                                setExporting(false);
-                            }
-                        });
-                    } catch (renderError) {
-                        console.error("PDF Render Error:", renderError);
-                        alert("Errore durante il rendering del PDF. Controlla la console.");
-                        document.body.removeChild(container);
-                        setExporting(false);
+                const response = await fetch(
+                    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-pdf`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                        },
+                        body: JSON.stringify({ bookId })
                     }
-                }, 800); // Aumentato delay per caricamento caratteri
-                return;
+                );
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
+                    throw new Error(error.error || "Errore durante la generazione del PDF professional");
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `libro_${bookId}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
             } else {
-                // For now, if format is not PDF (like EPUB), download as HTML or show message
-                // This is a placeholder since user wanted to focus on SaaS-ready PDF via Gotenberg alternative
+                // Other formats go through n8n
+                const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+                const response = await fetch(WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'EXPORT',
+                        bookId,
+                        format: selectedFormat.toLowerCase()
+                    })
+                });
+
+                if (!response.ok) throw new Error(`Errore server: ${response.statusText}`);
+
+                const responseData = await response.json();
+                const data = Array.isArray(responseData) ? responseData[0] : responseData;
+
                 const blob = new Blob([data.html], { type: 'text/html' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -126,6 +87,7 @@ const ExportPage: React.FC = () => {
             alert(`Errore durante l'esportazione: ${err.message}`);
         } finally {
             setExporting(false);
+            setProgress("");
         }
     };
 
@@ -140,7 +102,7 @@ const ExportPage: React.FC = () => {
 
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '3rem' }}>
                         {[
-                            { id: 'PDF', icon: FileText, label: 'Documento PDF' },
+                            { id: 'PDF', icon: FileText, label: 'Documento PDF (Qualità Stampa)' },
                             { id: 'EPUB', icon: Smartphone, label: 'ePub (E-reader)' },
                             { id: 'PNG', icon: Image, label: 'Immagine PNG' },
                         ].map((fmt) => (
@@ -154,7 +116,7 @@ const ExportPage: React.FC = () => {
                                     padding: '2rem',
                                     cursor: 'pointer',
                                     border: selectedFormat === fmt.id ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                                    width: '200px',
+                                    width: '240px',
                                     background: selectedFormat === fmt.id ? 'rgba(79, 70, 229, 0.1)' : 'transparent'
                                 }}
                             >
@@ -171,7 +133,16 @@ const ExportPage: React.FC = () => {
                         className="btn-primary"
                         style={{ margin: '0 auto', fontSize: '1.2rem', padding: '1rem 3rem' }}
                     >
-                        {exporting ? <><Loader2 className="animate-spin" /> Confezionamento...</> : <><Download size={24} /> Scarica Ora</>}
+                        {exporting ? (
+                            <>
+                                <Loader2 className="animate-spin" />
+                                {progress || "Confezionamento..."}
+                            </>
+                        ) : (
+                            <>
+                                <Download size={24} /> Scarica Ora
+                            </>
+                        )}
                     </button>
                 </>
             ) : (
@@ -181,7 +152,7 @@ const ExportPage: React.FC = () => {
                     </div>
                     <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Download Completato!</h2>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-                        Il tuo file {selectedFormat} è stato scaricato correttamente nella tua cartella Download.
+                        Il tuo file {selectedFormat} è stato scaricato correttamente.
                     </p>
                     <div style={{
                         width: '200px',
