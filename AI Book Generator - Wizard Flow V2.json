@@ -107,6 +107,7 @@
       "typeVersion": 1,
       "position": [
         384,
+        110,
         368
       ]
     },
@@ -336,7 +337,9 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
+        339,
         160,
+        340,
         560
       ]
     },
@@ -366,6 +369,7 @@
       "typeVersion": 4,
       "position": [
         832,
+        369,
         560
       ],
       "credentials": {
@@ -387,6 +391,7 @@
       "typeVersion": 1,
       "position": [
         1072,
+        390,
         560
       ]
     },
@@ -404,6 +409,7 @@
       "typeVersion": 2,
       "position": [
         -64,
+        407,
         752
       ],
       "credentials": {
@@ -427,6 +433,7 @@
       "typeVersion": 2,
       "position": [
         160,
+        430,
         752
       ],
       "credentials": {
@@ -462,6 +469,7 @@
       "typeVersion": 4,
       "position": [
         608,
+        465,
         752
       ],
       "credentials": {
@@ -485,6 +493,7 @@
       "typeVersion": 2,
       "position": [
         832,
+        488,
         752
       ],
       "credentials": {
@@ -506,6 +515,7 @@
       "typeVersion": 1,
       "position": [
         1184,
+        509,
         992
       ]
     },
@@ -551,6 +561,7 @@
       "typeVersion": 2,
       "position": [
         -736,
+        554,
         560
       ],
       "credentials": {
@@ -574,6 +585,7 @@
       "typeVersion": 2,
       "position": [
         -512,
+        577,
         560
       ],
       "credentials": {
@@ -583,21 +595,6 @@
         }
       },
       "notes": "Creates book record if not exists. Useful for ensuring ID validity."
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "{\n  \"bookId\": \"{{ $node[\"Init Book (Optional)1\"].json.id }}\",\n  \"aiContent\": \"{{ $node[\"Agent: Interviewer1\"].json.choices[0].message.content }}\"\n}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.4,
-      "position": [
-        -64,
-        912
-      ],
-      "id": "3ee5ef3d-d0c3-40c1-9e57-2bf0a414562a",
-      "name": "Respond to Webhook"
     },
     {
       "parameters": {
@@ -613,6 +610,7 @@
       "typeVersion": 2,
       "position": [
         -64,
+        616,
         560
       ],
       "credentials": {
@@ -629,7 +627,9 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
+        632,
         320,
+        633,
         48
       ],
       "id": "f747cbdc-2ed8-4f62-8f36-22a1d5ca65b8",
@@ -649,6 +649,7 @@
       "typeVersion": 2,
       "position": [
         384,
+        652,
         752
       ],
       "credentials": {
@@ -666,6 +667,7 @@
       "typeVersion": 1,
       "position": [
         1056,
+        669,
         448
       ],
       "id": "3d9fdb62-11eb-41f5-9761-8522fb3c2a64",
@@ -686,6 +688,7 @@
       "typeVersion": 4.2,
       "position": [
         384,
+        689,
         560
       ],
       "id": "f64e020a-8306-48eb-b4e2-91c0673893ab",
@@ -711,6 +714,7 @@
       "typeVersion": 2,
       "position": [
         608,
+        714,
         560
       ],
       "credentials": {
@@ -734,6 +738,7 @@
       "typeVersion": 2,
       "position": [
         384,
+        737,
         176
       ],
       "credentials": {
@@ -751,6 +756,7 @@
       "typeVersion": 1,
       "position": [
         352,
+        754,
         880
       ],
       "id": "9353a9dd-2d77-4799-ab0a-7a9d479a35ba",
@@ -764,6 +770,7 @@
       "typeVersion": 1,
       "position": [
         608,
+        767,
         832
       ],
       "id": "c81ed196-6dd4-40b2-a599-39837f5caa75",
@@ -781,6 +788,7 @@
       "typeVersion": 2.6,
       "position": [
         -80,
+        784,
         1072
       ],
       "id": "74be8f75-cbeb-49e6-a044-1fc50d67bb8b",
@@ -794,7 +802,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nif (items.length === 0) return { html: \"<h1>Libro Vuoto</h1>\" };\n\nconst bookTitle = items[0].json.book_title;\nlet bodyHtml = \"\";\n\n// Basic Markdown to HTML conversion\nfunction mdToHtml(md) {\n  if (!md) return \"\";\n  return md\n    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n    .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n    .replace(/### (.*?)\\n/g, '<h3>$1</h3>')\n    .replace(/## (.*?)\\n/g, '<h2>$1</h2>')\n    .replace(/# (.*?)\\n/g, '<h1>$1</h1>')\n    .replace(/\\n/g, '<br>');\n}\n\nitems.forEach(item => {\n  bodyHtml += `\\n<section class=\"chapter\">\\n  <h2>${item.json.chapter_title}</h2>\\n  <div class=\"content\">${mdToHtml(item.json.content)}</div>\\n</section>\\n`;\n});\n\nconst fullHtml = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>${bookTitle}</title>\n  <style>\n    @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;700&display=swap');\n    body { font-family: 'Crimson Pro', serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 2rem; }\n    h1 { text-align: center; font-size: 2.5rem; margin-bottom: 3rem; }\n    h2 { border-bottom: 1px solid #eee; padding-bottom: 0.5rem; margin-top: 3rem; }\n    .chapter { page-break-after: always; }\n    .content { font-size: 1.2rem; text-align: justify; }\n  </style>\n</head>\n<body>\n  <h1>${bookTitle}</h1>\n  ${bodyHtml}\n</body>\n</html>`;\n\nreturn { \n  json: { \n    html: fullHtml,\n    title: bookTitle\n  } \n};"
+        "jsCode": "const items = $input.all();\nif (items.length === 0) return { html: \"<h1>Libro Vuoto</h1>\" };\n\nconst bookTitle = items[0].json.book_title;\nlet bodyHtml = \"\";\n\nfunction mdToHtml(md) {\n  if (!md) return \"\";\n  return md\n    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n    .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n    .replace(/### (.*?)\\n/g, '<h3>$1</h3>')\n    .replace(/## (.*?)\\n/g, '<h2>$1</h2>')\n    .replace(/# (.*?)\\n/g, '<h1>$1</h1>')\n    .replace(/\\n/g, '<br>');\n}\n\nitems.forEach(item => {\n  bodyHtml += `<section class=\"chapter\"><h2>${item.json.chapter_title}</h2><div class=\"content\">${mdToHtml(item.json.content)}</div></section>`;\n});\n\nconst cleanHtml = `<div style=\"font-family: 'Georgia', serif; color: #333;\"><h1 style=\"text-align: center; margin-bottom: 40pt;\">${bookTitle}</h1>${bodyHtml}</div>`;\n\nreturn { json: { html: cleanHtml, title: bookTitle } };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -804,6 +812,82 @@
       ],
       "id": "523069cb-b510-4c30-b1e0-ae16bc1af65a",
       "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ $node[\"Init Book (Optional)\"].json.id }}"
+        }
+      },
+      "id": "678e3c1a-2123-4c04-9aa9-527f980eff22",
+      "name": "Get Book Context Editor",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        822,
+        912
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"mistralai/devstral-2512:free\",\n  \"max_tokens\": 1000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un Editor Letterario Professionale. non usare mai emoji in nessuna circostanza.\\n\\nCONTESTO LIBRO:\\n- Titolo: \" + ($node[\"Get Book Context Editor\"].json.title || 'In definizione') + \"\\n- Blueprint: \" + JSON.stringify($node[\"Get Book Context Editor\"].json.context_data?.blueprint || {}) + \"\\n\\nTESTO DA REVISIONARE:\\n\" + $node[\"Webhook Router\"].json.body.content + \"\\n\\nISTRUZIONI:\\n1. Analizza il capitolo cercando incongruenze con il blueprint, errori grammaticali o miglioramenti stilistici.\\n2. Fornisci un suggerimento conciso ed efficace che l'autore possa scegliere di applicare.\\n3. OUTPUT JSON: { \\\"aiResponse\\\": \\\"...\\\" }\"\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "987f4d2b-6d9e-4ba9-8b60-55d1008655dc",
+      "name": "Agent: Editor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        160,
+        857,
+        912
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"bookId\": \"{{ $node['Get Book Context Editor'].json.id }}\",\n  \"aiResponse\": {{ JSON.stringify(JSON.parse($node['Agent: Editor'].json.choices[0].message.content).aiResponse) }}\n}",
+        "options": {}
+      },
+      "id": "543c2d1e-8b3f-ec34-952c-24ed7d68427e",
+      "name": "Response Editor",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        384,
+        878,
+        912
+      ]
     },
     {
       "parameters": {
@@ -898,7 +982,7 @@
         ],
         [
           {
-            "node": "Respond to Webhook",
+            "node": "Get Book Context Editor",
             "type": "main",
             "index": 0
           }
@@ -1082,6 +1166,28 @@
         [
           {
             "node": "Send File to Frontend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book Context Editor": {
+      "main": [
+        [
+          {
+            "node": "Agent: Editor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Editor": {
+      "main": [
+        [
+          {
+            "node": "Response Editor",
             "type": "main",
             "index": 0
           }
