@@ -1,0 +1,20 @@
+{
+    "name": "w4u-epub-server",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.93.1",
+        "cors": "^2.8.6",
+        "dotenv": "^17.2.3",
+        "epub-gen": "^0.1.0",
+        "express": "^5.2.1",
+        "fs": "^0.0.1-security",
+        "marked": "^17.0.1",
+        "node-fetch": "^2.7.0",
+        "path": "^0.12.7",
+        "uuid": "^13.0.0"
+    }
+}

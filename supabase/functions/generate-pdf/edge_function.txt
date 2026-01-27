@@ -1,0 +1,238 @@
+-----------questa è la funzione di supabase per generare il pdf-----------
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { marked } from "https://esm.sh/marked@4.3.0";
+
+/* -------------------------
+   CORS
+-------------------------- */
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+/* -------------------------
+   SANITIZZAZIONE TESTO
+-------------------------- */
+
+// Rimuove completamente le emoji Unicode
+function removeEmojis(text: string): string {
+  if (!text) return "";
+  return text.replace(
+    /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu,
+    ""
+  );
+}
+
+// Normalizza testo editoriale (CRITICO)
+function normalizeText(text: string): string {
+  return text
+    // converte "\n" serializzati in newline reali
+    .replace(/\\n/g, "\n")
+    // normalizza CRLF
+    .replace(/\r\n/g, "\n")
+    // rimuove spazi non-breaking
+    .replace(/\u00A0/g, " ")
+    // riduce newline eccessive
+    .replace(/\n{3,}/g, "\n\n")
+    // trim finale
+    .trim();
+}
+
+/* -------------------------
+   MARKDOWN CONFIG
+-------------------------- */
+marked.setOptions({
+  mangle: false,
+  headerIds: false,
+});
+
+/* -------------------------
+   EDGE FUNCTION
+-------------------------- */
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const { bookId } = await req.json();
+    if (!bookId) throw new Error("bookId is required");
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    /* --------- FETCH DATA --------- */
+    const { data: book, error: bookError } = await supabase
+      .from("books")
+      .select("*")
+      .eq("id", bookId)
+      .single();
+
+    if (bookError || !book) throw new Error("Book not found");
+
+    const { data: chapters, error: chaptersError } = await supabase
+      .from("chapters")
+      .select("*")
+      .eq("book_id", bookId)
+      .eq("status", "COMPLETED")
+      .order("chapter_number", { ascending: true });
+
+    if (chaptersError || !chapters) {
+      throw new Error("Chapters not found");
+    }
+
+    /* --------- PIPELINE EDITORIALE --------- */
+    const cleanBookTitle = normalizeText(
+      removeEmojis(book.title ?? "Libro")
+    );
+
+    let chaptersHtml = "";
+
+    for (const ch of chapters) {
+      const cleanTitle = normalizeText(
+        removeEmojis(ch.title ?? "Senza titolo")
+      );
+
+      const rawContent = ch.content ?? "";
+      const noEmoji = removeEmojis(rawContent);
+      const normalizedMarkdown = normalizeText(noEmoji);
+      const semanticHtml = marked.parse(normalizedMarkdown);
+
+      chaptersHtml += `
+        <section class="chapter">
+          <h2 class="chapter-title">${cleanTitle}</h2>
+          <div class="chapter-content">
+            ${semanticHtml}
+          </div>
+        </section>
+      `;
+    }
+
+    /* --------- TEMPLATE HTML --------- */
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    @page {
+      size: A4;
+      margin: 2.5cm;
+    }
+
+    body {
+      font-family: "Georgia", "Times New Roman", serif;
+      font-size: 12pt;
+      line-height: 1.6;
+      text-align: justify;
+      color: #111;
+    }
+
+    h1.book-title {
+      font-size: 28pt;
+      text-align: center;
+      margin-top: 6cm;
+      margin-bottom: 4cm;
+      font-weight: normal;
+      page-break-after: always;
+    }
+
+    .chapter {
+      page-break-before: always;
+    }
+
+    .chapter-title {
+      font-size: 18pt;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 2pt;
+      margin: 2cm 0 1.5cm;
+    }
+
+    p {
+      margin: 0 0 0.8em 0;
+    }
+
+    p + p {
+      text-indent: 1.5em;
+    }
+
+    ul {
+      margin: 1em 0 1em 2em;
+    }
+
+    li {
+      margin-bottom: 0.4em;
+    }
+
+    strong {
+      font-weight: 600;
+    }
+
+    em {
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <h1 class="book-title">${cleanBookTitle}</h1>
+  ${chaptersHtml}
+</body>
+</html>
+`;
+
+    /* --------- PDF RENDER --------- */
+    const BROWSERLESS_API_KEY = Deno.env.get("BROWSERLESS_API_KEY");
+    if (!BROWSERLESS_API_KEY) {
+      throw new Error("Missing BROWSERLESS_API_KEY");
+    }
+
+    const browserlessUrl = `https://chrome.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
+
+    const pdfResponse = await fetch(browserlessUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        html: htmlContent,
+        options: {
+          format: "A4",
+          printBackground: true,
+          margin: {
+            top: "2.5cm",
+            bottom: "2.5cm",
+            left: "3cm",
+            right: "2.5cm",
+          },
+        },
+      }),
+    });
+
+    if (!pdfResponse.ok) {
+      const err = await pdfResponse.text();
+      throw new Error(err);
+    }
+
+    const pdfBuffer = await pdfResponse.arrayBuffer();
+
+    return new Response(pdfBuffer, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="book-${bookId}.pdf"`,
+      },
+    });
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});
