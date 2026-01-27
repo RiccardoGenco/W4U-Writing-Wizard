@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wand2, Check, X, ChevronRight, FileEdit, Loader2 } from 'lucide-react';
+import { Wand2, Check, X, ChevronRight, FileEdit, Loader2, Save } from 'lucide-react';
 import { supabase, callBookAgent } from '../../lib/api';
 
 interface Chapter {
@@ -42,15 +42,13 @@ const EditorPage: React.FC = () => {
 
     // Autosave logic
     useEffect(() => {
-        if (saveStatus !== 'idle' && saveStatus !== 'saving') return; // Only trigger if something changed or initializing
-
-        const delayDebounceFn = setTimeout(() => {
-            if (chapters[selectedChapterIdx] && localContent !== (chapters[selectedChapterIdx].content || '')) {
+        // Trigger save only if content differs from last known database state
+        if (chapters[selectedChapterIdx] && localContent !== (chapters[selectedChapterIdx].content || '')) {
+            const delayDebounceFn = setTimeout(() => {
                 saveContent(localContent);
-            }
-        }, 2000); // 2 seconds debounce
-
-        return () => clearTimeout(delayDebounceFn);
+            }, 3000); // 3 seconds debounce for autosave
+            return () => clearTimeout(delayDebounceFn);
+        }
     }, [localContent]);
 
     const fetchChapters = async () => {
@@ -107,6 +105,14 @@ const EditorPage: React.FC = () => {
         } finally {
             setOptimizing(false);
         }
+    };
+
+    const applySuggestion = () => {
+        if (!suggestion) return;
+        setLocalContent(suggestion);
+        setSuggestion(null);
+        // Save immediately after applying suggestion
+        saveContent(suggestion);
     };
 
     if (loading) {
@@ -166,13 +172,26 @@ const EditorPage: React.FC = () => {
                     <div>
                         <h2 style={{ fontSize: '1.5rem', marginBottom: '0.2rem' }}>{currentChapter.title}</h2>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            {saveStatus === 'saving' ? 'Salvataggio in corso...' : saveStatus === 'saved' ? 'Tutte le modifiche salvate' : 'Modifica il testo qui sotto'}
+                            {saveStatus === 'saving' ? 'Salvataggio...' :
+                                saveStatus === 'saved' ? '✨ Modifiche salvate' :
+                                    saveStatus === 'error' ? '❌ Errore salvataggio' :
+                                        'Modalità scrittura'}
                         </span>
                     </div>
-                    <button onClick={optimize} className="btn-secondary" disabled={optimizing}>
-                        <Wand2 size={16} />
-                        {optimizing ? 'Analisi...' : 'Ottimizza con IA'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.8rem' }}>
+                        <button
+                            onClick={() => saveContent(localContent)}
+                            className="btn-secondary"
+                            disabled={saveStatus === 'saving' || localContent === (currentChapter.content || '')}
+                            style={{ padding: '0.5rem 1rem' }}
+                        >
+                            <Save size={16} /> Salva
+                        </button>
+                        <button onClick={optimize} className="btn-secondary" disabled={optimizing}>
+                            <Wand2 size={16} />
+                            {optimizing ? 'Analisi...' : 'Migliora con IA'}
+                        </button>
+                    </div>
                 </header>
 
                 <textarea
@@ -208,11 +227,11 @@ const EditorPage: React.FC = () => {
                 <div style={{ flex: 1 }}>
                     {suggestion ? (
                         <div className="fade-in" style={{ background: 'rgba(79, 70, 229, 0.05)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--accent)' }}>
-                            <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', lineHeight: 1.6, color: '#e2e8f0' }}>
-                                "{suggestion}"
+                            <p style={{ fontSize: '0.95rem', marginBottom: '1.5rem', lineHeight: 1.6, color: '#e2e8f0', minHeight: '100px' }}>
+                                {suggestion}
                             </p>
                             <div style={{ display: 'flex', gap: '0.8rem' }}>
-                                <button className="btn-primary" style={{ flex: 1, fontSize: '0.85rem' }} onClick={() => setSuggestion(null)}>
+                                <button className="btn-primary" style={{ flex: 1, fontSize: '0.85rem' }} onClick={applySuggestion}>
                                     <Check size={16} /> Applica
                                 </button>
                                 <button className="btn-secondary" style={{ flex: 1, fontSize: '0.85rem' }} onClick={() => setSuggestion(null)}>

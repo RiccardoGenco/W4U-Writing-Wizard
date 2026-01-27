@@ -52,8 +52,36 @@ const ExportPage: React.FC = () => {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
+            } else if (selectedFormat === 'EPUB') {
+                setProgress("Il server Node sta preparando il file EPUB 3 (Richiede circa 10-20 secondi)...");
+
+                const response = await fetch(
+                    `http://localhost:3001/export/epub`, // Node.js server port
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ bookId })
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
+                    throw new Error(error.error || "Errore durante la generazione dell'EPUB");
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `libro_${bookId}.epub`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
             } else {
-                // Other formats go through n8n
+                // Other formats through n8n (PNG, etc.)
                 const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
