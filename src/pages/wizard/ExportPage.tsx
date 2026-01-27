@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Download, FileText, Smartphone, Image, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const ExportPage: React.FC = () => {
     const [exporting, setExporting] = useState(false);
@@ -38,19 +38,74 @@ const ExportPage: React.FC = () => {
             const data = Array.isArray(responseData) ? responseData[0] : responseData;
 
             if (selectedFormat === 'PDF') {
-                const opt = {
-                    margin: 1,
-                    filename: `libro_${bookId}.pdf`,
-                    image: { type: 'jpeg' as const, quality: 0.98 },
-                    html2canvas: { scale: 2 },
-                    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' as const }
-                };
+                const doc = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'pt',
+                    format: 'a4'
+                });
 
-                // Create a temporary element to hold the HTML
-                const element = document.createElement('div');
-                element.innerHTML = data.html;
+                // Creiamo un contenitore visibile ma fuori dallo schermo per il rendering
+                const container = document.createElement('div');
+                container.id = "pdf-render-container";
+                container.innerHTML = data.html;
 
-                await html2pdf().set(opt).from(element).save();
+                // Per assicurarci che jsPDF trovi html2canvas in un ambiente modulare
+                // @ts-ignore
+                window.html2canvas = html2canvas;
+
+                console.log("PDF Export - Starting process. HTML length:", data.html?.length);
+
+                // STILI PER IL RENDERING (Usiamo PX per coerenza con windowWidth)
+                Object.assign(container.style, {
+                    position: 'fixed',
+                    left: '0',
+                    top: '0',
+                    width: '650px', // Larghezza fissa in pixel
+                    padding: '20px',
+                    background: 'white',
+                    color: '#333',
+                    fontSize: '16px', // Leggermente più grande per compensare la scala
+                    lineHeight: '1.6',
+                    fontFamily: 'serif',
+                    zIndex: '-10000',
+                    visibility: 'visible', // Deve essere visibile per html2canvas, ma spostato
+                    opacity: '0.01' // Quasi invisibile
+                });
+
+                document.body.appendChild(container);
+
+                // Importante: attendiamo che il DOM si assesti
+                setTimeout(async () => {
+                    try {
+                        console.log("PDF Export - Rendering...");
+                        await doc.html(container, {
+                            html2canvas: {
+                                scale: 1,
+                                useCORS: true,
+                                logging: true
+                            },
+                            x: 0,
+                            y: 0,
+                            width: 515, // Larghezza finale nel PDF (pt)
+                            windowWidth: 650, // Deve coincidere esattamene con la larghezza del container
+                            autoPaging: 'text',
+                            margin: [40, 40, 40, 40],
+                            callback: (doc) => {
+                                console.log("PDF Export - Save triggered.");
+                                doc.save(`libro_${bookId}.pdf`);
+                                document.body.removeChild(container);
+                                setFinished(true);
+                                setExporting(false);
+                            }
+                        });
+                    } catch (renderError) {
+                        console.error("PDF Render Error:", renderError);
+                        alert("Errore durante il rendering del PDF. Controlla la console.");
+                        document.body.removeChild(container);
+                        setExporting(false);
+                    }
+                }, 800); // Aumentato delay per caricamento caratteri
+                return;
             } else {
                 // For now, if format is not PDF (like EPUB), download as HTML or show message
                 // This is a placeholder since user wanted to focus on SaaS-ready PDF via Gotenberg alternative
