@@ -55,8 +55,9 @@ const ExportPage: React.FC = () => {
             } else if (selectedFormat === 'EPUB') {
                 setProgress("Il server Node sta preparando il file EPUB 3 (Richiede circa 10-20 secondi)...");
 
+                const NODE_BACKEND_URL = import.meta.env.VITE_NODE_BACKEND_URL || 'http://localhost:3001';
                 const response = await fetch(
-                    `http://localhost:3001/export/epub`, // Node.js server port
+                    `${NODE_BACKEND_URL}/export/epub`, // Node.js server port
                     {
                         method: 'POST',
                         headers: {
