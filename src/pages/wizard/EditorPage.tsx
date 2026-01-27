@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wand2, Check, X, ChevronRight, FileEdit, Loader2 } from 'lucide-react';
-import { supabase } from '../../lib/api';
+import { supabase, callBookAgent } from '../../lib/api';
 
 interface Chapter {
     id: string;
@@ -93,12 +93,20 @@ const EditorPage: React.FC = () => {
         }
     };
 
-    const optimize = () => {
+    const optimize = async () => {
+        if (!bookId) return;
         setOptimizing(true);
-        setTimeout(() => {
+        try {
+            const response = await callBookAgent('EDIT', { content: localContent }, bookId);
+            if (response.aiResponse) {
+                setSuggestion(response.aiResponse);
+            }
+        } catch (err) {
+            console.error("Optimization failed:", err);
+            alert("Errore durante l'analisi del testo.");
+        } finally {
             setOptimizing(false);
-            setSuggestion('Ho notato che il tono qui è troppo tecnico rispetto ai capitoli precedenti. Vuoi renderlo più discorsivo?');
-        }, 1500);
+        }
     };
 
     if (loading) {
