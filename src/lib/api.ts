@@ -30,7 +30,8 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
     };
 
     // 1. Log outgoing request
-    await logDebug('frontend', `n8n_request_${action.toLowerCase()}`, requestPayload, bookId);
+    console.log(`[API] Calling n8n: ${WEBHOOK_URL}`, requestPayload);
+    await logDebug('frontend', `n8n_request_${action.toLowerCase()}`, { url: WEBHOOK_URL, ...requestPayload }, bookId);
 
     try {
         const response = await fetch(WEBHOOK_URL, {
@@ -41,7 +42,8 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
 
         if (!response.ok) {
             const errorText = await response.text();
-            await logDebug('frontend', `n8n_error_${action.toLowerCase()}`, { status: response.status, statusText: response.statusText, body: errorText }, bookId);
+            console.error(`[API] n8n Error ${response.status}:`, errorText);
+            await logDebug('frontend', `n8n_error_${action.toLowerCase()}`, { status: response.status, statusText: response.statusText, body: errorText, url: WEBHOOK_URL }, bookId);
             throw new Error(`N8N Error: ${response.statusText}`);
         }
 

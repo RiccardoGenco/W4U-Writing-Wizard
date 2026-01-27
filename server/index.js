@@ -6,14 +6,12 @@ const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 
-// Manually load .env if process.env.VITE_SUPABASE_URL is not set
-if (!process.env.VITE_SUPABASE_URL) {
-    try {
-        const dotenv = require("dotenv");
-        dotenv.config({ path: path.join(__dirname, "../.env") });
-    } catch (e) {
-        console.log("Dotenv not found or already loaded");
-    }
+// Load .env
+try {
+    const dotenv = require("dotenv");
+    dotenv.config({ path: path.join(__dirname, "../.env") });
+} catch (e) {
+    console.log("Dotenv not found or already loaded");
 }
 
 const app = express();
@@ -22,7 +20,7 @@ app.use(express.json());
 
 const supabase = createClient(
     process.env.VITE_SUPABASE_URL || "",
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ""
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
 );
 
 // --- EDITORIAL PIPELINE UTILS ---
