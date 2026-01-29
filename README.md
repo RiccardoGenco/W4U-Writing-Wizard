@@ -2,21 +2,29 @@
 
 W4U Writing Wizard è un assistente alla scrittura potenziato dall'intelligenza artificiale che guida l'autore dalla fase di ideazione fino alla produzione del manoscritto completo.
 
-##  Funzionalità
+## 🚀 Novità e Ottimizzazioni
+
+- **W4U Wizard Branding**: Rinnovata l'identità dell'agente nel frontend.
+- **Sanitizzazione Centralizzata**: Nuovo endpoint `/api/sanitize` per pulizia testo coerente (casistica editoriale, rimozione emoji).
+- **Export UX Migliorata**: Gestione errori inline e feedback visivo avanzato durante la generazione PDF/EPUB.
+- **Configurazione Dinamica**: Integrazione colonna `configuration` nel database per impostazioni personalizzate per ogni libro.
+
+## ✨ Funzionalità
 
 - **Wizard Flow**: Un percorso guidato in più step per definire Titolo, Genere e Target.
 - **Intervista AI**: Un agente intelligente ti aiuta a raffinare il concetto del tuo libro.
 - **Architetto Letterario**: Generazione automatica di un indice capitoli basato su tono e stile scelti.
 - **Editor Gerarchico**: Interfaccia di scrittura organizzata per Capitoli e Paragrafi.
-- **Export Multi-formato**: Generazione di file digitali, analogici e anteprime PNG.
+- **Export Multi-formato**: Generazione di file digitali (EPUB, PDF), analogici e anteprime PNG.
 
-##  Tech Stack
+## 🛠️ Tech Stack
 
 - **Frontend**: React, Vite, Framer Motion, Lucide React.
-- **Backend**: [n8n](https://n8n.io/) per l'orchestrazione degli agenti AI (OpenRouter).
-- **Database**: [Supabase](https://supabase.com/) per la persistenza dei dati e i log di debug.
+- **Backend (Node.js)**: Server Express per export EPUB e sanitizzazione testi.
+- **Orchestrazione (n8n)**: Gestione workflow agenti AI via OpenRouter.
+- **Database (Supabase)**: Persistence dati, configurazioni e log di debug.
 
-##  Installazione
+## ⚙️ Installazione
 
 1. **Clona il progetto**:
    ```bash
@@ -37,5 +45,6 @@ W4U Writing Wizard è un assistente alla scrittura potenziato dall'intelligenza 
    npm run dev
    ```
 
-##  Backend (n8n)
-Importa il file `workflow_v2.json` nella tua istanza n8n per attivare gli agenti AI e i webhook di collegamento con il database.
+## 🤖 Backend (n8n)
+Importa l'ultimo file `AI Book Generator - Wizard Flow V3.json` nella tua istanza n8n per attivare gli agenti ottimizzati.
+
