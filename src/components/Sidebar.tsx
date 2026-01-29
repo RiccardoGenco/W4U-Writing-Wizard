@@ -28,7 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                 }}>
                     <Book size={20} color="black" />
                 </div>
-                <h2 style={{ fontSize: '1.4rem', letterSpacing: '-0.05em', color: 'white' }}>GhostWriter</h2>
+                <h2 style={{ fontSize: '1.4rem', letterSpacing: '-0.05em', color: 'white' }}>W4U Wizard</h2>
             </div>
 
             <button

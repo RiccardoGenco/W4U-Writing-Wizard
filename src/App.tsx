@@ -15,7 +15,7 @@ import './index.css';
 const App: React.FC = () => {
 
   useEffect(() => {
-    console.log("%c ฅ^•ﻌ•^ฅ GhostWriter Reborn!", "color: #6366f1; font-weight: bold; font-size: 14px;");
+    console.log("%c ฅ^•ﻌ•^ฅ W4U Wizard Reborn!", "color: #6366f1; font-weight: bold; font-size: 14px;");
   }, []);
 
   return (
