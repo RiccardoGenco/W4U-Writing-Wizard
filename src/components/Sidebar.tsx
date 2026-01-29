@@ -58,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                                 style={{ position: 'absolute', left: 0, width: '3px', height: '60%', background: 'var(--primary)', borderRadius: '0 4px 4px 0' }}
                             />
                         )}
-                        <History size={16} />
+                        <History size={16} style={{ flexShrink: 0, minWidth: '16px', minHeight: '16px' }} />
                         <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: activeProjectId === p.id ? 600 : 400 }}>
                             {p.title}
                         </span>
