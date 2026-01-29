@@ -165,6 +165,29 @@ app.post("/export/epub", async (req, res) => {
     }
 });
 
+// --- SHARED SANITIZATION ENDPOINT ---
+
+app.post("/api/sanitize", (req, res) => {
+    const { text, method } = req.body;
+    let cleanText = text || "";
+
+    try {
+        if (method === 'chapter_title') {
+            cleanText = editorialCasing(normalizeChapterTitle(normalizeText(removeEmojis(cleanText))));
+        } else if (method === 'editorial') {
+            cleanText = editorialCasing(normalizeText(removeEmojis(cleanText)));
+        } else {
+            // Default: basic cleanup
+            cleanText = normalizeText(removeEmojis(cleanText));
+        }
+
+        res.json({ text: cleanText });
+    } catch (error) {
+        console.error("Sanitization error:", error);
+        res.status(500).json({ error: "Sanitization failed" });
+    }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
     console.log(`EPUB Export Server (Professional Edition) running on port ${PORT}`);

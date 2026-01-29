@@ -148,6 +148,11 @@ input, textarea, select {
   transition: all 0.3s ease;
 }
 
+option {
+  color: #333;
+  background: white;
+}
+
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--primary);
