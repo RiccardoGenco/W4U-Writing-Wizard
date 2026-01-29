@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300 ;400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
 
 :root {
   --primary: #00f2ff;
@@ -292,4 +292,299 @@ select:focus {
   filter: blur(80px);
   opacity: 0.15;
   transition: transform 0.1s ease-out;
+}
+
+/* ==========================================
+   NUOVE ANIMAZIONI PER OVERLAY CARICAMENTO
+   ========================================== */
+
+/* Shimmer per la barra di progresso decorativa */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+/* Fade in rapido per l'overlay */
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Pulsazione per elementi in attesa */
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+}
+
+/* Transizione messaggi */
+@keyframes messageChange {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ==========================================
+   LOADING OVERLAY CINEMATOGRAFICO
+   ========================================== */
+
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 5, 8, 0.95);
+  backdrop-filter: blur(20px);
+}
+
+.loading-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.loading-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 242, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 242, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: gridMove 20s linear infinite;
+}
+
+@keyframes gridMove {
+  0% {
+    transform: perspective(500px) rotateX(60deg) translateY(0);
+  }
+
+  100% {
+    transform: perspective(500px) rotateX(60deg) translateY(50px);
+  }
+}
+
+.loading-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(0, 242, 255, 0.1) 0%, transparent 70%);
+  animation: pulse 4s ease-in-out infinite;
+}
+
+/* Spinner Cyberpunk */
+.cyber-spinner {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 3rem;
+}
+
+.spinner-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid transparent;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 2s linear infinite;
+}
+
+.spinner-ring:nth-child(2) {
+  inset: 10px;
+  border-top-color: var(--accent);
+  animation: spin 3s linear infinite reverse;
+  opacity: 0.7;
+}
+
+.spinner-core {
+  position: absolute;
+  inset: 25px;
+  background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+/* Contenuto */
+.loading-content {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  max-width: 500px;
+  padding: 2rem;
+}
+
+.message-container {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.loading-message {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
+  letter-spacing: -0.02em;
+}
+
+/* Progress Bar */
+.progress-container-modern {
+  width: 300px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 0 auto 1rem;
+  position: relative;
+}
+
+.progress-bar-modern {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  box-shadow: 0 0 10px var(--primary);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  right: 0;
+  top: -25px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: 'Courier New', monospace;
+}
+
+/* Indeterminata */
+.progress-indeterminate {
+  width: 300px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 0 auto 2rem;
+  position: relative;
+}
+
+.indeterminate-bar {
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+  0% {
+    left: -40%;
+  }
+
+  100% {
+    left: 100%;
+  }
+}
+
+/* Decorazione */
+.loading-decoration {
+  margin-top: 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.scramble-text {
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* Typing Dots */
+.typing-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.typing-dots span {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  animation: typingBounce 1.4s ease-in-out infinite both;
+  box-shadow: 0 0 10px var(--primary);
+}
+
+.typing-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typingBounce {
+
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Animazione aggiuntiva per testo */
+@keyframes textGlitch {
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.8;
+    text-shadow: 2px 0 var(--error), -2px 0 var(--accent);
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
