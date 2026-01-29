@@ -1,9 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
 
 :root {
-  --primary: #00f2ff; /* Cyber Cyan */
+  --primary: #00f2ff;
+  /* Cyber Cyan */
   --primary-hover: #00d8e6;
-  --bg-dark: #050505; /* Deep Obsidian */
+  --bg-dark: #050505;
+  /* Deep Obsidian */
   --bg-card: rgba(18, 18, 20, 0.7);
   --text-main: #f8fafc;
   --text-muted: #64748b;
@@ -23,7 +25,7 @@
 body {
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-dark);
-  background-image: 
+  background-image:
     radial-gradient(at 0% 0%, rgba(0, 242, 255, 0.05) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(34, 211, 238, 0.05) 0px, transparent 50%);
   color: var(--text-main);
@@ -101,7 +103,9 @@ body {
   flex-direction: column;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   font-family: 'Outfit', sans-serif;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -118,26 +122,31 @@ h1, h2, h3 {
 }
 
 .glass-panel:hover {
-    border-color: rgba(0, 242, 255, 0.2);
+  border-color: rgba(0, 242, 255, 0.2);
 }
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 242, 255, 0.2);
 }
 
 /* Interactive Elements */
-input, textarea, select {
+input,
+textarea,
+select {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
@@ -153,7 +162,9 @@ option {
   background: white;
 }
 
-input:focus, textarea:focus, select:focus {
+input:focus,
+textarea:focus,
+select:focus {
   outline: none;
   border-color: var(--primary);
   background: rgba(0, 242, 255, 0.03);
@@ -167,6 +178,22 @@ input:focus, textarea:focus, select:focus {
   font-weight: 700;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 242, 255, 0.2);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  box-shadow: none;
+  filter: grayscale(1);
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
 }
 
 .btn-primary:hover {
@@ -180,11 +207,24 @@ input:focus, textarea:focus, select:focus {
   color: var(--text-main);
   border: 1px solid var(--glass-border);
   padding: 1rem 2rem;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
   border-color: var(--glass-border);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  filter: grayscale(1);
 }
 
 /* Progress Bar */
@@ -208,8 +248,15 @@ input:focus, textarea:focus, select:focus {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-spin {
@@ -217,27 +264,32 @@ input:focus, textarea:focus, select:focus {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Dashboard Interactive Background */
 .interactive-bg {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none;
-    z-index: 0;
-    overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
 }
 
 .bg-dot {
-    position: absolute;
-    border-radius: 50%;
-    background: var(--primary);
-    filter: blur(80px);
-    opacity: 0.15;
-    transition: transform 0.1s ease-out;
+  position: absolute;
+  border-radius: 50%;
+  background: var(--primary);
+  filter: blur(80px);
+  opacity: 0.15;
+  transition: transform 0.1s ease-out;
 }

@@ -257,6 +257,10 @@ const ConceptPage: React.FC = () => {
                                     <span style={{
                                         width: '32px',
                                         height: '32px',
+                                        minWidth: '32px',
+                                        minHeight: '32px',
+                                        flexShrink: 0,           // questa serve a non far rimpicciolire il numero e il cerchiett
+                                        aspectRatio: '1 / 1',    // ദ്ദി（• ˕ •マ.ᐟ
                                         borderRadius: '50%',
                                         background: 'rgba(0, 242, 255, 0.1)',
                                         color: 'var(--primary)',
@@ -301,11 +305,7 @@ const ConceptPage: React.FC = () => {
                             style={{
                                 padding: '1.5rem 4rem',
                                 fontSize: '1.2rem',
-                                display: 'inline-flex',
-                                alignItems: 'center',
                                 gap: '1rem',
-                                opacity: isComplete ? 1 : 0.5,
-                                cursor: isComplete ? 'pointer' : 'not-allowed'
                             }}
                         >
                             {loading ? (
