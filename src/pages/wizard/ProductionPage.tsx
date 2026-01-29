@@ -20,6 +20,20 @@ const ProductionPage: React.FC = () => {
     const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
     const [globalGenerating, setGlobalGenerating] = useState(false);
 
+    // Stati per l'overlay di caricamento
+    const [loadingMessage, setLoadingMessage] = useState("Analisi del blueprint narrativo...");
+    const [loadingSubMessage, setLoadingSubMessage] = useState("");
+
+    const loadingPhases = [
+        "Analisi del blueprint narrativo...",
+        "Sviluppo personaggi...",
+        "Costruzione ambientazione...",
+        "Scrittura dialoghi...",
+        "Controllo coerenza...",
+        "Revisione grammaticale...",
+        "Finalizzazione capitoli..."
+    ];
+
     const bookId = localStorage.getItem('active_book_id');
 
     useEffect(() => {
@@ -63,6 +77,26 @@ const ProductionPage: React.FC = () => {
             supabase.removeChannel(channel);
         }
     }, [bookId]);
+
+    // Effect per far cambiare i messaggi durante la generazione
+    useEffect(() => {
+        if (!globalGenerating) return;
+
+        let phaseIndex = 0;
+        setLoadingMessage(loadingPhases[0]);
+        setLoadingSubMessage(`Preparazione generazione ${chapters.length} capitoli...`);
+
+        const interval = setInterval(() => {
+            phaseIndex = (phaseIndex + 1) % loadingPhases.length;
+            setLoadingMessage(loadingPhases[phaseIndex]);
+
+            // Calcola capitoli completati vs totali per la sottostringa
+            const completed = chapters.filter(c => c.status === 'COMPLETED' || (c.content && c.content.length > 50)).length;
+            setLoadingSubMessage(`Progresso: ${completed}/${chapters.length} capitoli completati`);
+        }, 2500); // Cambia messaggio ogni 2.5 secondi
+
+        return () => clearInterval(interval);
+    }, [globalGenerating, chapters]);
 
     const fetchChapters = async () => {
         const { data, error } = await supabase
@@ -118,6 +152,79 @@ const ProductionPage: React.FC = () => {
 
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', height: '100%', gap: '1rem', overflow: 'hidden' }}>
+
+            {/* OVERLAY GENERAZIONE */}
+            {globalGenerating && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(5, 5, 8, 0.95)',
+                    backdropFilter: 'blur(20px)',
+                    zIndex: 1000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2rem',
+                    animation: 'fadeIn 0.3s ease-out'
+                }}>
+                    {/* Spinner animato */}
+                    <div style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        border: '3px solid rgba(0, 242, 255, 0.1)',
+                        borderTop: '3px solid var(--primary)',
+                        borderRight: '3px solid var(--accent)',
+                        animation: 'spin 1s linear infinite',
+                        boxShadow: '0 0 30px rgba(0, 242, 255, 0.3)'
+                    }} />
+
+                    {/* Testo principale */}
+                    <div style={{ textAlign: 'center' }}>
+                        <h2 style={{
+                            fontSize: '1.8rem',
+                            color: 'var(--primary)',
+                            marginBottom: '0.5rem',
+                            textShadow: '0 0 20px rgba(0, 242, 255, 0.5)',
+                            transition: 'all 0.3s ease'
+                        }}>
+                            {loadingMessage}
+                        </h2>
+
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            {loadingSubMessage}
+                        </p>
+                    </div>
+
+                    {/* Barra progresso decorativa */}
+                    <div style={{
+                        width: '300px',
+                        height: '4px',
+                        background: 'rgba(255,255,255,0.1)',
+                        borderRadius: '2px',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            height: '100%',
+                            width: '50%',
+                            background: 'linear-gradient(90deg, transparent, var(--primary), transparent)',
+                            borderRadius: '2px',
+                            animation: 'shimmer 1.5s infinite linear'
+                        }} />
+                    </div>
+
+                    <p style={{
+                        color: 'var(--text-muted)',
+                        fontSize: '0.8rem',
+                        maxWidth: '400px',
+                        textAlign: 'center',
+                        opacity: 0.6
+                    }}>
+                        Non chiudere questa finestra. L'IA sta scrivendo il tuo libro.
+                    </p>
+                </div>
+            )}
 
             {/* Left Panel: Chapter List */}
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '90vh' }}>
