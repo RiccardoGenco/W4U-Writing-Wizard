@@ -8,9 +8,15 @@ const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
-    const [pages, setPages] = useState('');
-    const [theme, setTheme] = useState('');
+    const [pages, setPages] = useState('150');
+    const [theme, setTheme] = useState('Thriller');
     const [showForm, setShowForm] = useState(false);
+
+    const PAGE_OPTIONS = ['50', '100', '150', '200', '250', '300'];
+    const GENRE_OPTIONS = [
+        'Thriller', 'Noir', 'Fantasy', 'Romanzo Rosa',
+        'Fantascienza', 'Storico', 'Horror', 'Saggio', 'Giallo'
+    ];
 
     // Interactive Background Logic
     const mouseX = useMotionValue(0);
@@ -199,22 +205,27 @@ const Dashboard: React.FC = () => {
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
                                     <div>
                                         <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Pagine</label>
-                                        <input
-                                            type="number"
-                                            placeholder="200"
+                                        <select
                                             value={pages}
                                             onChange={e => setPages(e.target.value)}
                                             style={{ width: '100%' }}
-                                        />
+                                        >
+                                            {PAGE_OPTIONS.map(opt => (
+                                                <option key={opt} value={opt}>{opt} pagine</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div>
                                         <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Genere</label>
-                                        <input
-                                            placeholder="Thriller / Noir"
+                                        <select
                                             value={theme}
                                             onChange={e => setTheme(e.target.value)}
                                             style={{ width: '100%' }}
-                                        />
+                                        >
+                                            {GENRE_OPTIONS.map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
 

@@ -129,6 +129,22 @@ const ExportPage: React.FC = () => {
                         Scegli il formato e scarica il tuo capolavoro.
                     </p>
 
+                    {errorMsg && (
+                        <div style={{
+                            padding: '1rem',
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid var(--error)',
+                            borderRadius: '8px',
+                            color: 'var(--error)',
+                            marginBottom: '2rem',
+                            maxWidth: '600px',
+                            marginLeft: 'auto',
+                            marginRight: 'auto'
+                        }}>
+                            {errorMsg}
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '3rem' }}>
                         {[
                             { id: 'PDF', icon: FileText, label: 'Documento PDF (Qualità Stampa)' },

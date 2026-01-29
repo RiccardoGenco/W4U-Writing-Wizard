@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import { supabase } from '../lib/api';
@@ -11,6 +11,7 @@ interface Project {
 
 const MainLayout: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [projects, setProjects] = useState<Project[]>([]);
     const [activeBookPages, setActiveBookPages] = useState<number | null>(null);
     const [activeBookId, setActiveBookId] = useState<string | null>(localStorage.getItem('active_book_id'));
@@ -75,7 +76,7 @@ const MainLayout: React.FC = () => {
                 activeProjectId={activeBookId}
             />
             <main className="main-content">
-                {activeBookPages && (
+                {activeBookPages && location.pathname !== '/' && (
                     <motion.div
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}

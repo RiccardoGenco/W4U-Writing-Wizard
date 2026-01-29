@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Loader2 } from 'lucide-react';
 import { callBookAgent, supabase } from '../../lib/api';
 
@@ -11,73 +11,102 @@ interface ConceptCard {
     style: string;
 }
 
+const QUESTIONS_BY_GENRE: Record<string, string[]> = {
+    'Thriller': [
+        'Qual è il crimine o il segreto al centro della storia?',
+        'Quale indizio fuorviante confonderà il lettore?',
+        'Qual è la debolezza del protagonista?',
+        'Come si manifesta il pericolo imminente?'
+    ],
+    'Noir': [
+        'Qual è il fallimento passato che tormenta il protagonista?',
+        'Chi è la figura ambigua che lo attira nel caos?',
+        'Qual è il marcio nascosto nella società?',
+        'C\'è una redenzione possibile?'
+    ],
+    'Fantasy': [
+        'Quali sono le regole uniche del sistema magico?',
+        'Chi o cosa rappresenta il male assoluto?',
+        'Quale regione remota dovrà essere esplorata?',
+        'Quale legame lega l\'eroe al destino del mondo?'
+    ],
+    'Romanzo Rosa': [
+        'Qual è l\'ostacolo insormontabile tra i due amanti?',
+        'Quale segreto del passato impedisce la fiducia?',
+        'In quale ambientazione sboccia la scintilla?',
+        'Qual è il momento di massima rottura?'
+    ],
+    'Fantascienza': [
+        'Quale tecnologia o scoperta ha cambiato il mondo?',
+        'Come si è evoluta la società in questo futuro?',
+        'Qual è il dilemma etico posto dal progresso?',
+        'Esiste una minaccia aliena o interna?'
+    ],
+    'Storico': [
+        'In quale anno e luogo preciso è ambientata?',
+        'Quale personaggio storico reale incrocia il cammino?',
+        'Qual è il conflitto politico dell\'epoca?',
+        'Quale usanza d\'epoca è simbolica?'
+    ],
+    'Horror': [
+        'Qual è l\'origine del male?',
+        'Qual è la paura ancestrale che vuoi esplorare?',
+        'Perché i protagonisti non possono fuggire?',
+        'Qual è il sacrificio necessario?'
+    ],
+    'Saggio': [
+        'Qual è il problema principale che vuoi analizzare?',
+        'Qual è la tesi rivoluzionaria che sosterrai?',
+        'A quale pubblico specifico ti rivolgi?',
+        'Quale caso studio è fondamentale?'
+    ],
+    'Giallo': [
+        'Chi è la vittima e in quali circostanze è morta?',
+        'Qual è il metodo unico dell\'investigatore?',
+        'Chi sono i tre sospettati principali?',
+        'Qual è il dettaglio minimo che risolverà il caso?'
+    ]
+};
+
+const DEFAULT_QUESTIONS = [
+    'Qual è il tema principale della tua storia?',
+    'Chi è il protagonista e cosa desidera?',
+    'Qual è il conflitto principale?',
+    'Come vorresti che finisse la storia?'
+];
+
 const ConceptPage: React.FC = () => {
     const navigate = useNavigate();
-    const [inputValue, setInputValue] = useState('');
     const [loading, setLoading] = useState(false);
     const [concepts, setConcepts] = useState<ConceptCard[]>([]);
-    const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
     const [bookTitle, setBookTitle] = useState<string | null>(null);
+    const [genre, setGenre] = useState<string | null>(null);
+    const [answers, setAnswers] = useState<string[]>(['', '', '', '']);
 
     const bookId = localStorage.getItem('active_book_id');
 
     useEffect(() => {
         if (bookId) {
-            fetchBookTitle();
-            const saved = localStorage.getItem(`chat_history_${bookId}`);
-            if (saved) setMessages(JSON.parse(saved));
+            fetchBookData();
         }
     }, [bookId]);
 
-    const fetchBookTitle = async () => {
+    const fetchBookData = async () => {
         if (!supabase || !bookId) return;
-        const { data } = await supabase.from('books').select('title').eq('id', bookId).single();
-        if (data) setBookTitle(data.title);
+        const { data } = await supabase.from('books').select('title, genre, context_data').eq('id', bookId).single();
+        if (data) {
+            setBookTitle(data.title);
+            setGenre(data.genre);
+            if (data.context_data?.answers) {
+                setAnswers(data.context_data.answers);
+            }
+        }
     };
 
-    useEffect(() => {
-        const bookId = localStorage.getItem('active_book_id');
-        if (bookId && messages.length > 0) {
-            localStorage.setItem(`chat_history_${bookId}`, JSON.stringify(messages));
-        }
-    }, [messages]);
-
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!inputValue.trim()) return;
-
-        const bookId = localStorage.getItem('active_book_id');
-        const userMsg = inputValue;
-
-        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-        setInputValue('');
-        setLoading(true);
-
-        try {
-            const data = await callBookAgent('INTERVIEW', { userInput: userMsg, title: bookTitle }, bookId);
-            const generatedData = data.data || data;
-
-            if (generatedData.bookId) {
-                localStorage.setItem('active_book_id', generatedData.bookId);
-            }
-
-            if (generatedData.concepts) {
-                setConcepts(generatedData.concepts);
-            } else if (generatedData.title_options) {
-                setConcepts(generatedData.title_options.map((t: string, i: number) => ({
-                    id: i.toString(),
-                    title: t,
-                    description: `Un approccio basato sul genere ${generatedData.genre}`,
-                    style: ['Ironico', 'Pratico', 'Scientifico'][i % 3]
-                })));
-            } else if (generatedData.aiContent || generatedData.aiResponse) {
-                setMessages(prev => [...prev, { role: 'assistant', content: generatedData.aiContent || generatedData.aiResponse }]);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
+    const handleAnswerChange = (index: number, value: string) => {
+        const newAnswers = [...answers];
+        newAnswers[index] = value;
+        setAnswers(newAnswers);
     };
 
     const selectConcept = async (concept: ConceptCard) => {
@@ -101,7 +130,7 @@ const ConceptPage: React.FC = () => {
                     context_data: {
                         ...currentContext,
                         selected_concept: concept,
-                        chat_history: messages
+                        answers: answers
                     }
                 })
                 .eq('id', bookId);
@@ -116,7 +145,9 @@ const ConceptPage: React.FC = () => {
     const handleGenerateConcepts = async () => {
         setLoading(true);
         const bookId = localStorage.getItem('active_book_id');
-        const context = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+
+        const questions = QUESTIONS_BY_GENRE[genre || ''] || DEFAULT_QUESTIONS;
+        const context = questions.map((q, i) => `D: ${q}\nR: ${answers[i]}`).join('\n\n');
 
         try {
             const data = await callBookAgent('GENERATE_CONCEPTS', { userInput: context, title: bookTitle }, bookId);
@@ -136,8 +167,11 @@ const ConceptPage: React.FC = () => {
         }
     };
 
+    const questions = QUESTIONS_BY_GENRE[genre || ''] || DEFAULT_QUESTIONS;
+    const isComplete = answers.every(a => a.trim().length > 0);
+
     return (
-        <div className="container-narrow fade-in" style={{ paddingTop: '2rem', height: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="container-narrow fade-in" style={{ paddingTop: '2rem', minHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
 
             <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '2rem', justifyContent: 'center', flexShrink: 0 }}>
                 {[1, 2, 3, 4].map((step) => (
@@ -154,15 +188,17 @@ const ConceptPage: React.FC = () => {
                 ))}
             </div>
 
-            <header style={{ marginBottom: '2rem', textAlign: 'center', flexShrink: 0 }}>
-                <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', letterSpacing: '-0.05em' }}>L'Intervista</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>
-                    Definisci la tua visione. L'IA sta ascoltando.
+            <header style={{ marginBottom: '3rem', textAlign: 'center', flexShrink: 0 }}>
+                <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem', letterSpacing: '-0.05em' }}>
+                    {genre ? `Il tuo ${genre}` : 'La tua storia'}
+                </h1>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', maxWidth: '600px', margin: '0 auto' }}>
+                    Rispondi a queste 4 domande chiave per permettere all'IA di generare la struttura del tuo libro.
                 </p>
             </header>
 
             {concepts.length > 0 ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', overflowY: 'auto', padding: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem', padding: '1rem' }}>
                     {concepts.map((concept, index) => (
                         <motion.div
                             key={concept.id}
@@ -206,84 +242,88 @@ const ConceptPage: React.FC = () => {
                     ))}
                 </div>
             ) : (
-                <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0, borderRadius: '24px' }}>
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <AnimatePresence>
-                            {messages.length === 0 && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 0.3 }}
-                                    style={{ textAlign: 'center', marginTop: '4rem' }}
-                                >
-                                    <Sparkles size={60} style={{ marginBottom: '1.5rem' }} />
-                                    <p style={{ fontSize: '1.2rem' }}>Inizia a descrivere la tua storia...</p>
-                                </motion.div>
-                            )}
-                            {messages.map((msg, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    style={{
-                                        alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                        background: msg.role === 'user' ? 'var(--primary)' : 'rgba(255,255,255,0.03)',
-                                        color: msg.role === 'user' ? '#000' : 'white',
-                                        padding: '1.2rem 1.6rem',
-                                        borderRadius: msg.role === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                                        maxWidth: '75%',
-                                        lineHeight: 1.6,
-                                        fontWeight: msg.role === 'user' ? 600 : 400,
-                                        boxShadow: msg.role === 'user' ? '0 10px 20px rgba(0, 242, 255, 0.1)' : 'none',
-                                        border: msg.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.05)'
-                                    }}
-                                >
-                                    {msg.content}
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                        {loading && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem', paddingBottom: '4rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                        {questions.map((q, i) => (
                             <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                style={{ alignSelf: 'flex-start', background: 'rgba(0, 242, 255, 0.03)', padding: '1.2rem 1.6rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.8rem', color: 'var(--primary)' }}
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                                className="glass-panel"
+                                style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}
                             >
-                                <Loader2 className="animate-spin" size={18} /> <span>L'editor sta scrivendo...</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <span style={{
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '50%',
+                                        background: 'rgba(0, 242, 255, 0.1)',
+                                        color: 'var(--primary)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 800,
+                                        border: '1px solid rgba(0, 242, 255, 0.2)'
+                                    }}>
+                                        {i + 1}
+                                    </span>
+                                    <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{q}</h4>
+                                </div>
+                                <textarea
+                                    value={answers[i]}
+                                    onChange={(e) => handleAnswerChange(i, e.target.value)}
+                                    placeholder="Scrivi qui la tua idea..."
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '120px',
+                                        resize: 'none',
+                                        background: 'rgba(0, 0, 0, 0.2)',
+                                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                                        borderRadius: '16px',
+                                        padding: '1.2rem',
+                                        fontSize: '1rem',
+                                        lineHeight: 1.5
+                                    }}
+                                />
                             </motion.div>
-                        )}
+                        ))}
                     </div>
 
-                    <div style={{ padding: '2rem', borderTop: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.2)' }}>
-                        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                            <input
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                placeholder="Scrivi qui la tua risposta..."
-                                style={{ flex: 1, borderRadius: '16px' }}
-                                autoFocus
-                            />
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                type="submit"
-                                className="btn-primary"
-                                disabled={loading || !inputValue.trim()}
-                                style={{ padding: '0 2rem' }}
-                            >
-                                Invia
-                            </motion.button>
-                        </form>
-
-                        {messages.length > 2 && (
-                            <motion.button
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                onClick={handleGenerateConcepts}
-                                className="btn-secondary"
-                                style={{ width: '100%', borderRadius: '16px', color: 'var(--primary)', borderColor: 'var(--primary)', background: 'rgba(0, 242, 255, 0.05)' }}
-                                disabled={loading}
-                            >
-                                <Sparkles size={18} /> Genera Proposte di Concept
-                            </motion.button>
+                    <div style={{ textAlign: 'center' }}>
+                        <motion.button
+                            whileHover={isComplete ? { scale: 1.05 } : {}}
+                            whileTap={isComplete ? { scale: 0.95 } : {}}
+                            onClick={handleGenerateConcepts}
+                            className="btn-primary"
+                            disabled={loading || !isComplete}
+                            style={{
+                                padding: '1.5rem 4rem',
+                                fontSize: '1.2rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '1rem',
+                                opacity: isComplete ? 1 : 0.5,
+                                cursor: isComplete ? 'pointer' : 'not-allowed'
+                            }}
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={24} />
+                                    Generazione in corso...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles size={24} />
+                                    Genera Proposte di Concept
+                                </>
+                            )}
+                        </motion.button>
+                        {!isComplete && (
+                            <p style={{ color: 'var(--text-muted)', marginTop: '1.5rem', fontSize: '0.9rem' }}>
+                                Rispondi a tutte le domande per procedere
+                            </p>
                         )}
                     </div>
                 </div>
