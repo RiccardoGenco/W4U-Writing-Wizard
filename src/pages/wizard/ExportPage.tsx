@@ -8,13 +8,15 @@ const ExportPage: React.FC = () => {
     const [finished, setFinished] = useState(false);
     const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
     const [progress, setProgress] = useState<string>("");
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     const handleExport = async () => {
         if (!selectedFormat) return;
+        setErrorMsg(null);
 
         const bookId = localStorage.getItem('active_book_id');
         if (!bookId) {
-            alert("Errore: ID libro non trovato.");
+            setErrorMsg("Errore: ID libro non trovato. Torna alla dashboard e riapri il progetto.");
             return;
         }
 
@@ -84,6 +86,8 @@ const ExportPage: React.FC = () => {
             } else {
                 // Other formats through n8n (PNG, etc.)
                 const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+                if (!WEBHOOK_URL) throw new Error("VITE_N8N_WEBHOOK_URL non configurata");
+
                 const response = await fetch(WEBHOOK_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -99,6 +103,8 @@ const ExportPage: React.FC = () => {
                 const responseData = await response.json();
                 const data = Array.isArray(responseData) ? responseData[0] : responseData;
 
+                if (data.error) throw new Error(data.error);
+
                 const blob = new Blob([data.html], { type: 'text/html' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -113,7 +119,7 @@ const ExportPage: React.FC = () => {
             setFinished(true);
         } catch (err: any) {
             console.error("Export failed:", err);
-            alert(`Errore durante l'esportazione: ${err.message}`);
+            setErrorMsg(`Errore durante l'esportazione: ${err.message}`);
         } finally {
             setExporting(false);
             setProgress("");
