@@ -292,7 +292,12 @@ const ProductionPage: React.FC = () => {
 
                 <div style={{ padding: '1rem', borderTop: '1px solid var(--glass-border)' }}>
                     <button
-                        onClick={() => navigate('/create/editor')}
+                        onClick={async () => {
+                            if (bookId) {
+                                await supabase.from('books').update({ status: 'EDITOR' }).eq('id', bookId);
+                            }
+                            navigate('/create/editor');
+                        }}
                         className="btn-primary"
                         style={{ width: '100%' }}
                     >
