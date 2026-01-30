@@ -18,14 +18,39 @@ const BlueprintPage: React.FC = () => {
     const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
-        const saved = localStorage.getItem('project_chapters');
-        if (saved) {
-            try {
-                setChapters(JSON.parse(saved));
-            } catch (e) {
-                console.error("Failed to parse chapters", e);
+        const loadChapters = async () => {
+            const saved = localStorage.getItem('project_chapters');
+            if (saved) {
+                try {
+                    setChapters(JSON.parse(saved));
+                    return;
+                } catch (e) {
+                    console.error("Failed to parse chapters", e);
+                }
             }
-        }
+
+            // Fallback: fetch from DB if bookId exists
+            const bookId = localStorage.getItem('active_book_id');
+            if (bookId) {
+                const { data } = await supabase
+                    .from('chapters')
+                    .select('id, title, summary')
+                    .eq('book_id', bookId)
+                    .order('chapter_number', { ascending: true });
+
+                if (data && data.length > 0) {
+                    const formatted = data.map(d => ({
+                        id: d.id,
+                        title: d.title,
+                        summary: d.summary
+                    }));
+                    setChapters(formatted);
+                    localStorage.setItem('project_chapters', JSON.stringify(formatted));
+                }
+            }
+        };
+
+        loadChapters();
     }, []);
 
     const handleConfirm = async () => {
