@@ -10,6 +10,11 @@ export default defineConfig({
         target: 'https://auto.mamadev.org',
         changeOrigin: true,
         secure: true
+      },
+      '/webhook': {
+        target: 'https://auto.mamadev.org',
+        changeOrigin: true,
+        secure: true
       }
     }
   }

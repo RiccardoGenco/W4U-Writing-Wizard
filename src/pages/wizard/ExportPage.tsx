@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Download, FileText, Smartphone, Image, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { supabase } from '../../lib/api';
+import { supabase, logDebug, callBookAgent } from '../../lib/api';
 
 const ExportPage: React.FC = () => {
     const [exporting, setExporting] = useState(false);
@@ -22,30 +22,24 @@ const ExportPage: React.FC = () => {
 
         setExporting(true);
         try {
+            await logDebug('frontend', `export_start_${selectedFormat.toLowerCase()}`, { bookId, format: selectedFormat }, bookId);
+
             if (selectedFormat === 'PDF') {
                 setProgress("Il server sta impaginando il tuo libro (Richiede circa 10-30 secondi)...");
 
-                // Get current session for Edge Function authentication
-                const { data: { session } } = await supabase.auth.getSession();
+                // Use the standard Supabase invoke with logging
+                const { data, error } = await supabase.functions.invoke('generate-pdf', {
+                    body: { bookId }
+                });
 
-                const response = await fetch(
-                    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-pdf`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                        },
-                        body: JSON.stringify({ bookId })
-                    }
-                );
-
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
-                    throw new Error(error.error || "Errore durante la generazione del PDF professional");
+                if (error) {
+                    await logDebug('frontend', 'export_pdf_error', { error }, bookId);
+                    throw new Error(error.message || "Errore durante la generazione del PDF professional");
                 }
 
-                const blob = await response.blob();
+                // Supabase functions.invoke with blobs can sometimes be tricky depending on headers
+                // If it returns a blob, handle it:
+                const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -54,17 +48,18 @@ const ExportPage: React.FC = () => {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
+
+                await logDebug('frontend', 'export_pdf_success', { bookId }, bookId);
+
             } else if (selectedFormat === 'EPUB') {
                 setProgress("Il server Node sta preparando il file EPUB 3 (Richiede circa 10-20 secondi)...");
 
                 const NODE_BACKEND_URL = import.meta.env.VITE_NODE_BACKEND_URL || 'http://localhost:3001';
                 const response = await fetch(
-                    `${NODE_BACKEND_URL}/export/epub`, // Node.js server port
+                    `${NODE_BACKEND_URL}/export/epub`,
                     {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ bookId })
                     }
                 );
@@ -83,27 +78,23 @@ const ExportPage: React.FC = () => {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
+
+                await logDebug('frontend', 'export_epub_success', { bookId }, bookId);
+
             } else {
-                // Other formats through n8n (PNG, etc.)
-                const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
-                if (!WEBHOOK_URL) throw new Error("VITE_N8N_WEBHOOK_URL non configurata");
+                // PNG and others via n8n
+                setProgress("Elaborazione file via n8n...");
 
-                const response = await fetch(WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'EXPORT',
-                        bookId,
-                        format: selectedFormat.toLowerCase()
-                    })
-                });
+                // Use callBookAgent to get retry and logging benefits
+                const responseData = await callBookAgent('EXPORT', {
+                    format: selectedFormat.toLowerCase()
+                }, bookId);
 
-                if (!response.ok) throw new Error(`Errore server: ${response.statusText}`);
-
-                const responseData = await response.json();
                 const data = Array.isArray(responseData) ? responseData[0] : responseData;
 
-                if (data.error) throw new Error(data.error);
+                if (!data || !data.html) {
+                    throw new Error("Il server n8n non ha restituito il contenuto per l'export.");
+                }
 
                 const blob = new Blob([data.html], { type: 'text/html' });
                 const url = window.URL.createObjectURL(blob);
@@ -114,12 +105,19 @@ const ExportPage: React.FC = () => {
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
+
+                await logDebug('frontend', `export_${selectedFormat.toLowerCase()}_success`, { bookId }, bookId);
             }
 
             setFinished(true);
         } catch (err: any) {
             console.error("Export failed:", err);
             setErrorMsg(`Errore durante l'esportazione: ${err.message}`);
+            await logDebug('frontend', 'export_failed', {
+                error: err.message,
+                stack: err.stack,
+                format: selectedFormat
+            }, bookId);
         } finally {
             setExporting(false);
             setProgress("");
