@@ -61,8 +61,8 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                             display: 'flex',
                             alignItems: 'center',
                             gap: '0.75rem',
-                            minWidth: 0,        // ← Aggiungi questo
-                            overflow: 'hidden'  // ← Aggiungi questo
+                            minWidth: 0,
+                            overflow: 'hidden'
                         }}
                     >
                         {activeProjectId === p.id && (
@@ -78,8 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             fontWeight: activeProjectId === p.id ? 600 : 400,
-                            flex: 1,        // ← Aggiungi questo
-                            minWidth: 0     // ← Aggiungi questo
+                            flex: 1,
+                            minWidth: 0
                         }}>
                             {p.title}
                         </span>

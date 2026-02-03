@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Loader2, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { supabase } from '../lib/api';
-import { getRouteByStatus } from '../lib/navigation';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -62,69 +61,6 @@ const Dashboard: React.FC = () => {
             alert("Errore nella creazione del progetto.");
         } finally {
             setLoading(false);
-        }
-    };
-
-    const continueProject = async (id: string) => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('books')
-                .select('status')
-                .eq('id', id)
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                localStorage.setItem('active_book_id', id);
-                navigate(getRouteByStatus(data.status));
-            }
-        } catch (err) {
-            console.error("Error resuming project:", err);
-            alert("Codice progetto non valido o errore nel caricamento.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const [projects, setProjects] = useState<any[]>([]);
-
-    useEffect(() => {
-        loadProjects();
-    }, []);
-
-    const loadProjects = async () => {
-        const { data } = await supabase
-            .from('books')
-            .select('*')
-            .neq('status', 'deleted')
-            .order('created_at', { ascending: false });
-
-        if (data) setProjects(data);
-    };
-
-    const deleteProject = async (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (confirm('Sei sicuro di voler eliminare questo progetto?')) {
-            const NODE_BACKEND_URL = import.meta.env.VITE_NODE_BACKEND_URL || 'http://localhost:3001';
-
-            try {
-                const response = await fetch(`${NODE_BACKEND_URL}/api/projects/delete`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id })
-                });
-
-                if (response.ok) {
-                    loadProjects();
-                } else {
-                    console.error("Error deleting project");
-                    alert("Errore durante l'eliminazione del progetto");
-                }
-            } catch (err) {
-                console.error("Network error:", err);
-                alert("Errore di connessione col server");
-            }
         }
     };
 
@@ -220,53 +156,7 @@ const Dashboard: React.FC = () => {
                                     </motion.button>
                                 </div>
 
-                                {projects.length > 0 ? (
-                                    <div style={{ textAlign: 'left', marginTop: '2rem' }}>
-                                        <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-muted)', fontSize: '1.2rem', paddingLeft: '0.5rem' }}>I tuoi progetti recenti</h3>
-                                        <div style={{ display: 'grid', gap: '1rem' }}>
-                                            {projects.map((project) => (
-                                                <motion.div
-                                                    key={project.id}
-                                                    initial={{ opacity: 0, y: 10 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    className="glass-panel"
-                                                    style={{
-                                                        padding: '1.5rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'space-between',
-                                                        cursor: 'pointer',
-                                                        border: '1px solid rgba(255,255,255,0.05)'
-                                                    }}
-                                                    onClick={() => continueProject(project.id)}
-                                                    whileHover={{ scale: 1.01, backgroundColor: 'rgba(255,255,255,0.03)' }}
-                                                >
-                                                    <div>
-                                                        <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '1.1rem' }}>{project.title || 'Senza Titolo'}</h4>
-                                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                                                            {project.genre} • {project.status}
-                                                        </span>
-                                                    </div>
-                                                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                                        <button
-                                                            className="icon-btn"
-                                                            onClick={(e) => deleteProject(project.id, e)}
-                                                            title="Elimina progetto"
-                                                            style={{ color: 'var(--text-danger, #ef4444)', opacity: 0.7 }}
-                                                        >
-                                                            <Trash2 size={18} />
-                                                        </button>
-                                                        <ArrowRight size={20} color="var(--primary)" />
-                                                    </div>
-                                                </motion.div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div style={{ marginTop: '2rem', padding: '1rem', color: 'var(--text-muted)' }}>
-                                        <p>Nessun progetto recente trovato.</p>
-                                    </div>
-                                )}
+
                             </>
                         ) : (
                             <motion.form
