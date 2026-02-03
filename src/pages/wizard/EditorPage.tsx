@@ -252,7 +252,16 @@ const EditorPage: React.FC = () => {
                 </div>
 
                 <div style={{ marginTop: 'auto', paddingTop: '2rem', borderTop: '1px solid var(--glass-border)' }}>
-                    <button className="btn-primary" style={{ width: '100%', padding: '1rem' }} onClick={() => navigate('/create/export')}>
+                    <button
+                        className="btn-primary"
+                        style={{ width: '100%', padding: '1rem' }}
+                        onClick={async () => {
+                            if (bookId) {
+                                await supabase.from('books').update({ status: 'EXPORT' }).eq('id', bookId);
+                            }
+                            navigate('/create/export');
+                        }}
+                    >
                         Procedi all'Export <ChevronRight size={18} />
                     </button>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', marginTop: '1rem' }}>

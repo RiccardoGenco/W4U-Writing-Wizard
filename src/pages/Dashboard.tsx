@@ -3,6 +3,7 @@ import { Plus, BookOpen, Loader2, Trash2, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { supabase } from '../lib/api';
+import { getRouteByStatus } from '../lib/navigation';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -64,9 +65,26 @@ const Dashboard: React.FC = () => {
         }
     };
 
-    const continueProject = (id: string) => {
-        localStorage.setItem('active_book_id', id);
-        navigate('/create/concept');
+    const continueProject = async (id: string) => {
+        setLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('books')
+                .select('status')
+                .eq('id', id)
+                .single();
+
+            if (error) throw error;
+            if (data) {
+                localStorage.setItem('active_book_id', id);
+                navigate(getRouteByStatus(data.status));
+            }
+        } catch (err) {
+            console.error("Error resuming project:", err);
+            alert("Codice progetto non valido o errore nel caricamento.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const [projects, setProjects] = useState<any[]>([]);
