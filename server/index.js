@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
 const Epub = require("epub-gen");
+const docx = require("docx");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
@@ -161,6 +162,281 @@ app.post("/export/epub", async (req, res) => {
         );
     } catch (error) {
         console.error("Export error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- DOCX EXPORT ENDPOINT ---
+
+app.post("/export/docx", async (req, res) => {
+    const { bookId } = req.body;
+    if (!bookId) return res.status(400).json({ error: "bookId is required" });
+
+    try {
+        const { marked } = await import("marked");
+
+        // Fetch Book
+        const { data: book, error: bookError } = await supabase
+            .from("books")
+            .select("*")
+            .eq("id", bookId)
+            .single();
+
+        if (bookError || !book) throw new Error("Book not found");
+
+        // Fetch Chapters
+        const { data: chapters, error: chaptersError } = await supabase
+            .from("chapters")
+            .select("*")
+            .eq("book_id", bookId)
+            .eq("status", "COMPLETED")
+            .order("chapter_number", { ascending: true });
+
+        if (chaptersError || !chapters) throw new Error("Chapters not found");
+
+        // Apply editorial pipeline
+        const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
+        const cleanAuthor = book.author || "W4U Writing Wizard";
+        const publisher = "W4U";
+
+        // Define professional styles
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, 
+                Header, Footer, PageNumber, convertInchesToTwip, BorderStyle,
+                TableOfContents, InternalHyperlink } = docx;
+
+        // Process chapters
+        const processedChapters = chapters.map((ch, index) => {
+            const rawTitle = ch.title || "Senza titolo";
+            const cleanTitle = editorialCasing(normalizeChapterTitle(normalizeText(removeEmojis(rawTitle))));
+            const cleanMarkdown = normalizeText(removeEmojis(ch.content || ""));
+            
+            // Convert markdown to HTML then parse to text
+            const htmlContent = marked.parse(cleanMarkdown);
+            
+            return {
+                number: index + 1,
+                title: cleanTitle,
+                content: htmlContent,
+                bookmarkId: `chapter_${index + 1}`
+            };
+        });
+
+        // Create document sections
+        const children = [];
+
+        // --- TITLE PAGE ---
+        children.push(
+            new Paragraph({
+                text: "",
+                spacing: { after: 2400 }
+            }),
+            new Paragraph({
+                text: cleanBookTitle,
+                heading: HeadingLevel.TITLE,
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 400 },
+                font: { name: "Georgia", size: 64 } // 32pt
+            }),
+            new Paragraph({
+                text: "",
+                spacing: { after: 800 }
+            }),
+            new Paragraph({
+                text: `di ${cleanAuthor}`,
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+                font: { name: "Georgia", size: 28 } // 14pt
+            }),
+            new Paragraph({
+                text: "",
+                spacing: { after: 1600 }
+            }),
+            new Paragraph({
+                text: publisher,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 24 } // 12pt
+            }),
+            // Page break after title page
+            new Paragraph({
+                text: "",
+                pageBreakBefore: true
+            })
+        );
+
+        // --- TABLE OF CONTENTS ---
+        children.push(
+            new Paragraph({
+                text: "Indice",
+                heading: HeadingLevel.HEADING_1,
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 400 },
+                font: { name: "Georgia", size: 36 } // 18pt
+            })
+        );
+
+        processedChapters.forEach((ch, index) => {
+            children.push(
+                new Paragraph({
+                    children: [
+                        new InternalHyperlink({
+                            children: [
+                                new TextRun({
+                                    text: `${ch.number}. ${ch.title}`,
+                                    font: { name: "Georgia", size: 24 } // 12pt
+                                })
+                            ],
+                            anchor: ch.bookmarkId
+                        })
+                    ],
+                    spacing: { after: 120 },
+                    alignment: AlignmentType.LEFT
+                })
+            );
+        });
+
+        // Page break after TOC
+        children.push(
+            new Paragraph({
+                text: "",
+                pageBreakBefore: true
+            })
+        );
+
+        // --- CHAPTERS ---
+        processedChapters.forEach((ch) => {
+            // Chapter title with bookmark
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: ch.title,
+                            bold: true,
+                            font: { name: "Georgia", size: 48 } // 24pt
+                        })
+                    ],
+                    heading: HeadingLevel.HEADING_1,
+                    alignment: AlignmentType.LEFT,
+                    spacing: { before: 240, after: 240 },
+                    bookmark: { id: ch.bookmarkId }
+                })
+            );
+
+            // Parse HTML content and convert to paragraphs
+            // Simple HTML parser for basic tags
+            const paragraphs = parseHtmlToParagraphs(ch.content);
+            children.push(...paragraphs);
+
+            // Page break after each chapter (except last)
+            children.push(
+                new Paragraph({
+                    text: "",
+                    pageBreakBefore: true
+                })
+            );
+        });
+
+        // Helper function to parse HTML to DOCX paragraphs
+        function parseHtmlToParagraphs(html) {
+            const paragraphs = [];
+            
+            // Remove HTML tags and split into paragraphs
+            const textContent = html
+                .replace(/<\/?[^>]+(>|$)/g, "\n") // Replace tags with newlines
+                .replace(/&nbsp;/g, " ")
+                .replace(/&amp;/g, "&")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+            
+            textContent.forEach(text => {
+                paragraphs.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: text,
+                                font: { name: "Georgia", size: 24 } // 12pt
+                            })
+                        ],
+                        spacing: { after: 240, line: 360 }, // 1.5 line spacing (240 * 1.5)
+                        indent: { firstLine: 360 } // 1.5em = ~360 twips
+                    })
+                );
+            });
+            
+            return paragraphs;
+        }
+
+        // Create document with headers and footers
+        const doc = new Document({
+            sections: [{
+                properties: {
+                    page: {
+                        margin: {
+                            top: convertInchesToTwip(1), // 2.5cm ≈ 1 inch
+                            right: convertInchesToTwip(1),
+                            bottom: convertInchesToTwip(1),
+                            left: convertInchesToTwip(1)
+                        }
+                    }
+                },
+                headers: {
+                    default: new Header({
+                        children: [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        text: cleanBookTitle,
+                                        font: { name: "Georgia", size: 20 }, // 10pt
+                                        italics: true
+                                    })
+                                ],
+                                alignment: AlignmentType.LEFT
+                            })
+                        ]
+                    })
+                },
+                footers: {
+                    default: new Footer({
+                        children: [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({
+                                        children: [PageNumber.CURRENT],
+                                        font: { name: "Georgia", size: 20 } // 10pt
+                                    })
+                                ],
+                                alignment: AlignmentType.CENTER
+                            })
+                        ]
+                    })
+                },
+                children: children
+            }]
+        });
+
+        // Generate DOCX file
+        const exportUuid = uuidv4();
+        const outputPath = path.join(__dirname, `export_${bookId}_${exportUuid}.docx`);
+        
+        const buffer = await Packer.toBuffer(doc);
+        fs.writeFileSync(outputPath, buffer);
+
+        // Send file
+        res.download(outputPath, `${cleanBookTitle.replace(/[^a-zA-Z0-9]/g, '_')}.docx`, (err) => {
+            if (err) console.error("Download error:", err);
+            try {
+                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+            } catch (unlinkErr) {
+                console.error("Cleanup error:", unlinkErr);
+            }
+        });
+
+    } catch (error) {
+        console.error("DOCX Export error:", error);
         res.status(500).json({ error: error.message });
     }
 });
