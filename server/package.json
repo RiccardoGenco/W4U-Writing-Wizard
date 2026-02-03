@@ -5,9 +5,10 @@
     "scripts": {
         "start": "node index.js"
     },
-    "dependencies": {
+"dependencies": {
         "@supabase/supabase-js": "^2.93.1",
         "cors": "^2.8.6",
+        "docx": "^9.1.1",
         "dotenv": "^17.2.3",
         "epub-gen": "^0.1.0",
         "express": "^5.2.1",
