@@ -1,0 +1,1576 @@
+{
+  "name": "AI Book Generator - Optimized with Token Tracking",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
+        }
+      },
+      "id": "66de0108-2165-4ef0-b180-3acacb1ebb0c",
+      "name": "Get Book Context1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        -128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
+        }
+      },
+      "id": "d624b632-720b-4fc2-b2f2-87b7b9aeabbc",
+      "name": "Get Book Context Concept1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        80
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"tngtech/deepseek-r1t2-chimera:free\",\n  \"max_tokens\": 4000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un esperto editor letterario italiano. DEVI RISPONDERE ESCLUSIVAMENTE IN LINGUA ITALIANA. \\n\\nBasandoti sulle risposte dell'utente all'intervista guidata, il tuo compito è duplice:\\n1. Generare un BLUEPRINT tecnico del libro (ambientazione, personaggi principali, atmosfera, temi chiave).\\n2. Generare 4 diverse proposte di Concept Cards (titolo, descrizione breve, stile).\\n\\nREGOLE TASSATIVE:\\n- TUTTO il contenuto deve essere in ITALIANO.\\n- NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\nRISPOSTE UTENTE:\\n\" + $node['Webhook Router'].json.body.userInput + \"\\n\\nOutput JSON format: { \\\"blueprint\\\": { \\\"setting\\\": \\\"...\\\", \\\"characters\\\": \\\"...\\\", \\\"plot_vibes\\\": \\\"...\\\", \\\"themes\\\": \\\"...\\\" }, \\\"concepts\\\": [ { \\\"title\\\": \\\"...\\\", \\\"description\\\": \\\"...\\\", \\\"style\\\": \\\"...\\\" } ] }\"\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "c7f34bc4-bb5b-4ca9-8a76-e45525273b8f",
+      "name": "Agent: Concept Gen1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -416,
+        80
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book-agent-v2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "35002007-f248-424b-992f-1e762075e806",
+      "name": "Webhook Router",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -2224,
+        368
+      ],
+      "webhookId": "book-agent-webhook-v2"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "INTERVIEW",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b00e2aaf-6824-4b1f-89e3-bfd98aba94d6"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "GENERATE_CONCEPTS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a26f4e62-8511-4f34-856c-743b06996303"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "OUTLINE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "23432531-f580-464a-9e2c-b3bbf2ba6e4e"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "WRITE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ff5055b8-df6c-460d-9324-0cac046f5df3"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "EDIT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1d66ccee-d86f-4069-9cb6-96160a7e34e4"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "e3483bbb-96c1-40d4-a8b0-59cba25af8cf",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "EXPORT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "b080577b-70fd-4809-899c-b4fbe62ef8b7",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "GENERATE_COVER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b205065b-40e8-47a1-8503-acfdb8020779",
+      "name": "Action Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -1584,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"tngtech/deepseek-r1t2-chimera:free\",\n  \"max_tokens\": 4000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un editor letterario professionale italiano. DEVI RISPONDERE ESCLUSIVAMENTE IN LINGUA ITALIANA. \\n\\nIl tuo compito è intervistare l'utente per definire i dettagli di un libro. \\n\\nCONTESTO PROGETTO:\\n- Titolo: \" + ($node['Get Book Context1'].json.title || 'In definizione') + \"\\n- Genere: \" + ($node['Get Book Context1'].json.genre || 'In definizione') + \"\\n- Target Pagine: \" + ($node['Get Book Context1'].json.context_data?.target_pages || '100') + \"\\n\\nBLUEPRINT ATTUALE (Fatti già noti):\\n\" + JSON.stringify($node['Get Book Context1'].json.context_data?.blueprint || {}) + \"\\n\\nSTORIA DELLA CHAT (Dettagli):\\n\" + ($node['Get Book Context1'].json.context_data?.messages || []).map(m => m.role.toUpperCase() + ': ' + m.content).join('\\n') + \"\\n\\nISTRUZIONI:\\n1. Analizza la storia e fai la PROSSIMA domanda in ITALIANO per approfondire l'idea.\\n2. Aggiorna il BLUEPRINT (anche questo in ITALIANO) estraendo i fatti chiave (ambientazione, personaggi, atmosfera, sottogeneri).\\n3. NON USARE MAI EMOJI.\\n4. OUTPUT JSON: { \\\"question\\\": \\\"...\\\", \\\"blueprint\\\": { \\\"setting\\\": \\\"...\\\", \\\"characters\\\": \\\"...\\\", \\\"plot_vibes\\\": \\\"...\\\", \\\"genre_refinement\\\": \\\"...\\\" } }\"\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "13cc8b76-3175-4e23-b19b-70242b2b0fc7",
+      "name": "Agent: Interviewer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -96,
+        -128
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"bookId\": $node[\"Init Book (Optional)\"].json.id,\n  \"aiResponse\": JSON.parse($node[\"Agent: Interviewer\"].json.choices[0].message.content.replace(/```json\\n?|```/g, '').trim()).question.replace(/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g, '')\n} }}",
+        "options": {}
+      },
+      "id": "012d0dcd-66c9-4c9b-9d87-b6ff44e184ee",
+      "name": "Response Interview",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        352,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const bookData = $node[\"Get Book Context Concept Architect1\"].json;\nconst dbContext = bookData.context_data || {};\nconst config = bookData.configuration || {};\n\nconst targetPagesRaw = $node[\"Webhook Router\"].json.body.targetPages || config.target_pages || dbContext.target_pages;\nconst targetPages = parseInt(targetPagesRaw) || 100;\nconst chaptersRate = $node[\"Webhook Router\"].json.body.configuration?.chaptersRate || config.chaptersRate || 10;\nconst wordsPerPage = config.words_per_page || 250;\n\n// Persistent Chapter Count\nlet numChapters = bookData.target_chapters;\nif (!numChapters || isNaN(numChapters)) {\n  numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));\n}\n\nconst totalWords = targetPages * wordsPerPage;\nconst wordsPerChapter = Math.floor(totalWords / numChapters);\n\nreturn {\n  json: {\n    target_pages: targetPages,\n    total_words_target: totalWords,\n    num_chapters: numChapters,\n    words_per_chapter: wordsPerChapter,\n    paragraphs_per_chapter: config.paragraphs_per_chapter || 5,\n    debug_inputs: { targetPagesRaw, chaptersRate, config }\n  }\n}"
+      },
+      "id": "7ee1550d-be84-44d8-a39f-836823dd6ddf",
+      "name": "Calculator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -656,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n{\n  \"model\": \"tngtech/deepseek-r1t2-chimera:free\",\n  \"max_tokens\": 8000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei l'Architetto Letterario W4U. Il tuo compito è creare o MODIFICARE l'indice di un libro.\\n\\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\\n\\n\" + \n( $node[\"Webhook Router\"].json.body.feedback ? \n  \"STAI AGGIORNANDO UN INDICE ESISTENTE.\\n\" + \n  \"FEEDBACK UTENTE: \" + $node[\"Webhook Router\"].json.body.feedback + \"\\n\\n\" + \n  \"INDICE ATTUALE DA MODIFICARE:\\n\" + JSON.stringify($node[\"Webhook Router\"].json.body.currentChapters) + \"\\n\\n\" + \n  \"ISTRUZIONI: Modifica L'INDICE in base al feedback. Copia esattamente intatti i capitoli che non richiedono modifiche.\" \n  : \n  \"STAI CREANDO UN NUOVO INDICE DA ZERO.\\n\\n\" + \n  \"BLUEPRINT CONTESTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\n\" + \n  \"TRAMA DA SEGUIRE:\\n\" + $node[\"Agent: Plotter\"].json.choices[0].message.content \n) + \n\"\\n\\nDATI TECNICI:\\n- Numero Capitoli: \" + $node[\"Calculator\"].json.num_chapters + \"\\n- Target per Capitolo: \" + $node[\"Calculator\"].json.words_per_chapter + \" parole\\n\\nOutput JSON: { \\\"chapters\\\": [ { \\\"chapter_number\\\": 1, \\\"title\\\": \\\"...\\\", \\\"summary\\\": \\\"...\\\", \\\"subtitles\\\": [], \\\"key_points\\\": [], \\\"target_word_count\\\": \" + $node[\"Calculator\"].json.words_per_chapter + \" } ] }\"\n    },\n    { \"role\": \"user\", \"content\": ( $node[\"Webhook Router\"].json.body.feedback ? \"Aggiorna l'indice in base al feedback. JSON only.\" : \"Genera l'indice completo. JSON only.\" ) }\n  ]\n}\n}}",
+        "options": {}
+      },
+      "id": "56cce5e4-ca29-401e-bc67-cdee0bf0bf7d",
+      "name": "Agent: Architect",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        240,
+        464
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"bookId\": $node[\"Get Book Context Concept Architect1\"].json.id,\n  \"chapters\": $node[\"Sanitize Chapters\"].json.chapters\n} }}",
+        "options": {}
+      },
+      "id": "ca8f4a72-1419-4a1d-9ce2-eb9699c232bf",
+      "name": "Response Outline",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        688,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM chapters WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId] }}"
+        }
+      },
+      "id": "6f77dc44-4a5d-4193-ba0f-7ff729355158",
+      "name": "Get Chapter",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Get Chapter\"].json.book_id] }}"
+        }
+      },
+      "id": "f66a0bcc-013c-470a-93ed-6a644863f67b",
+      "name": "Get Book",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"tngtech/deepseek-r1t2-chimera:free\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei uno scrittore professionista. Scrivi il capitolo indicato, NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\" + \n        \"BLUEPRINT (CONTESTO MACRO):\\n\" + \n        JSON.stringify($node[\"Get Book\"].json.context_data?.blueprint || {}) + \"\\n\\n\" +\n        \"TRAMA GENERALE:\\n\" + \n        ($node[\"Get Book\"].json.plot_summary || \"Usa il blueprint come riferimento.\") + \"\\n\\n\" +\n        \"DETTAGLI CAPITOLO:\\n\" + \n        \"- Titolo: \" + ($node[\"Get Chapter\"].json.title || \"Capitolo Senza Titolo\") + \"\\n\" +\n        \"- Sommario: \" + ($node[\"Get Chapter\"].json.summary || \"Nessun sommario\") + \"\\n\" +\n        ($node[\"Get Previous Chapter\"].json.summary ? \"- COSA È SUCCESSO PRIMA: \" + $node[\"Get Previous Chapter\"].json.summary : \"\") + \"\\n\\n\" +\n        \"ISTRUZIONI DI SCRITTURA:\\n\" +\n        \"- Scrivi in modo dettagliato, evita i riassunti, mostra l'azione.\\n\" +\n        \"- Mantieni coerenza con il BLUEPRINT e la trama.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Scrivi ora il capitolo: \" + $node[\"Get Chapter\"].json.title\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "241d17f4-b3f2-4124-aa3d-2fc563b2ad75",
+      "name": "Agent: Writer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        400,
+        272
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"bookId\": \"{{ $node['Get Book'].json.id }}\",\n  \"status\": \"success\"\n}",
+        "options": {}
+      },
+      "id": "b9af08c5-e9a9-4430-acb9-c36fc9a6ecdd",
+      "name": "Response Write",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1072,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "debug_logs",
+          "mode": "list",
+          "cachedResultName": "debug_logs"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "source",
+              "value": "n8n"
+            },
+            {
+              "column": "event_type",
+              "value": "={{ $json.body.action }}"
+            },
+            {
+              "column": "book_id",
+              "value": "={{ $json.body.bookId }}"
+            },
+            {
+              "column": "payload",
+              "value": "={{ JSON.stringify($json.body) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3337b1cb-b205-4692-a204-d5b733cd2b26",
+      "name": "Log Webhook",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -2000,
+        368
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO books (id, title, author, genre, status, context_data) \nVALUES (\n  $1::uuid, \n  $2, \n  $3, \n  $4, \n  'INTERVIEW', \n  jsonb_build_object(\n    'messages', CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END,\n    'target_pages', $6::integer\n  )\n) \nON CONFLICT (id) DO UPDATE SET \n  title = CASE WHEN EXCLUDED.title IS NOT NULL AND EXCLUDED.title NOT IN ('', 'Nuovo Libro', 'Nuovo Progetto') THEN EXCLUDED.title ELSE books.title END,\n  author = COALESCE(EXCLUDED.author, books.author),\n  genre = COALESCE(EXCLUDED.genre, books.genre),\n  context_data = jsonb_set(\n    jsonb_set(\n      books.context_data,\n      '{target_pages}',\n      COALESCE(EXCLUDED.context_data->'target_pages', books.context_data->'target_pages', '100'::jsonb)\n    ),\n    '{messages}',\n    COALESCE(books.context_data->'messages', '[]'::jsonb) || \n    CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END\n  )\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId || $node[\"Webhook Router\"].json.body.book_id, $node[\"Webhook Router\"].json.body.title || null, $node[\"Webhook Router\"].json.body.author || null, $node[\"Webhook Router\"].json.body.genre || null, $node[\"Webhook Router\"].json.body.userInput || null, $node[\"Webhook Router\"].json.body.targetPages || 100] }}"
+        }
+      },
+      "id": "a748e86d-f5fa-477f-bbb3-36cc67290039",
+      "name": "Init Book (Optional)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -1776,
+        368
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      },
+      "notes": "Creates book record if not exists. Useful for ensuring ID validity."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ $node[\"Init Book (Optional)\"].json.id }}"
+        }
+      },
+      "id": "c38db9cc-3668-4534-bf29-5b7d85a50a75",
+      "name": "Get Book Context Concept Architect1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        464
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT summary FROM chapters WHERE book_id = $1::uuid AND chapter_number = (SELECT chapter_number - 1 FROM chapters WHERE id = $2::uuid) LIMIT 1",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Get Book\"].json.id, $node[\"Get Chapter\"].json.id] }}"
+        }
+      },
+      "id": "1dac6dbe-7914-4845-bab6-ebf98d1c1616",
+      "name": "Get Previous Chapter",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        176,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "ci sarà da cambiare l'output da caratteri a token output, però al momento possiamo andare così fino a fase di test\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        992,
+        592
+      ],
+      "id": "2c43b0a5-b180-490c-93f4-2e2b9312c555",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \n{\n  \"model\": \"tngtech/deepseek-r1t2-chimera:free\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un Master Plotter. Crea una trama dettagliata basata sul BLUEPRINT del libro. NON USARE MAI EMOJI.\\n\\nCONTESTO:\\n- Titolo: \" + ($node[\"Get Book Context Concept Architect1\"].json.title || \"Nuovo Libro\") + \"\\n- Genere: \" + ($node[\"Get Book Context Concept Architect1\"].json.genre || \"In definizione\") + \"\\n\\nBLUEPRINT (ELEMENTI CHIAVE):\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\nCONCEPT SCELTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.selected_concept || {}) + \"\\n\\nGenera una trama coerente con questi elementi.\"\n    }\n  ]\n}\n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -432,
+        464
+      ],
+      "id": "070dbcae-36a4-4b5c-895b-ecbc26bc6bd7",
+      "name": "Agent: Plotter",
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE books SET \n  plot_summary = $2, \n  target_chapters = $3, \n  context_data = jsonb_set(\n    context_data, \n    '{messages}', \n    COALESCE(context_data->'messages', '[]'::jsonb) || jsonb_build_array(jsonb_build_object('role', 'assistant', 'content', 'TRAMA GENERATA: ' || $2))\n  )\nWHERE id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Get Book Context Concept Architect1\"].json.id, $node[\"Sanitize Plot\"].json.content, $node[\"Calculator\"].json.num_chapters] }}"
+        }
+      },
+      "id": "c1a82f53-dd01-4425-ac0e-d58c9515f729",
+      "name": "Update Plot",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        16,
+        464
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\nlet rawContent = $node[\"Agent: Plotter\"].json.choices[0].message.content;\n// Strip markdown backticks if present\nrawContent = rawContent.replace(/```markdown\\n?|```json\\n?|```/g, '').trim();\n// Strip emojis\nconst cleanContent = rawContent.replace(emojiRegex, '');\n\nreturn {\n  content: cleanContent\n};"
+      },
+      "id": "a3b1d9c0-f624-44a3-9611-31bed8f26a17",
+      "name": "Sanitize Plot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\nlet rawContent = $node[\"Agent: Writer\"].json.choices[0].message.content;\n// Strip markdown backticks\nrawContent = rawContent.replace(/```markdown\\n?|```/g, '').trim();\n// Strip emojis\nconst cleanContent = rawContent.replace(emojiRegex, '');\n\nreturn {\n  content: cleanContent\n};"
+      },
+      "id": "fbbc798f-0572-4d9d-998e-a4da929854b0",
+      "name": "Sanitize Writer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE chapters SET content = $1, status = 'COMPLETED' WHERE id = $2::uuid",
+        "options": {
+          "queryReplacement": "={{ $node[\"Sanitize Writer\"].json.content }}, {{ $node[\"Get Chapter\"].json.id }}"
+        }
+      },
+      "id": "f8c5ed05-079c-4620-819d-1bc6f660fc7b",
+      "name": "Update Chapter",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        848,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE books SET context_data = jsonb_set(\n  jsonb_set(\n    context_data,\n    '{messages}',\n    COALESCE(context_data->'messages', '[]'::jsonb) || jsonb_build_array(jsonb_build_object('role', 'assistant', 'content', $1))\n  ),\n  '{blueprint}',\n  COALESCE(context_data->'blueprint', '{}'::jsonb) || $2::jsonb\n) WHERE id = $3::uuid;",
+        "options": {
+          "queryReplacement": "={{ [JSON.parse($node[\"Agent: Interviewer\"].json.choices[0].message.content.replace(/```json\\n?|```/g, '').trim()).question.replace(/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g, ''), JSON.stringify(JSON.parse($node[\"Agent: Interviewer\"].json.choices[0].message.content.replace(/```json\\n?|```/g, '').trim()).blueprint).replace(/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g, ''), $node[\"Get Book Context1\"].json.id] }}"
+        }
+      },
+      "id": "1250f1a1-98b6-44ee-b82c-dfb83afb1bec",
+      "name": "Log Assistant Reply",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        128,
+        -128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "l'agente coi suggerimenti nell'editor sarebbe saggio disattivarlo, o magari inserirgli delle ottimizzazioni pre impostate.\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        576
+      ],
+      "id": "2a6cbcc4-b4f1-4962-8f39-d533e4bab14d",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "sistemiamo l'editor, al momento è in mock, aggiungiamo suggerimenti reali e una revisione grammaticale e contestuale.\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        224,
+        576
+      ],
+      "id": "cb48e484-ae42-4e60-846d-7f389379d2b9",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT b.title as book_title, c.title as chapter_title, c.content, c.chapter_number FROM books b JOIN chapters c ON b.id = c.book_id WHERE b.id = $1::uuid AND c.status = 'COMPLETED' ORDER BY c.chapter_number ASC;",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -656,
+        656
+      ],
+      "id": "4d85c358-2767-4c2f-a9a7-e166c1a02171",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nif (items.length === 0) return { html: \"<h1>Libro Vuoto</h1>\" };\n\nconst bookTitle = items[0].json.book_title;\nlet bodyHtml = \"\";\n\nfunction mdToHtml(md) {\n  if (!md) return \"\";\n  return md\n    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n    .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n    .replace(/### (.*?)\\n/g, '<h3>$1</h3>')\n    .replace(/## (.*?)\\n/g, '<h2>$1</h2>')\n    .replace(/# (.*?)\\n/g, '<h1>$1</h1>')\n    .replace(/\\n/g, '<br>');\n}\n\nitems.forEach(item => {\n  bodyHtml += `<section class=\"chapter\"><h2>${item.json.chapter_title}</h2><div class=\"content\">${mdToHtml(item.json.content)}</div></section>`;\n});\n\nconst cleanHtml = `<div style=\"font-family: 'Georgia', serif; color: #333;\"><h1 style=\"text-align: center; margin-bottom: 40pt;\">${bookTitle}</h1>${bodyHtml}</div>`;\n\nreturn { json: { html: cleanHtml, title: bookTitle } };"
+      },
+      "id": "7a025e21-0198-472c-89a1-e5d379add474",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
+        }
+      },
+      "id": "21c338ce-338c-44c2-aaf7-4fe68b5c0cdc",
+      "name": "Get Book Context Editor",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        992
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"tngtech/deepseek-r1t2-chimera:free\",\n  \"max_tokens\": 20000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un Editor Letterario Professionale. NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\nCONTESTO LIBRO:\\n- Titolo: \" + ($node[\"Get Book Context Editor\"].json.title || 'In definizione') + \"\\n- Blueprint: \" + JSON.stringify($node[\"Get Book Context Editor\"].json.context_data?.blueprint || {}) + \"\\n\\nTESTO DA REVISIONARE:\\n\" + $node[\"Webhook Router\"].json.body.content + \"\\n\\nISTRUZIONI:\\n1. Analizza il capitolo cercando incongruenze con il blueprint, errori grammaticali o miglioramenti stilistici.\\n2. Fornisci un suggerimento conciso ed efficace che l'autore possa scegliere di applicare.\\n3. OUTPUT JSON: { \\\"aiResponse\\\": \\\"...\\\" }\"\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "1ea59ddf-4fcf-4383-8030-363cb54e27e2",
+      "name": "Agent: Editor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -240,
+        992
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"bookId\": $node[\"Get Book Context Editor\"].json.id,\n  \"aiResponse\": JSON.parse($node[\"Agent: Editor\"].json.choices[0].message.content.replace(/```json\\n?|```/g, '').trim()).aiResponse.replace(/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g, '')\n} }}",
+        "options": {}
+      },
+      "id": "a7188d4e-6bff-41d7-9c81-556a0c2ff8fb",
+      "name": "Response Editor",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "71506874-365f-409f-9cb4-7bf957e2ba0a",
+      "name": "Send File to Frontend",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"bookId\": $node[\"Get Book Context Concept1\"].json.id,\n  \"concepts\": $node[\"Sanitize Concepts\"].json.concepts\n} }}",
+        "options": {}
+      },
+      "id": "2be1d602-c4cf-476f-8ef1-0b43358a42aa",
+      "name": "Response Concept",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        256,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE books \nSET context_data = jsonb_set(context_data, '{blueprint}', $1::jsonb)\nWHERE id = $2::uuid;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($node[\"Sanitize Concepts\"].json.blueprint), $node[\"Get Book Context Concept1\"].json.id] }}"
+        }
+      },
+      "id": "fcb35e7e-f2f4-4e6c-bcb0-1df5167f5751",
+      "name": "Update Blueprint",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        32,
+        80
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\n\nconst clean = (obj) => {\n  if (typeof obj === 'string') {\n    return obj.replace(emojiRegex, '');\n  }\n  if (Array.isArray(obj)) {\n    return obj.map(clean);\n  }\n  if (typeof obj === 'object' && obj !== null) {\n    const newObj = {};\n    for (const key in obj) {\n      newObj[key] = clean(obj[key]);\n    }\n    return newObj;\n  }\n  return obj;\n};\n\nlet rawContent = $node[\"Agent: Concept Gen1\"].json.choices[0].message.content || \"\";\n// Strip markdown backticks if present\nrawContent = rawContent.replace(/```json\\n?|```/g, '').trim();\n\nif (!rawContent) {\n  throw new Error(\"AI returned empty content\");\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(rawContent);\n} catch (e) {\n  throw new Error(\"Invalid JSON from AI: \" + rawContent.slice(0, 100));\n}\n\nreturn {\n  blueprint: clean(parsed.blueprint || {}),\n  concepts: clean(parsed.concepts || [])\n};"
+      },
+      "id": "a8f15fa3-d714-4518-b8bc-625731701f00",
+      "name": "Sanitize Concepts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\n\nconst clean = (obj) => {\n  if (typeof obj === 'string') {\n    return obj.replace(emojiRegex, '');\n  }\n  if (Array.isArray(obj)) {\n    return obj.map(clean);\n  }\n  if (typeof obj === 'object' && obj !== null) {\n    const newObj = {};\n    for (const key in obj) {\n      newObj[key] = clean(obj[key]);\n    }\n    return newObj;\n  }\n  return obj;\n};\n\nlet rawContent = $node[\"Agent: Architect\"].json.choices[0].message.content || \"\";\n// Strip markdown backticks if present\nrawContent = rawContent.replace(/```json\\n?|```/g, '').trim();\n\nif (!rawContent) {\n  throw new Error(\"AI returned empty content\");\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(rawContent);\n} catch (e) {\n  throw new Error(\"Invalid JSON from AI: \" + rawContent.slice(0, 100));\n}\n\nreturn {\n  chapters: clean(parsed.chapters || [])\n};"
+      },
+      "id": "82d41305-3a41-4683-8cbf-e334fc5b61c6",
+      "name": "Sanitize Chapters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "content": "toglier tast gnra tto at nnverrà ai sao\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        752,
+        144
+      ],
+      "id": "e848bf1f-a725-45e0-a967-7e178e2b2974",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "piano implementazione: prima esc il word e poi t lo ricarc\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        304,
+        864
+      ],
+      "id": "7636ef76-152a-44bc-9158-111fa65a9898",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
+        }
+      },
+      "id": "ebb1fce9-f5fd-4eb7-987d-c3a16b3754af",
+      "name": "Get Book Context Cover",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -1264,
+        752
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const bookData = $input.first().json;\nconst webhookData = $(\"Webhook Router\").first().json.body || {};\n\nconst title = webhookData.title || bookData.title || 'Nuovo Libro';\nconst author = webhookData.author || bookData.author || 'Riccardo Genco';\nconst genre = bookData.genre || webhookData.genre || 'Fiction';\n\nconst blueprint = bookData.context_data?.blueprint || {};\nconst plotSummary = bookData.plot_summary || 'Una storia avvincente e misteriosa.';\n\nconst setting = blueprint.setting || 'Ambientazione suggestiva';\nconst characters = blueprint.characters || 'Personaggi intriganti';\nconst themes = blueprint.themes || 'Temi profondi';\nconst mood = webhookData.mood || blueprint.plot_vibes || 'una combinazione di fascino e mistero cinematografico';\n\nconst style = webhookData.style || 'fotorealismo moderno con illuminazione drammatica';\n\nconst final_prompt = `Copertina di un libro professionale (Book Cover Design) per un romanzo di genere ${genre}.\\n\\nTITOLO: \"${title}\"\\nAUTORE: \"${author}\"\\n\\nSINOSSI DI RIFERIMENTO:\\n${plotSummary}\\n\\nDETTAGLI NARRATIVI:\\n- Ambientazione: ${setting}\\n- Personaggi: ${characters}\\n- Temi: ${themes}\\n- Atmosfera: ${mood}\\n\\nSTILE ARTISTICO RICHIESTO:\\n- ${style}\\n\\nREQUISITI DI DESIGN (MOLTO IMPORTANTE):\\n1. Layout professionale da bestseller editoriale.\\n2. TITOLO: \"${title}\" deve essere l'elemento testuale principale, centrato o in alto, con un font elegante e perfettamente integrato nel design.\\n3. AUTORE: \"${author}\" deve essere chiaramente leggibile in basso.\\n4. L'immagine centrale deve essere di altissima qualità, evocativa della sinossi e del genere ${genre}.\\n5. Rapporto d'aspetto: 1024x1792 (Verticale).\\n6. Evitare artefatti testuali casuali: SOLO titolo e autore sono ammessi.\\n7. Composizione bilanciata, luci cinematografiche e contrasti nitidi.\\n\\nIl risultato finale deve sembrare una copertina reale pubblicata da una grande casa editrice.`;\n\nreturn {\n  final_prompt,\n  title,\n  author,\n  bookId: webhookData.bookId || bookData.id\n};"
+      },
+      "id": "92295d18-f5b5-451a-ac86-54b707bb4c6e",
+      "name": "Prepare Cover Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1056,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "prompt": "={{ $json.final_prompt }}",
+        "model": "dall-e-3",
+        "responseFormat": "imageUrl",
+        "options": {},
+        "requestOptions": {}
+      },
+      "id": "1f9a2ef8-a02d-4b13-945c-0cd6f755be37",
+      "name": "Generate Cover (DALL-E 3)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        -736,
+        768
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "lIvnrEKrZKxdIRLJ",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $node[\"Generate Cover (DALL-E 3)\"].json.data[0].url }}",
+        "options": {}
+      },
+      "id": "e4d1c645-a596-47ef-9dcf-8556ef8f5cb0",
+      "name": "Download Cover Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -576,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://dylnxdjycakxxnlgqvsj.supabase.co/storage/v1/object/covers/{{ $node[\"Prepare Cover Prompt\"].json.bookId }}_cover.png",
+        "sendBody": true,
+        "contentType": "binary",
+        "options": {}
+      },
+      "id": "06d09547-215e-441b-8ef1-9b66949bbf28",
+      "name": "Upload Cover to Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -384,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE books SET cover_url = $1, author = $2 WHERE id = $3::uuid",
+        "options": {
+          "queryReplacement": "={{ [`https://dylnxdjycakxxnlgqvsj.supabase.co/storage/v1/object/public/covers/${$node[\"Prepare Cover Prompt\"].json.bookId}_cover.png`, $node[\"Prepare Cover Prompt\"].json.author, $node[\"Prepare Cover Prompt\"].json.bookId] }}"
+        }
+      },
+      "id": "5745eb5e-d31e-4d33-a5ec-4d595da24531",
+      "name": "Update Book Cover",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        784
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"cover_url\": `https://dylnxdjycakxxnlgqvsj.supabase.co/storage/v1/object/public/covers/${$node[\"Prepare Cover Prompt\"].json.bookId}_cover.png`,\n  \"bookId\": $node[\"Prepare Cover Prompt\"].json.bookId\n} }}",
+        "options": {}
+      },
+      "id": "6bf2c129-3785-4984-8635-57ecdc9d8655",
+      "name": "Response Cover Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        48,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ \nJSON.stringify({\n  \"model\": \"tngtech/deepseek-r1t2-chimera:free\", // O il modello che preferisci\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un esperto editor letterario italiano. DEVI RISPONDERE ESCLUSIVAMENTE IN LINGUA ITALIANA.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": $node[\"Webhook Router\"].json.body.userInput \n    }\n  ],\n  \"temperature\": 0.7,\n  \"response_format\": { \"type\": \"json_object\" }\n}) \n}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -896,
+        784
+      ],
+      "id": "f60d4754-feb0-4211-8cc1-d56967d10d9c",
+      "name": "Agent: Plotter1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "h6wkT3vSqDXcn7gb",
+          "name": "OpenRouter account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Book Context1": {
+      "main": [
+        [
+          {
+            "node": "Agent: Interviewer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book Context Concept1": {
+      "main": [
+        [
+          {
+            "node": "Agent: Concept Gen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Concept Gen1": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Concepts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Router": {
+      "main": [
+        [
+          {
+            "node": "Log Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action Switch": {
+      "main": [
+        [
+          {
+            "node": "Get Book Context1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Book Context Concept1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Book Context Concept Architect1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Chapter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Book Context Editor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Book Context Cover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Interviewer": {
+      "main": [
+        [
+          {
+            "node": "Log Assistant Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "main": [
+        [
+          {
+            "node": "Agent: Plotter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Architect": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Chapters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Chapter": {
+      "main": [
+        [
+          {
+            "node": "Get Book",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book": {
+      "main": [
+        [
+          {
+            "node": "Get Previous Chapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Writer": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Webhook": {
+      "main": [
+        [
+          {
+            "node": "Init Book (Optional)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Book (Optional)": {
+      "main": [
+        [
+          {
+            "node": "Action Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book Context Concept Architect1": {
+      "main": [
+        [
+          {
+            "node": "Calculator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Previous Chapter": {
+      "main": [
+        [
+          {
+            "node": "Agent: Writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Plotter": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Plot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Plot": {
+      "main": [
+        [
+          {
+            "node": "Agent: Architect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Plot": {
+      "main": [
+        [
+          {
+            "node": "Update Plot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Writer": {
+      "main": [
+        [
+          {
+            "node": "Update Chapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Chapter": {
+      "main": [
+        [
+          {
+            "node": "Response Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Assistant Reply": {
+      "main": [
+        [
+          {
+            "node": "Response Interview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send File to Frontend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book Context Editor": {
+      "main": [
+        [
+          {
+            "node": "Agent: Editor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Editor": {
+      "main": [
+        [
+          {
+            "node": "Response Editor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Blueprint": {
+      "main": [
+        [
+          {
+            "node": "Response Concept",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Concepts": {
+      "main": [
+        [
+          {
+            "node": "Update Blueprint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Chapters": {
+      "main": [
+        [
+          {
+            "node": "Response Outline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book Context Cover": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cover Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Cover Prompt": {
+      "main": [
+        [
+          {
+            "node": "Agent: Plotter1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Cover (DALL-E 3)": {
+      "main": [
+        [
+          {
+            "node": "Download Cover Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Cover Image": {
+      "main": [
+        [
+          {
+            "node": "Upload Cover to Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Cover to Storage": {
+      "main": [
+        [
+          {
+            "node": "Update Book Cover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Book Cover": {
+      "main": [
+        [
+          {
+            "node": "Response Cover Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Plotter1": {
+      "main": [
+        [
+          {
+            "node": "Generate Cover (DALL-E 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1
+  },
+  "versionId": "57629ce7-3c44-4cba-b059-5dd0829091a9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6e886da68f5367daa0e3870b7be67336a858c521a1f653709b4406ff2f5e1505"
+  },
+  "id": "Ju8Vmm4FMX6CL5tR",
+  "tags": []
+}

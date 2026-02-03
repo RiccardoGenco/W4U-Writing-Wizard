@@ -8,6 +8,7 @@ const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
+    const [author, setAuthor] = useState('');
     const [pages, setPages] = useState('150');
     const [theme, setTheme] = useState('Thriller');
     const [showForm, setShowForm] = useState(false);
@@ -45,6 +46,7 @@ const Dashboard: React.FC = () => {
                 .insert([{
                     status: 'INTERVIEW',
                     title: title || 'Nuovo Progetto',
+                    author: author || 'Anonimo',
                     genre: theme,
                     target_chapters: chapterCount,
                     context_data: { target_pages: pages, initial_theme: theme }
@@ -182,6 +184,17 @@ const Dashboard: React.FC = () => {
                                         placeholder="Es. L'ombra del tempo"
                                         value={title}
                                         onChange={e => setTitle(e.target.value)}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Nome Autore</label>
+                                    <input
+                                        required
+                                        placeholder="Es. Riccardo Genco"
+                                        value={author}
+                                        onChange={e => setAuthor(e.target.value)}
                                         style={{ width: '100%' }}
                                     />
                                 </div>
