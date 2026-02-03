@@ -165,6 +165,27 @@ app.post("/export/epub", async (req, res) => {
     }
 });
 
+// --- PROJECT MANAGEMENT ENDPOINTS ---
+
+app.post("/api/projects/delete", async (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: "Project ID is required" });
+
+    try {
+        const { error } = await supabase
+            .from("books")
+            .update({ status: 'deleted' })
+            .eq("id", id);
+
+        if (error) throw error;
+
+        res.json({ success: true, message: "Project deleted successfully" });
+    } catch (error) {
+        console.error("Delete project error:", error);
+        res.status(500).json({ error: "Failed to delete project" });
+    }
+});
+
 // --- SHARED SANITIZATION ENDPOINT ---
 
 app.post("/api/sanitize", (req, res) => {
