@@ -40,6 +40,7 @@ const ConfigurationPage: React.FC = () => {
                 currentContext = currentBook?.context_data || {};
 
                 await supabase.from('books').update({
+                    status: 'BLUEPRINT',
                     context_data: { ...currentContext, configuration: config }
                 }).eq('id', bookId);
             }

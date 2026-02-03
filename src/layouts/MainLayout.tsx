@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { supabase } from '../lib/api';
+import { getRouteByStatus } from '../lib/navigation';
 
 interface Project {
     id: string;
@@ -15,6 +17,7 @@ const MainLayout: React.FC = () => {
     const [projects, setProjects] = useState<Project[]>([]);
     const [activeBookPages, setActiveBookPages] = useState<number | null>(null);
     const [activeBookId, setActiveBookId] = useState<string | null>(localStorage.getItem('active_book_id'));
+    const [switching, setSwitching] = useState(false);
 
     useEffect(() => {
         fetchProjects();
@@ -60,12 +63,30 @@ const MainLayout: React.FC = () => {
         }
     };
 
-    const handleSelectProject = (id: string) => {
-        localStorage.setItem('active_book_id', id);
-        setActiveBookId(id);
-        fetchProjects(); // Refresh list to ensure titles are up to date
+    const handleSelectProject = async (id: string) => {
+        if (switching) return;
+        setSwitching(true);
+        try {
+            const { data } = await supabase
+                .from('books')
+                .select('status')
+                .eq('id', id)
+                .single();
 
-        navigate('/create/production');
+            localStorage.setItem('active_book_id', id);
+            setActiveBookId(id);
+            fetchProjects();
+
+            if (data) {
+                navigate(getRouteByStatus(data.status));
+            } else {
+                navigate('/create/concept');
+            }
+        } catch (err) {
+            console.error("Error selecting project:", err);
+        } finally {
+            setSwitching(false);
+        }
     };
 
     return (
@@ -109,6 +130,11 @@ const MainLayout: React.FC = () => {
                         }}></div>
                         Target: {activeBookPages} Pagine
                     </motion.div>
+                )}
+                {switching && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Loader2 className="animate-spin" size={48} color="var(--primary)" />
+                    </div>
                 )}
                 <Outlet />
             </main>

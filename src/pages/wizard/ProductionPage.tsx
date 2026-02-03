@@ -133,15 +133,46 @@ const ProductionPage: React.FC = () => {
         }
     };
 
+    const checkChapterCompletion = async (id: string) => {
+        const { data } = await supabase
+            .from('chapters')
+            .select('status, content')
+            .eq('id', id)
+            .single();
+        return data?.status === 'COMPLETED' || (data?.content && data.content.length > 50);
+    };
+
     const generateAll = async () => {
         setGlobalGenerating(true);
-        for (const chap of chapters) {
-            if (!chap.content || chap.status === 'PENDING') {
-                await generateChapter(chap.id);
-                await new Promise(r => setTimeout(r, 1000)); // Throttling
+
+        // Prendiamo l'elenco aggiornato dei capitoli che hanno bisogno di generazione
+        const toGenerate = chapters.filter(c => !c.content || c.status === 'PENDING' || c.status === 'ERROR');
+
+        for (const chap of toGenerate) {
+            // Verifica di sicurezza prima di lanciare: se è già stato generato (magari da n8n in parallelo) saltiamo
+            const alreadyDone = await checkChapterCompletion(chap.id);
+            if (alreadyDone) continue;
+
+            // Avviamo la generazione del capitolo
+            await generateChapter(chap.id);
+
+            // Attendiamo che il capitolo sia completato prima di passare al prossimo
+            let isDone = false;
+            let attempts = 0;
+            const maxAttempts = 60; // Timeout di sicurezza (es. 5 min se polled ogni 5s)
+
+            while (!isDone && attempts < maxAttempts) {
+                await new Promise(r => setTimeout(r, 5000)); // Poll ogni 5 secondi
+                isDone = await checkChapterCompletion(chap.id);
+                attempts++;
+
+                // Aggiorniamo la lista locale per mostrare il progresso all'utente
+                if (isDone) fetchChapters();
             }
         }
+
         setGlobalGenerating(false);
+        fetchChapters(); // Sync finale
     };
 
     const currentChapter = chapters.find(c => c.id === selectedChapterId);
@@ -240,7 +271,7 @@ const ProductionPage: React.FC = () => {
                                 onClick={fetchChapters}
                                 className="btn-secondary"
                                 style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
-                                title="Aggiorna manualment"
+                                title="Aggiorna manualmente"
                             >
                                 <ChevronRight size={14} style={{ transform: 'rotate(90deg)' }} />
                             </button>
@@ -277,22 +308,19 @@ const ProductionPage: React.FC = () => {
                                 {chapter.status === 'GENERATING' && <Loader2 size={16} className="animate-spin" color="var(--accent)" />}
                             </div>
 
-                            {(!chapter.content || chapter.status === 'PENDING') && chapter.status !== 'GENERATING' && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); generateChapter(chapter.id); }}
-                                    className="btn-secondary"
-                                    style={{ width: '100%', padding: '0.4rem', fontSize: '0.8rem', marginTop: '0.5rem' }}
-                                >
-                                    Genera
-                                </button>
-                            )}
+
                         </div>
                     ))}
                 </div>
 
                 <div style={{ padding: '1rem', borderTop: '1px solid var(--glass-border)' }}>
                     <button
-                        onClick={() => navigate('/create/editor')}
+                        onClick={async () => {
+                            if (bookId) {
+                                await supabase.from('books').update({ status: 'EDITOR' }).eq('id', bookId);
+                            }
+                            navigate('/create/editor');
+                        }}
                         className="btn-primary"
                         style={{ width: '100%' }}
                     >
