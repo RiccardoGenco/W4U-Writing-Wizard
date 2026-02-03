@@ -317,16 +317,15 @@ const ProductionPage: React.FC = () => {
                     <button
                         onClick={async () => {
                             if (bookId) {
-                                await supabase.from('books').update({ status: 'EDITOR' }).eq('id', bookId);
+                                await supabase.from('books').update({ status: 'COVER' }).eq('id', bookId);
                             }
-                            navigate('/create/editor');
+                            navigate('/create/cover');
                         }}
                         className="btn-primary"
                         style={{ width: '100%' }}
                     >
-                        Vai all'Editor <ChevronRight size={18} />
+                        Genera Copertina <ChevronRight size={18} />
                     </button>
-                    {/* Allow going to editor even if not finished, so user can see what's done */}
                 </div>
             </div>
 

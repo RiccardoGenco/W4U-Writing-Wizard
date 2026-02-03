@@ -6,7 +6,7 @@ import ConceptPage from './pages/wizard/ConceptPage';
 import ConfigurationPage from './pages/wizard/ConfigurationPage';
 import BlueprintPage from './pages/wizard/BlueprintPage';
 import ProductionPage from './pages/wizard/ProductionPage';
-import EditorPage from './pages/wizard/EditorPage';
+import CoverPage from './pages/wizard/CoverPage';
 import ExportPage from './pages/wizard/ExportPage';
 
 // Styles
@@ -29,7 +29,7 @@ const App: React.FC = () => {
             <Route path="configuration" element={<ConfigurationPage />} />
             <Route path="blueprint" element={<BlueprintPage />} />
             <Route path="production" element={<ProductionPage />} />
-            <Route path="editor" element={<EditorPage />} />
+            <Route path="cover" element={<CoverPage />} />
             <Route path="export" element={<ExportPage />} />
           </Route>
 

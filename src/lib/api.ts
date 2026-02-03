@@ -38,8 +38,14 @@ export const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3): Promi
 };
 
 // Wrapper for n8n API calls with automatic retry logic
-export const callBookAgent = async (action: string, body: any, bookId?: string | null) => {
-    const WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+export const callBookAgent = async (action: string, body: any, bookId?: string | null, customPath?: string) => {
+    let WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+
+    // If a custom path is provided, construct the URL based on the same base
+    if (customPath) {
+        const baseUrl = WEBHOOK_URL.split('/webhook/')[0];
+        WEBHOOK_URL = `${baseUrl}/webhook/${customPath}`;
+    }
 
     const requestPayload = {
         action,
@@ -50,7 +56,7 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
     // Wrappa la chiamata nel retry logic
     return callWithRetry(async () => {
         // Log ad ogni tentativo (utile per vedere nel DB quanti retry sono serviti)
-        console.log(`[API] Calling n8n [${action}]:`, requestPayload);
+        console.log(`[API] Calling n8n [${action}] on ${WEBHOOK_URL}:`, requestPayload);
         await logDebug('frontend', `n8n_request_${action.toLowerCase()}`, {
             url: WEBHOOK_URL,
             attempt: 'retry_active',
