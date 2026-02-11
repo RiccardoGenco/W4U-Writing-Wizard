@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Loader2 } from 'lucide-react';
-import { supabase, callBookAgent } from '../../lib/api';
+import { supabase, callBookAgent, logDebug } from '../../lib/api';
 
 interface Chapter {
     id: string;
@@ -14,8 +14,9 @@ const BlueprintPage: React.FC = () => {
     const navigate = useNavigate();
     const [chapters, setChapters] = useState<Chapter[]>([]);
     const [saving, setSaving] = useState(false);
-    const [feedback, setFeedback] = useState('');
-    const [refreshing, setRefreshing] = useState(false);
+    const [chapterFeedbacks, setChapterFeedbacks] = useState<Record<string, string>>({});
+    const [modifiedChapters, setModifiedChapters] = useState<Set<string>>(new Set());
+    const [refreshing, setRefreshing] = useState<string | null>(null);
 
     useEffect(() => {
         const loadChapters = async () => {
@@ -58,6 +59,9 @@ const BlueprintPage: React.FC = () => {
         if (!bookId || chapters.length === 0) return;
 
         setSaving(true);
+        const startTime = performance.now();
+        await logDebug('frontend', 'blueprint_confirm_start', { chapters_count: chapters.length }, bookId);
+
         try {
             const dbChapters = chapters.map((c, index) => ({
                 book_id: bookId,
@@ -78,23 +82,43 @@ const BlueprintPage: React.FC = () => {
                 .update({ status: 'PRODUCTION' })
                 .eq('id', bookId);
 
+            await logDebug('frontend', 'blueprint_confirm_success', {
+                duration_ms: Math.round(performance.now() - startTime)
+            }, bookId);
+
             navigate('/create/production');
 
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error saving blueprint:", err);
+            await logDebug('frontend', 'blueprint_confirm_error', {
+                error: err.message,
+                duration_ms: Math.round(performance.now() - startTime)
+            }, bookId);
             alert("Errore salvataggio struttura.");
         } finally {
             setSaving(false);
         }
     };
 
-    const handleRefreshOutline = async () => {
+    const handleChapterModification = async (chapterId: string, index: number) => {
+        const feedback = chapterFeedbacks[chapterId];
         if (!feedback) return;
+
         const bookId = localStorage.getItem('active_book_id');
-        setRefreshing(true);
+        setRefreshing(chapterId);
+
+        await logDebug('frontend', 'chapter_modification_start', {
+            chapterIndex: index,
+            chapterId: chapterId,
+            feedback_length: feedback.length
+        }, bookId);
+
+        const startTime = performance.now();
+
         try {
             const data = await callBookAgent('OUTLINE', {
                 feedback,
+                targetChapterIndex: index, // Indicating which chapter to change if the agent supports it
                 currentChapters: chapters.map(c => ({ title: c.title, summary: c.summary }))
             }, bookId);
             const resData = data.data || data;
@@ -104,20 +128,57 @@ const BlueprintPage: React.FC = () => {
             }
 
             if (resData.chapters) {
-                const chaptersWithIds = resData.chapters.map((c: any, i: number) => ({
-                    id: `chap-${i}-${Date.now()}`,
-                    title: c.title,
-                    summary: c.summary || c.scene_description
-                }));
-                setChapters(chaptersWithIds);
-                localStorage.setItem('project_chapters', JSON.stringify(chaptersWithIds));
-                setFeedback('');
+                setChapters(prev => {
+                    const next = [...prev];
+                    const aiChapter = resData.chapters[index];
+
+                    if (aiChapter && next[index]) {
+                        // Granular update: only change the targeted chapter
+                        next[index] = {
+                            ...next[index],
+                            title: aiChapter.title,
+                            summary: aiChapter.summary || aiChapter.scene_description
+                        };
+                    } else {
+                        // Fallback: Use the new list but preserve IDs where possible
+                        const fallback = resData.chapters.map((c: any, i: number) => ({
+                            id: prev[i]?.id || `chap-${i}-${Date.now()}`,
+                            title: c.title,
+                            summary: c.summary || c.scene_description
+                        }));
+                        localStorage.setItem('project_chapters', JSON.stringify(fallback));
+                        return fallback;
+                    }
+
+                    localStorage.setItem('project_chapters', JSON.stringify(next));
+                    return next;
+                });
+
+                // Track that this chapter was modified
+                setModifiedChapters(prev => new Set(prev).add(chapterId));
+
+                // Clear feedback for this chapter
+                setChapterFeedbacks(prev => {
+                    const next = { ...prev };
+                    delete next[chapterId];
+                    return next;
+                });
+
+                await logDebug('frontend', 'chapter_modification_success', {
+                    chapterId,
+                    duration_ms: Math.round(performance.now() - startTime)
+                }, bookId);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            await logDebug('frontend', 'chapter_modification_error', {
+                chapterId,
+                error: err.message,
+                duration_ms: Math.round(performance.now() - startTime)
+            }, bookId);
             alert("Errore durante l'aggiornamento. Riprova.");
         } finally {
-            setRefreshing(false);
+            setRefreshing(null);
         }
     };
 
@@ -138,82 +199,95 @@ const BlueprintPage: React.FC = () => {
             </header>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {chapters.map((chapter) => (
-                    <div key={chapter.id} className="glass-panel" style={{
-                        padding: '1rem 1.5rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        background: 'rgba(30, 41, 59, 0.4)'
-                    }}>
-                        <div style={{ flex: 1 }}>
-                            <input
-                                className="invisible-input"
-                                value={chapter.title}
-                                readOnly
-                                style={{
-                                    fontWeight: 700,
-                                    fontSize: '1.1rem',
-                                    marginBottom: '0.2rem',
-                                    width: '100%',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    padding: 0,
-                                    color: 'var(--text-main)',
-                                    cursor: 'default'
-                                }}
-                            />
-                            <input
-                                className="invisible-input"
-                                value={chapter.summary}
-                                readOnly
-                                style={{
-                                    fontSize: '0.9rem',
-                                    color: 'var(--text-muted)',
-                                    width: '100%',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    padding: 0,
-                                    cursor: 'default'
-                                }}
-                            />
+                {chapters.map((chapter, index) => {
+                    const isModified = modifiedChapters.has(chapter.id);
+                    const isRefreshing = refreshing === chapter.id;
+
+                    return (
+                        <div key={chapter.id} className="glass-panel" style={{
+                            padding: '1.5rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1rem',
+                            background: 'rgba(30, 41, 59, 0.4)',
+                            border: isModified ? '1px solid var(--success)' : '1px solid var(--glass-border)',
+                            opacity: isModified ? 0.8 : 1,
+                            transition: 'all 0.3s ease'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ flex: 1 }}>
+                                    <input
+                                        className="invisible-input"
+                                        value={chapter.title}
+                                        readOnly
+                                        style={{
+                                            fontWeight: 700,
+                                            fontSize: '1.1rem',
+                                            marginBottom: '0.2rem',
+                                            width: '100%',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: 0,
+                                            color: 'var(--text-main)',
+                                            cursor: 'default'
+                                        }}
+                                    />
+                                    <input
+                                        className="invisible-input"
+                                        value={chapter.summary}
+                                        readOnly
+                                        style={{
+                                            fontSize: '0.9rem',
+                                            color: 'var(--text-muted)',
+                                            width: '100%',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: 0,
+                                            cursor: 'default'
+                                        }}
+                                    />
+                                </div>
+                                {isModified && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontSize: '0.8rem', fontWeight: 600 }}>
+                                        <CheckCircle size={16} /> Modificato
+                                    </div>
+                                )}
+                            </div>
+
+                            {!isModified && (
+                                <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                    <textarea
+                                        placeholder="Cosa vorresti cambiare in questo capitolo?"
+                                        value={chapterFeedbacks[chapter.id] || ''}
+                                        onChange={(e) => setChapterFeedbacks(prev => ({ ...prev, [chapter.id]: e.target.value }))}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.8rem',
+                                            borderRadius: '8px',
+                                            background: 'rgba(0,0,0,0.2)',
+                                            border: '1px solid var(--glass-border)',
+                                            color: 'white',
+                                            minHeight: '80px',
+                                            fontSize: '0.85rem',
+                                            resize: 'none'
+                                        }}
+                                        disabled={refreshing !== null}
+                                    />
+                                    <button
+                                        onClick={() => handleChapterModification(chapter.id, index)}
+                                        disabled={refreshing !== null || !chapterFeedbacks[chapter.id]}
+                                        className="btn-secondary"
+                                        style={{ padding: '0.5rem 1rem', alignSelf: 'flex-end', fontSize: '0.8rem' }}
+                                    >
+                                        {isRefreshing ? <><Loader2 size={14} className="animate-spin" /> ...</> : 'Applica Modifica'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
-            <section className="glass-panel" style={{ marginTop: '3rem', padding: '2rem' }}>
-                <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    💡 Vuoi affinare la struttura?
-                </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                    L'IA manterrà il numero di capitoli fisso, ma può riorganizzare i temi o cambiare focus su tuo suggerimento.
-                </p>
-                <textarea
-                    placeholder="Es: Rendi il capitolo 3 più cupo, oppure aggiungi un elemento horror nel capitolo finale..."
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    style={{
-                        width: '100%',
-                        padding: '1rem',
-                        borderRadius: '8px',
-                        background: 'rgba(0,0,0,0.2)',
-                        border: '1px solid var(--glass-border)',
-                        color: 'white',
-                        minHeight: '100px',
-                        marginBottom: '1rem',
-                        resize: 'none'
-                    }}
-                />
-                <button
-                    onClick={handleRefreshOutline}
-                    disabled={refreshing || !feedback}
-                    className="btn-secondary"
-                    style={{ width: '100%', padding: '0.8rem' }}
-                >
-                    {refreshing ? <><Loader2 className="animate-spin" /> Elaborazione...</> : 'Richiedi Modifiche all\'IA'}
-                </button>
-            </section>
 
             <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
                 <button onClick={handleConfirm} className="btn-primary" disabled={saving} style={{ padding: '0.8rem 2rem' }}>
