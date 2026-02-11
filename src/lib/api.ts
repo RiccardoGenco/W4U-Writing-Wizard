@@ -20,12 +20,12 @@ export const logDebug = async (source: string, eventType: string, payload: any, 
 };
 
 // Retry helper with linear backoff (1s, 2s, 3s)
-export const callWithRetry = async <T>(fn: () => Promise<T>, retries = 3): Promise<T> => {
+export const callWithRetry = async <T>(fn: (attempt: number) => Promise<T>, retries = 3): Promise<T> => {
     let lastError: any;
 
     for (let i = 0; i < retries; i++) {
         try {
-            return await fn();
+            return await fn(i);
         } catch (err) {
             lastError = err;
             if (i === retries - 1) break; // Ultimo tentativo fallito, usciamo
@@ -54,12 +54,15 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
     };
 
     // Wrappa la chiamata nel retry logic
-    return callWithRetry(async () => {
-        // Log ad ogni tentativo (utile per vedere nel DB quanti retry sono serviti)
-        console.log(`[API] Calling n8n [${action}] on ${WEBHOOK_URL}:`, requestPayload);
+    return callWithRetry(async (attempt) => {
+        const startTime = performance.now();
+        const attemptLabel = `attempt_${attempt + 1}`;
+
+        // Log ad ogni tentativo
+        console.log(`[API] Calling n8n [${action}] on ${WEBHOOK_URL} (${attemptLabel}):`, requestPayload);
         await logDebug('frontend', `n8n_request_${action.toLowerCase()}`, {
             url: WEBHOOK_URL,
-            attempt: 'retry_active',
+            attempt: attemptLabel,
             ...requestPayload
         }, bookId);
 
@@ -70,12 +73,16 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
                 body: JSON.stringify(requestPayload)
             });
 
+            const duration = Math.round(performance.now() - startTime);
+
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error(`[API] n8n Error ${response.status}:`, errorText);
                 await logDebug('frontend', `n8n_http_error_${action.toLowerCase()}`, {
                     status: response.status,
                     statusText: response.statusText,
+                    duration_ms: duration,
+                    attempt: attemptLabel,
                     body: errorText
                 }, bookId);
                 throw new Error(`N8N Error ${response.status}: ${response.statusText}`);
@@ -84,17 +91,24 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
             const data = await response.json();
 
             // Log successo
-            await logDebug('frontend', `n8n_success_${action.toLowerCase()}`, data, bookId);
+            await logDebug('frontend', `n8n_success_${action.toLowerCase()}`, {
+                ...data,
+                duration_ms: duration,
+                attempt: attemptLabel
+            }, bookId);
 
             return data;
 
         } catch (err: any) {
+            const duration = Math.round(performance.now() - startTime);
             // Log errore di rete/exception per questo tentativo specifico
             await logDebug('frontend', `n8n_exception_${action.toLowerCase()}`, {
                 message: err.message,
-                type: err.name || 'Error'
+                type: err.name || 'Error',
+                duration_ms: duration,
+                attempt: attemptLabel
             }, bookId);
-            throw err; // Rilancia per permettere a callWithRetry di ritentare o fallire definitivamente
+            throw err;
         }
     }, 3); // 3 tentativi totali
 };

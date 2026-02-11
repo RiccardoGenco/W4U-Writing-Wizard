@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Loader2 } from 'lucide-react';
-import { callBookAgent, supabase } from '../../lib/api';
+import { callBookAgent, supabase, logDebug } from '../../lib/api';
 
 interface ConceptCard {
     id: string;
@@ -113,6 +113,8 @@ const ConceptPage: React.FC = () => {
         const bookId = localStorage.getItem('active_book_id');
         if (!bookId) return;
 
+        await logDebug('frontend', 'concept_selected', { conceptId: concept.id, title: concept.title }, bookId);
+
         try {
             const { data: currentBook } = await supabase
                 .from('books')
@@ -137,8 +139,9 @@ const ConceptPage: React.FC = () => {
 
             setBookTitle(concept.title);
             navigate('/create/configuration');
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            await logDebug('frontend', 'concept_selection_error', { error: err.message }, bookId);
         }
     };
 
@@ -148,6 +151,9 @@ const ConceptPage: React.FC = () => {
 
         const questions = QUESTIONS_BY_GENRE[genre || ''] || DEFAULT_QUESTIONS;
         const context = questions.map((q, i) => `D: ${q}\nR: ${answers[i]}`).join('\n\n');
+
+        await logDebug('frontend', 'concept_generation_start', { genre, inputs_length: context.length }, bookId);
+        const startTime = performance.now();
 
         try {
             const data = await callBookAgent('GENERATE_CONCEPTS', { userInput: context, title: bookTitle }, bookId);
@@ -159,9 +165,17 @@ const ConceptPage: React.FC = () => {
 
             if (generatedData.concepts) {
                 setConcepts(generatedData.concepts);
+                await logDebug('frontend', 'concept_generation_complete', {
+                    count: generatedData.concepts.length,
+                    duration_ms: Math.round(performance.now() - startTime)
+                }, bookId);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            await logDebug('frontend', 'concept_generation_error', {
+                error: err.message,
+                duration_ms: Math.round(performance.now() - startTime)
+            }, bookId);
         } finally {
             setLoading(false);
         }

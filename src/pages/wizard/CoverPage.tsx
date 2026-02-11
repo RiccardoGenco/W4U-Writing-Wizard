@@ -23,7 +23,33 @@ const CoverPage: React.FC = () => {
             return;
         }
         fetchBookData();
-    }, [bookId]);
+
+        // Realtime subscription for async cover generation
+        const channel = supabase
+            .channel(`book-cover-${bookId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'books',
+                    filter: `id=eq.${bookId}`
+                },
+                (payload: any) => {
+                    const newBook = payload.new;
+                    if (newBook.cover_url && newBook.cover_url !== coverUrl) {
+                        setCoverUrl(newBook.cover_url);
+                        setGenerating(false);
+                        logDebug('frontend', 'cover_generation_realtime_received', { url: newBook.cover_url }, bookId);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [bookId, coverUrl]);
 
     const fetchBookData = async () => {
         try {
@@ -73,8 +99,14 @@ const CoverPage: React.FC = () => {
 
         setGenerating(true);
         setProgressStage('Analisi blueprint e preparazione prompt...');
+        const startTime = performance.now();
         try {
-            await logDebug('frontend', 'cover_generation_start', { bookId }, bookId);
+            await logDebug('frontend', 'cover_generation_start', {
+                bookId,
+                mood,
+                style,
+                is_regenerate: !!coverUrl
+            }, bookId);
 
             // Call the book agent to generate cover
             setProgressStage('Generazione immagine con DALL-E 3 (può richiedere fino a 30s)...');
@@ -87,20 +119,31 @@ const CoverPage: React.FC = () => {
 
             setProgressStage('Finalizzazione e salvataggio...');
 
-            if (response && response.cover_url) {
+            if (response && response.status === 'started') {
+                console.log('Cover generation started async');
+                // Do nothing, wait for Realtime
+            } else if (response && response.cover_url) {
                 setCoverUrl(response.cover_url);
                 await supabase
                     .from('books')
                     .update({ cover_url: response.cover_url })
                     .eq('id', bookId);
 
-                await logDebug('frontend', 'cover_generation_success', { bookId, coverUrl: response.cover_url }, bookId);
+                await logDebug('frontend', 'cover_generation_success_sync', {
+                    bookId,
+                    coverUrl: response.cover_url,
+                    duration_ms: Math.round(performance.now() - startTime)
+                }, bookId);
+                setGenerating(false);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Cover generation error:', err);
-            await logDebug('frontend', 'cover_generation_error', { error: err, bookId }, bookId);
+            await logDebug('frontend', 'cover_generation_error', {
+                error: err.message,
+                bookId,
+                duration_ms: Math.round(performance.now() - startTime)
+            }, bookId);
             alert('Errore durante la generazione della copertina. Riprova.');
-        } finally {
             setGenerating(false);
         }
     };
