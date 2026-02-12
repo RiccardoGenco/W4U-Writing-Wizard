@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Download, FileText, Smartphone, Image, CheckCircle, Loader2 } from 'lucide-react';
+import { Download, FileText, Smartphone, CheckCircle, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { supabase, logDebug, callBookAgent } from '../../lib/api';
+import { supabase, logDebug } from '../../lib/api';
 
 const ExportPage: React.FC = () => {
     const [exporting, setExporting] = useState(false);
@@ -81,32 +81,38 @@ const ExportPage: React.FC = () => {
 
                 await logDebug('frontend', 'export_epub_success', { bookId }, bookId);
 
-            } else {
-                // PNG and others via n8n
-                setProgress("Elaborazione file via n8n...");
+            } else if (selectedFormat === 'DOCX') {
+                setProgress("Il server Node sta preparando il documento Word (Richiede circa 10-20 secondi)...");
 
-                // Use callBookAgent to get retry and logging benefits
-                const responseData = await callBookAgent('EXPORT', {
-                    format: selectedFormat.toLowerCase()
-                }, bookId);
+                const NODE_BACKEND_URL = import.meta.env.VITE_NODE_BACKEND_URL || 'http://localhost:3001';
+                const response = await fetch(
+                    `${NODE_BACKEND_URL}/export/docx`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ bookId })
+                    }
+                );
 
-                const data = Array.isArray(responseData) ? responseData[0] : responseData;
-
-                if (!data || !data.html) {
-                    throw new Error("Il server n8n non ha restituito il contenuto per l'export.");
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
+                    throw new Error(error.error || "Errore durante la generazione del DOCX");
                 }
 
-                const blob = new Blob([data.html], { type: 'text/html' });
+                const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `libro_${bookId}.${selectedFormat.toLowerCase()}`;
+                a.download = `libro_${bookId}.docx`;
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
                 document.body.removeChild(a);
 
-                await logDebug('frontend', `export_${selectedFormat.toLowerCase()}_success`, { bookId }, bookId);
+                await logDebug('frontend', 'export_docx_success', { bookId }, bookId);
+
+            } else {
+                throw new Error(`Formato non supportato: ${selectedFormat}`);
             }
 
             setFinished(true);
@@ -149,11 +155,11 @@ const ExportPage: React.FC = () => {
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '3rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '3rem', flexWrap: 'wrap' }}>
                         {[
                             { id: 'PDF', icon: FileText, label: 'Documento PDF (Qualità Stampa)' },
+                            { id: 'DOCX', icon: FileText, label: 'Documento Word (Editabile)' },
                             { id: 'EPUB', icon: Smartphone, label: 'ePub (E-reader)' },
-                            { id: 'PNG', icon: Image, label: 'Immagine PNG' },
                         ].map((fmt) => (
                             <motion.div
                                 key={fmt.id}

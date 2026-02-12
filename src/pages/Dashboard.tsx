@@ -3,12 +3,12 @@ import { Plus, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { supabase } from '../lib/api';
-import { getRouteByStatus } from '../lib/navigation';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
+    const [author, setAuthor] = useState('');
     const [pages, setPages] = useState('150');
     const [theme, setTheme] = useState('Thriller');
     const [showForm, setShowForm] = useState(false);
@@ -46,6 +46,7 @@ const Dashboard: React.FC = () => {
                 .insert([{
                     status: 'INTERVIEW',
                     title: title || 'Nuovo Progetto',
+                    author: author || 'Anonimo',
                     genre: theme,
                     target_chapters: chapterCount,
                     context_data: { target_pages: pages, initial_theme: theme }
@@ -60,28 +61,6 @@ const Dashboard: React.FC = () => {
         } catch (err) {
             console.error("Error creating project:", err);
             alert("Errore nella creazione del progetto.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const continueProject = async (id: string) => {
-        setLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('books')
-                .select('status')
-                .eq('id', id)
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                localStorage.setItem('active_book_id', id);
-                navigate(getRouteByStatus(data.status));
-            }
-        } catch (err) {
-            console.error("Error resuming project:", err);
-            alert("Codice progetto non valido o errore nel caricamento.");
         } finally {
             setLoading(false);
         }
@@ -177,20 +156,9 @@ const Dashboard: React.FC = () => {
                                     >
                                         <Plus size={24} /> Inizia Ora
                                     </motion.button>
-
-                                    <motion.button
-                                        whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.08)' }}
-                                        whileTap={{ scale: 0.95 }}
-                                        className="btn-secondary"
-                                        style={{ fontSize: '1rem', borderRadius: '16px' }}
-                                        onClick={() => {
-                                            const id = prompt("Codice Progetto:");
-                                            if (id) continueProject(id);
-                                        }}
-                                    >
-                                        Riprendi Progetto
-                                    </motion.button>
                                 </div>
+
+
                             </>
                         ) : (
                             <motion.form
@@ -216,6 +184,17 @@ const Dashboard: React.FC = () => {
                                         placeholder="Es. L'ombra del tempo"
                                         value={title}
                                         onChange={e => setTitle(e.target.value)}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Nome Autore</label>
+                                    <input
+                                        required
+                                        placeholder="Es. Riccardo Genco"
+                                        value={author}
+                                        onChange={e => setAuthor(e.target.value)}
                                         style={{ width: '100%' }}
                                     />
                                 </div>

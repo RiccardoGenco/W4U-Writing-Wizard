@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Loader2 } from 'lucide-react';
-import { callBookAgent, supabase } from '../../lib/api';
+import { callBookAgent, supabase, logDebug } from '../../lib/api';
 
 interface ConceptCard {
     id: string;
@@ -75,6 +75,16 @@ const DEFAULT_QUESTIONS = [
     'Come vorresti che finisse la storia?'
 ];
 
+const CONCEPT_LOADING_PHASES = [
+    'Analisi delle tue risposte...',
+    'Esplorazione temi narrativi...',
+    'Sviluppo archi narrativi...',
+    'Creazione personaggi chiave...',
+    'Definizione ambientazioni...',
+    'Composizione proposte di concept...',
+    'Rifinitura idee...',
+];
+
 const ConceptPage: React.FC = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
@@ -82,6 +92,7 @@ const ConceptPage: React.FC = () => {
     const [bookTitle, setBookTitle] = useState<string | null>(null);
     const [genre, setGenre] = useState<string | null>(null);
     const [answers, setAnswers] = useState<string[]>(['', '', '', '']);
+    const [loadingMessage, setLoadingMessage] = useState(CONCEPT_LOADING_PHASES[0]);
 
     const bookId = localStorage.getItem('active_book_id');
 
@@ -90,6 +101,18 @@ const ConceptPage: React.FC = () => {
             fetchBookData();
         }
     }, [bookId]);
+
+    // Rotating loading messages
+    useEffect(() => {
+        if (!loading) return;
+        let phaseIndex = 0;
+        setLoadingMessage(CONCEPT_LOADING_PHASES[0]);
+        const interval = setInterval(() => {
+            phaseIndex = (phaseIndex + 1) % CONCEPT_LOADING_PHASES.length;
+            setLoadingMessage(CONCEPT_LOADING_PHASES[phaseIndex]);
+        }, 2500);
+        return () => clearInterval(interval);
+    }, [loading]);
 
     const fetchBookData = async () => {
         if (!supabase || !bookId) return;
@@ -112,6 +135,8 @@ const ConceptPage: React.FC = () => {
     const selectConcept = async (concept: ConceptCard) => {
         const bookId = localStorage.getItem('active_book_id');
         if (!bookId) return;
+
+        await logDebug('frontend', 'concept_selected', { conceptId: concept.id, title: concept.title }, bookId);
 
         try {
             const { data: currentBook } = await supabase
@@ -137,8 +162,9 @@ const ConceptPage: React.FC = () => {
 
             setBookTitle(concept.title);
             navigate('/create/configuration');
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            await logDebug('frontend', 'concept_selection_error', { error: err.message }, bookId);
         }
     };
 
@@ -148,6 +174,9 @@ const ConceptPage: React.FC = () => {
 
         const questions = QUESTIONS_BY_GENRE[genre || ''] || DEFAULT_QUESTIONS;
         const context = questions.map((q, i) => `D: ${q}\nR: ${answers[i]}`).join('\n\n');
+
+        await logDebug('frontend', 'concept_generation_start', { genre, inputs_length: context.length }, bookId);
+        const startTime = performance.now();
 
         try {
             const data = await callBookAgent('GENERATE_CONCEPTS', { userInput: context, title: bookTitle }, bookId);
@@ -159,9 +188,17 @@ const ConceptPage: React.FC = () => {
 
             if (generatedData.concepts) {
                 setConcepts(generatedData.concepts);
+                await logDebug('frontend', 'concept_generation_complete', {
+                    count: generatedData.concepts.length,
+                    duration_ms: Math.round(performance.now() - startTime)
+                }, bookId);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            await logDebug('frontend', 'concept_generation_error', {
+                error: err.message,
+                duration_ms: Math.round(performance.now() - startTime)
+            }, bookId);
         } finally {
             setLoading(false);
         }
@@ -172,6 +209,79 @@ const ConceptPage: React.FC = () => {
 
     return (
         <div className="container-narrow fade-in" style={{ paddingTop: '2rem', minHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+
+            {/* OVERLAY GENERAZIONE CONCEPT */}
+            {loading && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(5, 5, 8, 0.95)',
+                    backdropFilter: 'blur(20px)',
+                    zIndex: 1000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2rem',
+                    animation: 'fadeIn 0.3s ease-out'
+                }}>
+                    {/* Spinner animato */}
+                    <div style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        border: '3px solid rgba(0, 242, 255, 0.1)',
+                        borderTop: '3px solid var(--primary)',
+                        borderRight: '3px solid var(--accent)',
+                        animation: 'spin 1s linear infinite',
+                        boxShadow: '0 0 30px rgba(0, 242, 255, 0.3)'
+                    }} />
+
+                    {/* Testo principale */}
+                    <div style={{ textAlign: 'center' }}>
+                        <h2 style={{
+                            fontSize: '1.8rem',
+                            color: 'var(--primary)',
+                            marginBottom: '0.5rem',
+                            textShadow: '0 0 20px rgba(0, 242, 255, 0.5)',
+                            transition: 'all 0.3s ease'
+                        }}>
+                            {loadingMessage}
+                        </h2>
+
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            L'IA sta elaborando proposte uniche per il tuo {genre || 'libro'}...
+                        </p>
+                    </div>
+
+                    {/* Barra progresso decorativa */}
+                    <div style={{
+                        width: '300px',
+                        height: '4px',
+                        background: 'rgba(255,255,255,0.1)',
+                        borderRadius: '2px',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            height: '100%',
+                            width: '50%',
+                            background: 'linear-gradient(90deg, transparent, var(--primary), transparent)',
+                            borderRadius: '2px',
+                            animation: 'shimmer 1.5s infinite linear'
+                        }} />
+                    </div>
+
+                    <p style={{
+                        color: 'var(--text-muted)',
+                        fontSize: '0.8rem',
+                        maxWidth: '400px',
+                        textAlign: 'center',
+                        opacity: 0.6
+                    }}>
+                        Non chiudere questa finestra. La generazione può richiedere fino a un minuto.
+                    </p>
+                </div>
+            )}
 
             <div style={{ display: 'flex', gap: '0.8rem', marginBottom: '2rem', justifyContent: 'center', flexShrink: 0 }}>
                 {[1, 2, 3, 4].map((step) => (
