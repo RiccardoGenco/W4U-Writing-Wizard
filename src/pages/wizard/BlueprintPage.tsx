@@ -256,23 +256,37 @@ const BlueprintPage: React.FC = () => {
 
                             {!isModified && (
                                 <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                    <textarea
-                                        placeholder="Cosa vorresti cambiare in questo capitolo?"
-                                        value={chapterFeedbacks[chapter.id] || ''}
-                                        onChange={(e) => setChapterFeedbacks(prev => ({ ...prev, [chapter.id]: e.target.value }))}
-                                        style={{
-                                            width: '100%',
-                                            padding: '0.8rem',
-                                            borderRadius: '8px',
-                                            background: 'rgba(0,0,0,0.2)',
-                                            border: '1px solid var(--glass-border)',
-                                            color: 'white',
-                                            minHeight: '80px',
-                                            fontSize: '0.85rem',
-                                            resize: 'none'
-                                        }}
-                                        disabled={refreshing !== null}
-                                    />
+                                    <div style={{ position: 'relative' }}>
+                                        <textarea
+                                            placeholder="Cosa vorresti cambiare in questo capitolo? (max 200 caratteri)"
+                                            value={chapterFeedbacks[chapter.id] || ''}
+                                            onChange={(e) => setChapterFeedbacks(prev => ({ ...prev, [chapter.id]: e.target.value.slice(0, 200) }))}
+                                            maxLength={200}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.8rem',
+                                                paddingBottom: '1.5rem',
+                                                borderRadius: '8px',
+                                                background: 'rgba(0,0,0,0.2)',
+                                                border: '1px solid var(--glass-border)',
+                                                color: 'white',
+                                                minHeight: '80px',
+                                                fontSize: '0.85rem',
+                                                resize: 'none'
+                                            }}
+                                            disabled={refreshing !== null}
+                                        />
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: '5px',
+                                            right: '10px',
+                                            fontSize: '0.7rem',
+                                            color: (chapterFeedbacks[chapter.id] || '').length >= 180 ? 'var(--error)' : 'var(--text-muted)',
+                                            fontWeight: 600
+                                        }}>
+                                            {(chapterFeedbacks[chapter.id] || '').length} / 200
+                                        </div>
+                                    </div>
                                     <button
                                         onClick={() => handleChapterModification(chapter.id, index)}
                                         disabled={refreshing !== null || !chapterFeedbacks[chapter.id]}
