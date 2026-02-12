@@ -1,9 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+// ─── ENV Validation ────────────────────────────────────────────────────────────
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const N8N_API_KEY = import.meta.env.VITE_N8N_API_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('[API] CRITICAL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
+} else {
+    console.log('[API] Supabase initialized:', SUPABASE_URL);
+}
+
+if (!N8N_API_KEY) {
+    console.warn('[API] VITE_N8N_API_KEY not set — n8n calls will rely on JWT only');
+} else {
+    console.log('[API] N8N API Key configured');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Centralized logger
 export const logDebug = async (source: string, eventType: string, payload: any, bookId?: string | null) => {
@@ -37,6 +51,37 @@ export const callWithRetry = async <T>(fn: (attempt: number) => Promise<T>, retr
     throw lastError;
 };
 
+// Get current auth headers for n8n calls
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+    };
+
+    try {
+        // Add JWT token from Supabase session
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+            console.error('[API] getAuthHeaders: failed to get session:', error.message);
+        } else if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+            console.log('[API] getAuthHeaders: JWT attached (expires:', new Date((session.expires_at || 0) * 1000).toISOString(), ')');
+        } else {
+            console.warn('[API] getAuthHeaders: no active session — request will be unauthenticated');
+        }
+    } catch (err: any) {
+        console.error('[API] getAuthHeaders: CRASH getting session:', err.message);
+        // Don't block the request — proceed without JWT
+    }
+
+    // Add API key if configured
+    if (N8N_API_KEY) {
+        headers['X-API-Key'] = N8N_API_KEY;
+    }
+
+    return headers;
+};
+
 // Wrapper for n8n API calls with automatic retry logic
 export const callBookAgent = async (action: string, body: any, bookId?: string | null, customPath?: string) => {
     let WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
@@ -67,9 +112,11 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
         }, bookId);
 
         try {
+            const authHeaders = await getAuthHeaders();
+
             const response = await fetch(WEBHOOK_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders,
                 body: JSON.stringify(requestPayload)
             });
 
