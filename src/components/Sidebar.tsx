@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Book, Plus, History, Layout, Settings, LogOut, User, AlertCircle } from 'lucide-react';
+import { Book, Plus, History, Layout, Settings, LogOut, User, AlertCircle, Sun, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/auth';
+import { useTheme } from '../lib/useTheme';
 
 interface Project {
     id: string;
@@ -18,6 +19,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProjectId }) => {
     const navigate = useNavigate();
     const { user, signOut } = useAuth();
+    const { toggleTheme, isDark } = useTheme();
     const [signingOut, setSigningOut] = useState(false);
     const [signOutError, setSignOutError] = useState(false);
 
@@ -47,11 +49,11 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                     background: 'linear-gradient(135deg, var(--primary), var(--accent))',
                     padding: '0.5rem',
                     borderRadius: '12px',
-                    boxShadow: '0 0 15px rgba(0, 242, 255, 0.3)'
+                    boxShadow: 'var(--shadow-primary)'
                 }}>
-                    <Book size={20} color="black" />
+                    <Book size={20} color="var(--text-on-primary)" />
                 </div>
-                <h2 style={{ fontSize: '1.4rem', letterSpacing: '-0.05em', color: 'white' }}>W4U Wizard</h2>
+                <h2 style={{ fontSize: '1.4rem', letterSpacing: '-0.05em', color: 'var(--text-main)' }}>W4U Wizard</h2>
             </div>
 
             <button
@@ -116,6 +118,10 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                 </div>
                 <div className="sidebar-item">
                     <Settings size={18} /> <span>Impostazioni</span>
+                </div>
+                <div className="sidebar-item" onClick={toggleTheme} style={{ cursor: 'pointer' }}>
+                    {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                    <span>{isDark ? 'Tema Chiaro' : 'Tema Scuro'}</span>
                 </div>
 
                 {/* User section */}
