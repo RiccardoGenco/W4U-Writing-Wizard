@@ -385,22 +385,37 @@ const ConceptPage: React.FC = () => {
                                     </span>
                                     <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{q}</h4>
                                 </div>
-                                <textarea
-                                    value={answers[i]}
-                                    onChange={(e) => handleAnswerChange(i, e.target.value)}
-                                    placeholder="Scrivi qui la tua idea..."
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '120px',
-                                        resize: 'none',
-                                        background: 'rgba(0, 0, 0, 0.2)',
-                                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                                        borderRadius: '16px',
-                                        padding: '1.2rem',
-                                        fontSize: '1rem',
-                                        lineHeight: 1.5
-                                    }}
-                                />
+                                <div style={{ position: 'relative' }}>
+                                    <textarea
+                                        value={answers[i]}
+                                        onChange={(e) => handleAnswerChange(i, e.target.value.slice(0, 200))}
+                                        placeholder="Scrivi qui la tua idea (max 200 caratteri)..."
+                                        maxLength={200}
+                                        style={{
+                                            width: '100%',
+                                            minHeight: '120px',
+                                            resize: 'none',
+                                            background: 'rgba(0, 0, 0, 0.2)',
+                                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                                            borderRadius: '16px',
+                                            padding: '1.2rem',
+                                            paddingBottom: '2rem',
+                                            fontSize: '1rem',
+                                            lineHeight: 1.5,
+                                            color: 'var(--text-main)'
+                                        }}
+                                    />
+                                    <div style={{
+                                        position: 'absolute',
+                                        bottom: '10px',
+                                        right: '15px',
+                                        fontSize: '0.75rem',
+                                        color: answers[i].length >= 180 ? 'var(--error)' : 'var(--text-muted)',
+                                        fontWeight: 600
+                                    }}>
+                                        {answers[i].length} / 200
+                                    </div>
+                                </div>
                             </motion.div>
                         ))}
                     </div>
