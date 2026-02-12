@@ -11,7 +11,9 @@ const RegisterPage: React.FC = () => {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
     const [authorName, setAuthorName] = useState('');
+    const [inviteCode, setInviteCode] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -314,7 +316,29 @@ const RegisterPage: React.FC = () => {
                                 </p>
                             </div>
                         )}
+
                     </div>
+
+                    {/* Invite Code Field */}
+                    {import.meta.env.VITE_INVITE_CODE && (
+                        <div>
+                            <label style={{
+                                display: 'block', fontSize: '0.75rem', fontWeight: 600,
+                                color: 'var(--text-muted)', marginBottom: '0.5rem',
+                                letterSpacing: '0.05em', textTransform: 'uppercase'
+                            }}>
+                                Codice Invito (Richiesto)
+                            </label>
+                            <input
+                                type="text"
+                                value={inviteCode}
+                                onChange={e => { setInviteCode(e.target.value); setError(null); }}
+                                placeholder="Inserisci il codice segreto"
+                                required
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                    )}
 
                     <button
                         type="submit"

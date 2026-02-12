@@ -132,7 +132,7 @@ const Dashboard: React.FC = () => {
                                 <h1 style={{ fontSize: '4rem', marginBottom: '1.5rem', lineHeight: 1.1, letterSpacing: '-0.05em' }}>
                                     Scrivi il tuo <br />
                                     <span style={{
-                                        background: 'linear-gradient(to right, #ffffff, var(--primary))',
+                                        background: 'linear-gradient(to right, var(--text-main), var(--primary))',
                                         WebkitBackgroundClip: 'text',
                                         WebkitTextFillColor: 'transparent',
                                         filter: 'drop-shadow(0 0 10px rgba(0, 242, 255, 0.3))'

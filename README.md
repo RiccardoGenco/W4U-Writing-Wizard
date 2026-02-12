@@ -42,6 +42,7 @@ W4U Writing Wizard è un assistente alla scrittura AI-powered che guida l'autore
    VITE_SUPABASE_ANON_KEY=your-anon-key
    VITE_N8N_WEBHOOK_URL=/webhook
    VITE_N8N_API_KEY=your-api-key
+   VITE_INVITE_CODE=segreto-invito  # Opzionale: se presente, blocca registrazioni senza codice
    ```
 
 4. **Avvia in modalità sviluppo**:
