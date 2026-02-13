@@ -284,7 +284,9 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
 };
 
 export const getQuestionsForGenre = (genreLabel: string): string[] => {
-    return GENRE_DEFINITIONS[genreLabel]?.questions || GENRE_DEFINITIONS['Thriller'].questions;
+    const genre = GENRE_DEFINITIONS[genreLabel];
+    const fallback = GENRE_DEFINITIONS['Giallo e Thriller'];
+    return genre?.questions || fallback?.questions || [];
 };
 
 export const getGenresByCategory = () => {
