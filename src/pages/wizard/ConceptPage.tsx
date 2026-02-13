@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Loader2 } from 'lucide-react';
 import { callBookAgent, supabase, logDebug } from '../../lib/api';
+import { getQuestionsForGenre } from '../../data/genres';
 
 interface ConceptCard {
     id: string;
@@ -11,69 +12,6 @@ interface ConceptCard {
     style: string;
 }
 
-const QUESTIONS_BY_GENRE: Record<string, string[]> = {
-    'Thriller': [
-        'Qual è il crimine o il segreto al centro della storia?',
-        'Quale indizio fuorviante confonderà il lettore?',
-        'Qual è la debolezza del protagonista?',
-        'Come si manifesta il pericolo imminente?'
-    ],
-    'Noir': [
-        'Qual è il fallimento passato che tormenta il protagonista?',
-        'Chi è la figura ambigua che lo attira nel caos?',
-        'Qual è il marcio nascosto nella società?',
-        'C\'è una redenzione possibile?'
-    ],
-    'Fantasy': [
-        'Quali sono le regole uniche del sistema magico?',
-        'Chi o cosa rappresenta il male assoluto?',
-        'Quale regione remota dovrà essere esplorata?',
-        'Quale legame lega l\'eroe al destino del mondo?'
-    ],
-    'Romanzo Rosa': [
-        'Qual è l\'ostacolo insormontabile tra i due amanti?',
-        'Quale segreto del passato impedisce la fiducia?',
-        'In quale ambientazione sboccia la scintilla?',
-        'Qual è il momento di massima rottura?'
-    ],
-    'Fantascienza': [
-        'Quale tecnologia o scoperta ha cambiato il mondo?',
-        'Come si è evoluta la società in questo futuro?',
-        'Qual è il dilemma etico posto dal progresso?',
-        'Esiste una minaccia aliena o interna?'
-    ],
-    'Storico': [
-        'In quale anno e luogo preciso è ambientata?',
-        'Quale personaggio storico reale incrocia il cammino?',
-        'Qual è il conflitto politico dell\'epoca?',
-        'Quale usanza d\'epoca è simbolica?'
-    ],
-    'Horror': [
-        'Qual è l\'origine del male?',
-        'Qual è la paura ancestrale che vuoi esplorare?',
-        'Perché i protagonisti non possono fuggire?',
-        'Qual è il sacrificio necessario?'
-    ],
-    'Saggio': [
-        'Qual è il problema principale che vuoi analizzare?',
-        'Qual è la tesi rivoluzionaria che sosterrai?',
-        'A quale pubblico specifico ti rivolgi?',
-        'Quale caso studio è fondamentale?'
-    ],
-    'Giallo': [
-        'Chi è la vittima e in quali circostanze è morta?',
-        'Qual è il metodo unico dell\'investigatore?',
-        'Chi sono i tre sospettati principali?',
-        'Qual è il dettaglio minimo che risolverà il caso?'
-    ]
-};
-
-const DEFAULT_QUESTIONS = [
-    'Qual è il tema principale della tua storia?',
-    'Chi è il protagonista e cosa desidera?',
-    'Qual è il conflitto principale?',
-    'Come vorresti che finisse la storia?'
-];
 
 const CONCEPT_LOADING_PHASES = [
     'Analisi delle tue risposte...',
@@ -91,7 +29,7 @@ const ConceptPage: React.FC = () => {
     const [concepts, setConcepts] = useState<ConceptCard[]>([]);
     const [bookTitle, setBookTitle] = useState<string | null>(null);
     const [genre, setGenre] = useState<string | null>(null);
-    const [answers, setAnswers] = useState<string[]>(['', '', '', '']);
+    const [answers, setAnswers] = useState<string[]>(Array(8).fill(''));
     const [loadingMessage, setLoadingMessage] = useState(CONCEPT_LOADING_PHASES[0]);
 
     const bookId = localStorage.getItem('active_book_id');
@@ -172,7 +110,7 @@ const ConceptPage: React.FC = () => {
         setLoading(true);
         const bookId = localStorage.getItem('active_book_id');
 
-        const questions = QUESTIONS_BY_GENRE[genre || ''] || DEFAULT_QUESTIONS;
+        const questions = getQuestionsForGenre(genre || '');
         const context = questions.map((q, i) => `D: ${q}\nR: ${answers[i]}`).join('\n\n');
 
         await logDebug('frontend', 'concept_generation_start', { genre, inputs_length: context.length }, bookId);
@@ -204,8 +142,11 @@ const ConceptPage: React.FC = () => {
         }
     };
 
-    const questions = QUESTIONS_BY_GENRE[genre || ''] || DEFAULT_QUESTIONS;
-    const isComplete = answers.every(a => a.trim().length > 0);
+
+
+    const questions = getQuestionsForGenre(genre || '');
+    const answeredCount = answers.filter(a => a.trim().length > 0).length;
+    const isComplete = answeredCount >= 4;
 
     return (
         <div className="container-narrow fade-in" style={{ paddingTop: '2rem', minHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
