@@ -6,6 +6,7 @@ const docx = require("docx");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
+const puppeteer = require("puppeteer");
 
 // Load .env
 try {
@@ -64,12 +65,17 @@ const editorialCasing = (text) => {
 };
 
 /**
- * Chapter Hierarchy Normalization: Removes repetitive "Capitolo X:" markers.
+ * Chapter Hierarchy Normalization: Removes repetitive "Capitolo X:" markers using regex.
  */
-const normalizeChapterTitle = (title) => {
+const cleanChapterTitle = (title) => {
     if (!title) return "";
     // Removes common prefixes like "Capitolo 1:", "Chapter 1 -", "1."
     return title.replace(/^(Capitolo|Chapter|Cap|Ch|Parte|Part)\s*\d+[:\s\-\.]*/i, "").trim();
+};
+
+const formatChapterTitle = (index, rawTitle) => {
+    const clean = editorialCasing(cleanChapterTitle(normalizeText(removeEmojis(rawTitle))));
+    return `Capitolo ${index + 1}: ${clean}`;
 };
 
 // --- EPUB EXPORT ENDPOINT ---
@@ -101,21 +107,20 @@ app.post("/export/epub", async (req, res) => {
         if (chaptersError || !chapters) throw new Error("Chapters not found");
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
+        const cleanAuthor = book.author || "Autore";
 
         // Process Content with Production-Grade Logic
-        const content = chapters.map((ch) => {
-            // 1. Structural Title Cleaning
-            const rawTitle = ch.title || "Senza titolo";
-            const cleanTitle = editorialCasing(normalizeChapterTitle(normalizeText(removeEmojis(rawTitle))));
+        const content = chapters.map((ch, index) => {
+            const fullTitle = formatChapterTitle(index, ch.title || "Senza titolo");
 
             // 2. Content Sanitization
             const cleanMarkdown = normalizeText(removeEmojis(ch.content || ""));
             const semanticHtml = marked.parse(cleanMarkdown);
 
             return {
-                title: cleanTitle,
+                title: fullTitle,
                 // Phase 1: Ensure lang="it" and single <h1>
-                data: `<div lang="it"><h1>${cleanTitle}</h1><div>${semanticHtml}</div></div>`,
+                data: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
             };
         });
 
@@ -124,17 +129,17 @@ app.post("/export/epub", async (req, res) => {
 
         const options = {
             title: cleanBookTitle,
-            author: book.author || "W4U Writing Wizard",
+            author: cleanAuthor,
             publisher: "W4U",
             content: content,
-            appendChapterTitles: false,
-            lang: "it", // Phase 1: Global language enforcement
-            uuid: exportUuid, // Phase 3: Stable Identifier
+            appendChapterTitles: false, // We added them manually in 'data'
+            lang: "it",
+            uuid: exportUuid,
             output: outputPath,
             // Phase 2: Reflowable-First CSS
             css: `
         body { font-family: serif; line-height: 1.5; text-align: justify; }
-        h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: normal; }
+        h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: bold; font-size: 1.5em; page-break-before: always; }
         h2 { font-size: 1.3em; margin-top: 1.5em; }
         p { margin-bottom: 0.8em; text-indent: 0; }
         p + p { text-indent: 1.5em; margin-top: 0; }
@@ -184,7 +189,6 @@ app.post("/export/docx", async (req, res) => {
 
         if (bookError || !book) throw new Error("Book not found");
 
-        // Fetch Chapters
         const { data: chapters, error: chaptersError } = await supabase
             .from("chapters")
             .select("*")
@@ -194,73 +198,58 @@ app.post("/export/docx", async (req, res) => {
 
         if (chaptersError || !chapters) throw new Error("Chapters not found");
 
-        // Apply editorial pipeline
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "W4U Writing Wizard";
         const publisher = "W4U";
 
-        // Define professional styles
-        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, 
-                Header, Footer, PageNumber, convertInchesToTwip, BorderStyle,
-                TableOfContents, InternalHyperlink } = docx;
+        const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
+            Header, Footer, PageNumber, convertInchesToTwip, BorderStyle,
+            TableOfContents, InternalHyperlink } = docx;
 
-        // Process chapters
         const processedChapters = chapters.map((ch, index) => {
             const rawTitle = ch.title || "Senza titolo";
-            const cleanTitle = editorialCasing(normalizeChapterTitle(normalizeText(removeEmojis(rawTitle))));
+            const fullTitle = formatChapterTitle(index, rawTitle);
             const cleanMarkdown = normalizeText(removeEmojis(ch.content || ""));
-            
-            // Convert markdown to HTML then parse to text
-            const htmlContent = marked.parse(cleanMarkdown);
-            
+            const htmlContent = marked.parse(cleanMarkdown); // Logic for HTML parsing below needs to be robust
+
+            // We need to strip HTML tags for DOCX Paragraphs. 
+            // Better: Use a markdown-to-docx parser or simple text extraction.
+            // Using existing simple HTML parser logic:
+
             return {
                 number: index + 1,
-                title: cleanTitle,
-                content: htmlContent,
+                title: fullTitle,
+                htmlContent: htmlContent,
                 bookmarkId: `chapter_${index + 1}`
             };
         });
 
-        // Create document sections
         const children = [];
 
         // --- TITLE PAGE ---
         children.push(
-            new Paragraph({
-                text: "",
-                spacing: { after: 2400 }
-            }),
+            new Paragraph({ text: "", spacing: { after: 2400 } }),
             new Paragraph({
                 text: cleanBookTitle,
                 heading: HeadingLevel.TITLE,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
-                font: { name: "Georgia", size: 64 } // 32pt
+                font: { name: "Georgia", size: 64 }
             }),
-            new Paragraph({
-                text: "",
-                spacing: { after: 800 }
-            }),
+            new Paragraph({ text: "", spacing: { after: 800 } }),
             new Paragraph({
                 text: `di ${cleanAuthor}`,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 200 },
-                font: { name: "Georgia", size: 28 } // 14pt
+                font: { name: "Georgia", size: 28 }
             }),
-            new Paragraph({
-                text: "",
-                spacing: { after: 1600 }
-            }),
+            new Paragraph({ text: "", spacing: { after: 1600 } }),
             new Paragraph({
                 text: publisher,
                 alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24 } // 12pt
+                font: { name: "Georgia", size: 24 }
             }),
-            // Page break after title page
-            new Paragraph({
-                text: "",
-                pageBreakBefore: true
-            })
+            new Paragraph({ text: "", pageBreakBefore: true })
         );
 
         // --- TABLE OF CONTENTS ---
@@ -270,19 +259,20 @@ app.post("/export/docx", async (req, res) => {
                 heading: HeadingLevel.HEADING_1,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
-                font: { name: "Georgia", size: 36 } // 18pt
+                font: { name: "Georgia", size: 36 }
             })
         );
 
-        processedChapters.forEach((ch, index) => {
+        // Manual TOC Construction if TableOfContents isn't flexible enough
+        processedChapters.forEach((ch) => {
             children.push(
                 new Paragraph({
                     children: [
                         new InternalHyperlink({
                             children: [
                                 new TextRun({
-                                    text: `${ch.number}. ${ch.title}`,
-                                    font: { name: "Georgia", size: 24 } // 12pt
+                                    text: ch.title,
+                                    font: { name: "Georgia", size: 24 }
                                 })
                             ],
                             anchor: ch.bookmarkId
@@ -294,24 +284,17 @@ app.post("/export/docx", async (req, res) => {
             );
         });
 
-        // Page break after TOC
-        children.push(
-            new Paragraph({
-                text: "",
-                pageBreakBefore: true
-            })
-        );
+        children.push(new Paragraph({ text: "", pageBreakBefore: true }));
 
         // --- CHAPTERS ---
         processedChapters.forEach((ch) => {
-            // Chapter title with bookmark
             children.push(
                 new Paragraph({
                     children: [
                         new TextRun({
                             text: ch.title,
                             bold: true,
-                            font: { name: "Georgia", size: 48 } // 24pt
+                            font: { name: "Georgia", size: 48 }
                         })
                     ],
                     heading: HeadingLevel.HEADING_1,
@@ -321,27 +304,16 @@ app.post("/export/docx", async (req, res) => {
                 })
             );
 
-            // Parse HTML content and convert to paragraphs
-            // Simple HTML parser for basic tags
-            const paragraphs = parseHtmlToParagraphs(ch.content);
-            children.push(...paragraphs);
+            // Simple HTML-to-Paragraphs
+            parseHtmlToParagraphs(ch.htmlContent).forEach(p => children.push(p));
 
-            // Page break after each chapter (except last)
-            children.push(
-                new Paragraph({
-                    text: "",
-                    pageBreakBefore: true
-                })
-            );
+            children.push(new Paragraph({ text: "", pageBreakBefore: true }));
         });
 
-        // Helper function to parse HTML to DOCX paragraphs
         function parseHtmlToParagraphs(html) {
             const paragraphs = [];
-            
-            // Remove HTML tags and split into paragraphs
             const textContent = html
-                .replace(/<\/?[^>]+(>|$)/g, "\n") // Replace tags with newlines
+                .replace(/<\/?[^>]+(>|$)/g, "\n")
                 .replace(/&nbsp;/g, " ")
                 .replace(/&amp;/g, "&")
                 .replace(/&lt;/g, "<")
@@ -351,32 +323,30 @@ app.post("/export/docx", async (req, res) => {
                 .split('\n')
                 .map(line => line.trim())
                 .filter(line => line.length > 0);
-            
+
             textContent.forEach(text => {
                 paragraphs.push(
                     new Paragraph({
                         children: [
                             new TextRun({
                                 text: text,
-                                font: { name: "Georgia", size: 24 } // 12pt
+                                font: { name: "Georgia", size: 24 }
                             })
                         ],
-                        spacing: { after: 240, line: 360 }, // 1.5 line spacing (240 * 1.5)
-                        indent: { firstLine: 360 } // 1.5em = ~360 twips
+                        spacing: { after: 240, line: 360 },
+                        indent: { firstLine: 360 }
                     })
                 );
             });
-            
             return paragraphs;
         }
 
-        // Create document with headers and footers
         const doc = new Document({
             sections: [{
                 properties: {
                     page: {
                         margin: {
-                            top: convertInchesToTwip(1), // 2.5cm ≈ 1 inch
+                            top: convertInchesToTwip(1),
                             right: convertInchesToTwip(1),
                             bottom: convertInchesToTwip(1),
                             left: convertInchesToTwip(1)
@@ -389,12 +359,12 @@ app.post("/export/docx", async (req, res) => {
                             new Paragraph({
                                 children: [
                                     new TextRun({
-                                        text: cleanBookTitle,
-                                        font: { name: "Georgia", size: 20 }, // 10pt
+                                        text: `${cleanAuthor} - ${cleanBookTitle}`,
+                                        font: { name: "Georgia", size: 20 },
                                         italics: true
                                     })
                                 ],
-                                alignment: AlignmentType.LEFT
+                                alignment: AlignmentType.CENTER // Centered "Author - Title"
                             })
                         ]
                     })
@@ -406,7 +376,7 @@ app.post("/export/docx", async (req, res) => {
                                 children: [
                                     new TextRun({
                                         children: [PageNumber.CURRENT],
-                                        font: { name: "Georgia", size: 20 } // 10pt
+                                        font: { name: "Georgia", size: 20 }
                                     })
                                 ],
                                 alignment: AlignmentType.CENTER
@@ -418,25 +388,141 @@ app.post("/export/docx", async (req, res) => {
             }]
         });
 
-        // Generate DOCX file
         const exportUuid = uuidv4();
         const outputPath = path.join(__dirname, `export_${bookId}_${exportUuid}.docx`);
-        
+
         const buffer = await Packer.toBuffer(doc);
         fs.writeFileSync(outputPath, buffer);
 
-        // Send file
         res.download(outputPath, `${cleanBookTitle.replace(/[^a-zA-Z0-9]/g, '_')}.docx`, (err) => {
             if (err) console.error("Download error:", err);
             try {
                 if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-            } catch (unlinkErr) {
-                console.error("Cleanup error:", unlinkErr);
-            }
+            } catch (unlinkErr) { console.error("Cleanup error:", unlinkErr); }
         });
 
     } catch (error) {
         console.error("DOCX Export error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// --- PDF EXPORT ENDPOINT ---
+app.post("/export/pdf", async (req, res) => {
+    const { bookId } = req.body;
+    if (!bookId) return res.status(400).json({ error: "bookId is required" });
+
+    try {
+        const { marked } = await import("marked");
+
+        // Fetch Data
+        const { data: book, error: bookError } = await supabase
+            .from("books")
+            .select("*")
+            .eq("id", bookId)
+            .single();
+        if (bookError || !book) throw new Error("Book not found");
+
+        const { data: chapters, error: chaptersError } = await supabase
+            .from("chapters")
+            .select("*")
+            .eq("book_id", bookId)
+            .eq("status", "COMPLETED")
+            .order("chapter_number", { ascending: true });
+        if (chaptersError || !chapters) throw new Error("Chapters not found");
+
+        const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
+        const cleanAuthor = book.author || "Autore";
+
+        // Build HTML for PDF
+        let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="it">
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {
+                    margin: 2cm;
+                    size: A4;
+                }
+                body { font-family: 'Georgia', serif; line-height: 1.6; color: #000; }
+                .title-page { text-align: center; margin-top: 30%; page-break-after: always; }
+                h1.book-title { font-size: 3em; margin-bottom: 0.5em; }
+                h2.author { font-size: 1.5em; font-weight: normal; color: #555; }
+                
+                .toc { page-break-after: always; }
+                .toc h1 { text-align: center; }
+                .toc-item { margin: 0.5em 0; }
+                .toc-item a { text-decoration: none; color: #000; border-bottom: 1px dotted #ccc; display: block; width: 100%; }
+                
+                .chapter { page-break-before: always; }
+                .chapter-title { text-align: center; font-size: 2em; margin-top: 2em; margin-bottom: 2em; font-weight: bold; }
+                .content p { text-indent: 1.5em; margin-bottom: 0.5em; text-align: justify; }
+                .content p:first-of-type { text-indent: 0; }
+            </style>
+        </head>
+        <body>
+            <div class="title-page">
+                <h1 class="book-title">${cleanBookTitle}</h1>
+                <h2 class="author">di ${cleanAuthor}</h2>
+                <div style="margin-top: 4em;">W4U Edition</div>
+            </div>
+
+            <div class="toc">
+                <h1>Indice</h1>
+                ${chapters.map((ch, i) => `
+                    <div class="toc-item">
+                        <a href="#ch${i + 1}">${formatChapterTitle(i, ch.title || "Senza titolo")}</a>
+                    </div>
+                `).join('')}
+            </div>
+            
+            ${chapters.map((ch, i) => `
+                <div class="chapter" id="ch${i + 1}">
+                    <h1 class="chapter-title">${formatChapterTitle(i, ch.title || "Senza titolo")}</h1>
+                    <div class="content">
+                        ${marked.parse(normalizeText(removeEmojis(ch.content || "")))}
+                    </div>
+                </div>
+            `).join('')}
+        </body>
+        </html>
+        `;
+
+        const browser = await puppeteer.launch({ headless: 'new' });
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+        const exportUuid = uuidv4();
+        const outputPath = path.join(__dirname, `export_${bookId}_${exportUuid}.pdf`);
+
+        await page.pdf({
+            path: outputPath,
+            format: 'A4',
+            displayHeaderFooter: true,
+            headerTemplate: `
+                <div style="font-size: 10px; text-align: center; width: 100%; color: #888; letter-spacing: 1px;">
+                    ${cleanAuthor} &mdash; ${cleanBookTitle}
+                </div>`,
+            footerTemplate: `
+                <div style="font-size: 10px; text-align: center; width: 100%; color: #888;">
+                    <span class="pageNumber"></span>
+                </div>`,
+            margin: { top: '3cm', bottom: '3cm', right: '2cm', left: '2cm' },
+            printBackground: true
+        });
+
+        await browser.close();
+
+        res.download(outputPath, `libro_${bookId}.pdf`, (err) => {
+            if (err) console.error("Download error:", err);
+            try {
+                if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+            } catch (unlinkErr) { console.error("Cleanup error:", unlinkErr); }
+        });
+
+    } catch (error) {
+        console.error("PDF Export error:", error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -470,7 +556,7 @@ app.post("/api/sanitize", (req, res) => {
 
     try {
         if (method === 'chapter_title') {
-            cleanText = editorialCasing(normalizeChapterTitle(normalizeText(removeEmojis(cleanText))));
+            cleanText = editorialCasing(cleanChapterTitle(normalizeText(removeEmojis(cleanText))));
         } else if (method === 'editorial') {
             cleanText = editorialCasing(normalizeText(removeEmojis(cleanText)));
         } else {
@@ -487,5 +573,5 @@ app.post("/api/sanitize", (req, res) => {
 
 const PORT = 3001;
 app.listen(PORT, () => {
-    console.log(`EPUB Export Server (Professional Edition) running on port ${PORT}`);
+    console.log(`EPUB/DOCX/PDF Export Server (Professional Edition) running on port ${PORT}`);
 });

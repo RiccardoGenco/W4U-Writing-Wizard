@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight, Loader2 } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, Upload, FileText, User, AlertCircle } from 'lucide-react';
 import { callBookAgent, supabase, logDebug } from '../../lib/api';
 import { getQuestionsForGenre } from '../../data/genres';
+import mammoth from 'mammoth';
 
 interface ConceptCard {
     id: string;
@@ -15,6 +16,7 @@ interface ConceptCard {
 
 const CONCEPT_LOADING_PHASES = [
     'Analisi delle tue risposte...',
+    'Lettura dei materiali caricati...',
     'Esplorazione temi narrativi...',
     'Sviluppo archi narrativi...',
     'Creazione personaggi chiave...',
@@ -31,6 +33,14 @@ const ConceptPage: React.FC = () => {
     const [genre, setGenre] = useState<string | null>(null);
     const [answers, setAnswers] = useState<string[]>(Array(8).fill(''));
     const [loadingMessage, setLoadingMessage] = useState(CONCEPT_LOADING_PHASES[0]);
+
+    // New State for Phase 1
+    const [authorName, setAuthorName] = useState('');
+    const [pseudonym, setPseudonym] = useState('');
+    const [uploadedFileContent, setUploadedFileContent] = useState<string>('');
+    const [fileName, setFileName] = useState<string | null>(null);
+    const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
+    const [fileError, setFileError] = useState<string | null>(null);
 
     const bookId = localStorage.getItem('active_book_id');
 
@@ -54,13 +64,18 @@ const ConceptPage: React.FC = () => {
 
     const fetchBookData = async () => {
         if (!supabase || !bookId) return;
-        const { data } = await supabase.from('books').select('title, genre, context_data').eq('id', bookId).single();
+        const { data } = await supabase.from('books').select('title, genre, context_data, author').eq('id', bookId).single();
         if (data) {
             setBookTitle(data.title);
             setGenre(data.genre);
+            setAuthorName(data.author || '');
             if (data.context_data?.answers) {
                 setAnswers(data.context_data.answers);
             }
+            if (data.context_data?.pseudonym) {
+                setPseudonym(data.context_data.pseudonym);
+            }
+            // If we stored file content previously, retrieve (optional, might be too heavy for DB context_data, better to just keep in UI state if navigating back)
         }
     };
 
@@ -68,6 +83,51 @@ const ConceptPage: React.FC = () => {
         const newAnswers = [...answers];
         newAnswers[index] = value;
         setAnswers(newAnswers);
+    };
+
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setFileError(null);
+        setIsAnalyzingFile(true);
+        setFileName(file.name);
+
+        try {
+            if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                throw new Error('Il file è troppo grande. Max 5MB.');
+            }
+
+            let text = '';
+            if (file.name.endsWith('.docx')) {
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                text = result.value;
+                if (result.messages.length > 0) {
+                    console.warn('Mammoth messages:', result.messages);
+                }
+            } else if (file.name.endsWith('.txt')) {
+                text = await file.text();
+            } else {
+                throw new Error('Formato non supportato. Usa .docx o .txt');
+            }
+
+            // Basic check for length (approx 150 pages ~ 60k words ~ 400k chars)
+            if (text.length > 500000) {
+                throw new Error('Il testo è troppo lungo (Max 150 pagine circa).');
+            }
+
+            setUploadedFileContent(text);
+            await logDebug('frontend', 'file_uploaded', { fileName: file.name, length: text.length }, bookId);
+
+        } catch (err: any) {
+            console.error(err);
+            setFileError(err.message);
+            setFileName(null);
+            setUploadedFileContent('');
+        } finally {
+            setIsAnalyzingFile(false);
+        }
     };
 
     const selectConcept = async (concept: ConceptCard) => {
@@ -90,10 +150,14 @@ const ConceptPage: React.FC = () => {
                 .update({
                     status: 'CONFIGURATION',
                     title: concept.title,
+                    author: authorName || 'Autore Sconosciuto', // Save Author Name
                     context_data: {
                         ...currentContext,
                         selected_concept: concept,
-                        answers: answers
+                        answers: answers,
+                        pseudonym: pseudonym,
+                        uploaded_materials_summary: uploadedFileContent ? 'Materiale caricato presente' : 'Nessun materiale'
+                        // We do NOT save the full text in context_data to avoid DB bloat, it was sent to AI agent already
                     }
                 })
                 .eq('id', bookId);
@@ -111,13 +175,32 @@ const ConceptPage: React.FC = () => {
         const bookId = localStorage.getItem('active_book_id');
 
         const questions = getQuestionsForGenre(genre || '');
-        const context = questions.map((q, i) => `D: ${q}\nR: ${answers[i]}`).join('\n\n');
+        const interviewContext = questions.map((q, i) => `D: ${q}\nR: ${answers[i]}`).join('\n\n');
 
-        await logDebug('frontend', 'concept_generation_start', { genre, inputs_length: context.length }, bookId);
+        let fullContext = `INTERVISTA:\n${interviewContext}`;
+
+        if (authorName) fullContext += `\n\nNOME AUTORE: ${authorName}`;
+        if (pseudonym) fullContext += `\nPSEUDONIMO: ${pseudonym}`;
+
+        if (uploadedFileContent) {
+            fullContext += `\n\n=== MATERIALE AGGIUNTIVO CARICATO DALL'UTENTE (BOZZE/APPUNTI) ===\n${uploadedFileContent}\n=== FINE MATERIALE AGGIUNTIVO ===\n\nISTRUZIONI: Dai MOLTO peso al materiale caricato. Usalo come base fondamentale per lo stile e i contenuti.`;
+        }
+
+        await logDebug('frontend', 'concept_generation_start', {
+            genre,
+            inputs_length: fullContext.length,
+            has_file: !!uploadedFileContent
+        }, bookId);
+
         const startTime = performance.now();
 
         try {
-            const data = await callBookAgent('GENERATE_CONCEPTS', { userInput: context, title: bookTitle }, bookId);
+            // Update book author immediately
+            if (bookId && authorName) {
+                await supabase.from('books').update({ author: authorName }).eq('id', bookId);
+            }
+
+            const data = await callBookAgent('GENERATE_CONCEPTS', { userInput: fullContext, title: bookTitle }, bookId);
             const generatedData = data.data || data;
 
             if (generatedData.bookId) {
@@ -146,7 +229,10 @@ const ConceptPage: React.FC = () => {
 
     const questions = getQuestionsForGenre(genre || '');
     const answeredCount = answers.filter(a => a.trim().length > 0).length;
-    const isComplete = answeredCount >= 4;
+    // Require answers OR a file upload with substantial content. 
+    // User policy: "Upload does not exempt from questions", BUT maybe relax if file is huge? 
+    // "L'eventuale upload del word non esime l'utente dalla fase delle domande." -> OK, keep mandatory questions.
+    const isComplete = answeredCount >= 4 && !!authorName; // Added authorName requirement? Let's make it optional or mandatory. "bisogna anche chiedere nome e cognome". Let's make it mandatory.
 
     return (
         <div className="container-narrow fade-in" style={{ paddingTop: '2rem', minHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -244,7 +330,7 @@ const ConceptPage: React.FC = () => {
                     {genre ? `Il tuo ${genre}` : 'La tua storia'}
                 </h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', maxWidth: '600px', margin: '0 auto' }}>
-                    Rispondi a queste 4 domande chiave per permettere all'IA di generare la struttura del tuo libro.
+                    Rispondi ad almeno 4 domande chiave e carica i tuoi bozzetti per permettere all'IA di generare la struttura del tuo libro.
                 </p>
             </header>
 
@@ -294,13 +380,123 @@ const ConceptPage: React.FC = () => {
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem', paddingBottom: '4rem' }}>
+
+                    {/* SEZIONE DATI AUTORE */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="glass-panel"
+                        style={{ padding: '2rem', borderLeft: '4px solid var(--primary)' }}
+                    >
+                        <h4 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <User size={20} color="var(--primary)" />
+                            Dati Autore
+                        </h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Nome Completo (obbligatorio)</label>
+                                <input
+                                    type="text"
+                                    value={authorName}
+                                    onChange={(e) => setAuthorName(e.target.value)}
+                                    placeholder="Es. Mario Rossi"
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.8rem',
+                                        background: 'rgba(0,0,0,0.2)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '8px',
+                                        color: 'var(--text-main)'
+                                    }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Pseudonimo (opzionale)</label>
+                                <input
+                                    type="text"
+                                    value={pseudonym}
+                                    onChange={(e) => setPseudonym(e.target.value)}
+                                    placeholder="Es. J.K. Writer"
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.8rem',
+                                        background: 'rgba(0,0,0,0.2)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '8px',
+                                        color: 'var(--text-main)'
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    {/* SEZIONE UPLOAD MATERIALI */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="glass-panel"
+                        style={{ padding: '2rem', borderLeft: '4px solid var(--accent)' }}
+                    >
+                        <h4 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <FileText size={20} color="var(--accent)" />
+                            Materiali e Bozze (Opzionale)
+                        </h4>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+                            Carica un file Word (.docx) o testo (.txt) con appunti, storie personali, o bozze.
+                            L'IA userà questi contenuti per personalizzare il libro. Max 150 pagine (5MB).
+                        </p>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                            <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.8rem',
+                                background: 'rgba(255,255,255,0.05)',
+                                padding: '1rem 2rem',
+                                borderRadius: '12px',
+                                cursor: 'pointer',
+                                border: '1px dashed rgba(255,255,255,0.2)',
+                                transition: 'all 0.2s ease'
+                            }}>
+                                <Upload size={20} />
+                                <span>{fileName || 'Seleziona File Word/Txt'}</span>
+                                <input
+                                    type="file"
+                                    accept=".docx,.txt"
+                                    onChange={handleFileUpload}
+                                    style={{ display: 'none' }}
+                                    disabled={isAnalyzingFile}
+                                />
+                            </label>
+
+                            {isAnalyzingFile && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+                                    <Loader2 className="animate-spin" size={18} />
+                                    <span>Analisi file...</span>
+                                </div>
+                            )}
+
+                            {fileError && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--error)' }}>
+                                    <AlertCircle size={18} />
+                                    <span>{fileError}</span>
+                                </div>
+                            )}
+
+                            {fileName && !isAnalyzingFile && !fileError && (
+                                <span style={{ color: 'var(--success)', fontWeight: 600 }}>File caricato e pronto!</span>
+                            )}
+                        </div>
+                    </motion.div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                         {questions.map((q, i) => (
                             <motion.div
                                 key={i}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.1 }}
+                                transition={{ delay: 0.2 + (i * 0.1) }}
                                 className="glass-panel"
                                 style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}
                             >
@@ -310,8 +506,8 @@ const ConceptPage: React.FC = () => {
                                         height: '32px',
                                         minWidth: '32px',
                                         minHeight: '32px',
-                                        flexShrink: 0,           // questa serve a non far rimpicciolire il numero e il cerchiett
-                                        aspectRatio: '1 / 1',    // ദ്ദി（• ˕ •マ.ᐟ
+                                        flexShrink: 0,
+                                        aspectRatio: '1 / 1',
                                         borderRadius: '50%',
                                         background: 'rgba(0, 242, 255, 0.1)',
                                         color: 'var(--primary)',
@@ -388,7 +584,7 @@ const ConceptPage: React.FC = () => {
                         </motion.button>
                         {!isComplete && (
                             <p style={{ color: 'var(--text-muted)', marginTop: '1.5rem', fontSize: '0.9rem' }}>
-                                Rispondi a tutte le domande per procedere
+                                Rispondi ad almeno 4 domande e inserisci il nome autore per procedere
                             </p>
                         )}
                     </div>
