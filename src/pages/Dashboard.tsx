@@ -11,7 +11,7 @@ const Dashboard: React.FC = () => {
     const [title, setTitle] = useState('');
     const [author, setAuthor] = useState('');
     const [pages, setPages] = useState('150');
-    const [theme, setTheme] = useState('Thriller');
+    const [theme, setTheme] = useState('Giallo e Thriller');
     const [showForm, setShowForm] = useState(false);
 
 

@@ -75,13 +75,25 @@ const CoverPage: React.FC = () => {
 
                 // Set default style based on genre
                 const genreStyles: Record<string, string> = {
-                    'Thriller': 'dark suspenseful cinematic',
-                    'Noir': 'high-contrast black and white grit',
-                    'Fantasy': 'epic high-fantasy digital art',
-                    'Romanzo Rosa': 'soft romantic pastel watercolor',
-                    'Fantascienza': 'futuristic neon sci-fi concept art',
-                    'Horror': 'eerie macabre gothic',
-                    'Giallo': 'classic detective mystery illustration'
+                    'Giallo e Thriller': 'dark suspenseful cinematic mystery',
+                    'Fantasy': 'epic high-fantasy digital art magical',
+                    'Romance': 'soft romantic pastel watercolor emotion',
+                    'Sci-Fi': 'futuristic neon sci-fi concept art high-tech',
+                    'Horror': 'eerie macabre gothic horror dark',
+                    'Storico': 'historical oil painting realistic vintage',
+                    'Young Adult': 'modern vibrant digital notebook style',
+                    'Distopico': 'grim dystopian cyberpunk oppressive atmosphere',
+                    'Avventura': 'action dynamic landscape cinematic lighting',
+                    'Business & Self-Help': 'minimalist clean professional corporate',
+                    'Salute, Dieta e Benessere': 'fresh organic bright natural photography',
+                    'Finanza Personale e Investimenti': 'professional data-driven clean geometric',
+                    'Hobby e Passioni': 'warm inviting detailed hobbyist workshop',
+                    'Spiritualità e New Age': 'ethereal spiritual mystical light nebula',
+                    'Relazioni e Parenting': 'warm family connection emotional photography',
+                    'Tecnologia e AI': 'digital circuit abstract modern tech neural',
+                    'Viaggi e Guide di Nicchia': 'travel photography scenic landscape vivid',
+                    'Biografie e Memorie': 'black and white portrait classic elegant',
+                    'Saggistica Scientifica o Storica': 'educational schematic detailed illustration'
                 };
                 if (data.genre && genreStyles[data.genre]) {
                     setStyle(genreStyles[data.genre]);
