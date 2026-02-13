@@ -3,6 +3,7 @@ import { Plus, BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { supabase } from '../lib/api';
+import { getGenresByCategory } from '../data/genres';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -13,11 +14,9 @@ const Dashboard: React.FC = () => {
     const [theme, setTheme] = useState('Thriller');
     const [showForm, setShowForm] = useState(false);
 
+
     const PAGE_OPTIONS = ['50', '100', '150', '200', '250', '300'];
-    const GENRE_OPTIONS = [
-        'Thriller', 'Noir', 'Fantasy', 'Romanzo Rosa',
-        'Fantascienza', 'Storico', 'Horror', 'Saggio', 'Giallo'
-    ];
+    const categorizedGenres = getGenresByCategory();
 
     // Interactive Background Logic
     const mouseX = useMotionValue(0);
@@ -219,8 +218,12 @@ const Dashboard: React.FC = () => {
                                             onChange={e => setTheme(e.target.value)}
                                             style={{ width: '100%' }}
                                         >
-                                            {GENRE_OPTIONS.map(opt => (
-                                                <option key={opt} value={opt}>{opt}</option>
+                                            {Object.entries(categorizedGenres).map(([category, genres]) => (
+                                                <optgroup key={category} label={category}>
+                                                    {genres.map(g => (
+                                                        <option key={g.label} value={g.label}>{g.label}</option>
+                                                    ))}
+                                                </optgroup>
                                             ))}
                                         </select>
                                     </div>
