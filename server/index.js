@@ -6,7 +6,27 @@ const docx = require("docx");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
-const puppeteer = require("puppeteer");
+
+// Conditional Puppeteer Import
+let puppeteer;
+let chromium;
+
+if (process.env.VERCEL) {
+    // Vercel / AWS Lambda environment
+    try {
+        puppeteer = require("puppeteer-core");
+        chromium = require("@sparticuz/chromium");
+    } catch (e) {
+        console.error("Vercel dependencies missing:", e);
+    }
+} else {
+    // Local / Standard Node environment
+    try {
+        puppeteer = require("puppeteer");
+    } catch (e) {
+        console.error("Local puppeteer missing:", e);
+    }
+}
 
 // Load .env
 try {
@@ -21,7 +41,7 @@ app.use(cors());
 app.use(express.json());
 
 const supabase = createClient(
-    process.env.VITE_SUPABASE_URL || "",
+    process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
 );
 
@@ -78,6 +98,15 @@ const formatChapterTitle = (index, rawTitle) => {
     return `Capitolo ${index + 1}: ${clean}`;
 };
 
+// --- HELPER: Get Temp Path ---
+const getTempPath = (filename) => {
+    if (process.env.VERCEL) {
+        return path.join("/tmp", filename);
+    }
+    return path.join(__dirname, filename);
+};
+
+
 // --- EPUB EXPORT ENDPOINT ---
 
 app.post("/export/epub", async (req, res) => {
@@ -117,6 +146,7 @@ app.post("/export/epub", async (req, res) => {
             const cleanMarkdown = normalizeText(removeEmojis(ch.content || ""));
             const semanticHtml = marked.parse(cleanMarkdown);
 
+            // Re-adding the lang="it" wrapper if needed, but let's keep it simple
             return {
                 title: fullTitle,
                 // Phase 1: Ensure lang="it" and single <h1>
@@ -125,7 +155,7 @@ app.post("/export/epub", async (req, res) => {
         });
 
         const exportUuid = uuidv4();
-        const outputPath = path.join(__dirname, `export_${bookId}_${exportUuid}.epub`);
+        const outputPath = getTempPath(`export_${bookId}_${exportUuid}.epub`);
 
         const options = {
             title: cleanBookTitle,
@@ -389,7 +419,8 @@ app.post("/export/docx", async (req, res) => {
         });
 
         const exportUuid = uuidv4();
-        const outputPath = path.join(__dirname, `export_${bookId}_${exportUuid}.docx`);
+        // Vercel compatible path
+        const outputPath = getTempPath(`export_${bookId}_${exportUuid}.docx`);
 
         const buffer = await Packer.toBuffer(doc);
         fs.writeFileSync(outputPath, buffer);
@@ -489,12 +520,25 @@ app.post("/export/pdf", async (req, res) => {
         </html>
         `;
 
-        const browser = await puppeteer.launch({ headless: 'new' });
+        let browser;
+        if (process.env.VERCEL) {
+            browser = await puppeteer.launch({
+                args: chromium.args,
+                defaultViewport: chromium.defaultViewport,
+                executablePath: await chromium.executablePath(),
+                headless: chromium.headless,
+                ignoreHTTPSErrors: true,
+            });
+        } else {
+            browser = await puppeteer.launch({ headless: 'new' });
+        }
+
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
         const exportUuid = uuidv4();
-        const outputPath = path.join(__dirname, `export_${bookId}_${exportUuid}.pdf`);
+        // Vercel compatible path
+        const outputPath = getTempPath(`export_${bookId}_${exportUuid}.pdf`);
 
         await page.pdf({
             path: outputPath,
@@ -571,7 +615,13 @@ app.post("/api/sanitize", (req, res) => {
     }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-    console.log(`EPUB/DOCX/PDF Export Server (Professional Edition) running on port ${PORT}`);
-});
+// Export app for Vercel
+module.exports = app;
+
+// Only start server if not in Vercel
+if (!process.env.VERCEL) {
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+        console.log(`Server (Vercel Compatible) running on port ${PORT}`);
+    });
+}

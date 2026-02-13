@@ -5,6 +5,14 @@
             "destination": "https://auto.mamadev.org/webhook/:match*"
         },
         {
+            "source": "/api/(.*)",
+            "destination": "/api/index.js"
+        },
+        {
+            "source": "/export/(.*)",
+            "destination": "/api/index.js"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }
