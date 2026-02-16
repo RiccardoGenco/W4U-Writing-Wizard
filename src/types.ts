@@ -11,6 +11,7 @@ export interface BookConfiguration {
     toneSimple: number;
     targets: string[];
     chaptersRate: number;
+    book_type?: 'FICTION' | 'NON_FICTION';
 }
 
 export interface Chapter {
@@ -30,7 +31,7 @@ export interface BookContext {
     configuration?: BookConfiguration;
     target_pages?: number;
     // Add other flexible context fields here
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export interface Book {

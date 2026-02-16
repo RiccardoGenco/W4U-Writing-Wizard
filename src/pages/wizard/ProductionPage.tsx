@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Play, CheckCircle2, Loader2, FileText, ChevronRight } from 'lucide-react';
 import { marked } from 'marked';
 import { callBookAgent, supabase } from '../../lib/api';
+import { getBookTypeForGenre, getPromptsForGenre } from '../../data/genres';
+import { getToneDescription, injectVariables } from '../../utils/prompt-engine';
 
 // We need to fetch the real ID from DB mostly, but since we inserted them we can rely on order or re-fetch.
 interface DBChapter {
@@ -117,8 +119,38 @@ const ProductionPage: React.FC = () => {
         setChapters(prev => prev.map(c => c.id === id ? { ...c, status: 'GENERATING' } : c));
 
         try {
+            // Retrieve genre from local storage or DB context if available
+            const { data: bookData } = await supabase.from('books').select('genre, context_data, title').eq('id', bookId).single();
+            const genre = bookData?.genre || '';
+            const config = bookData?.context_data?.configuration;
+
+            // Get Prompt
+            const rawPrompts = getPromptsForGenre(genre);
+            const baseTemplate = rawPrompts?.WRITER || '';
+
+            // Inject Variables
+            const bookType = getBookTypeForGenre(genre);
+            const toneDesc = getToneDescription(
+                bookType,
+                config?.toneSerious ?? 0.5,
+                config?.toneConcise ?? 0.5,
+                config?.toneSimple ?? 0.5
+            );
+
+            const currentChapter = chapters.find(c => c.id === id);
+
+            const writerPrompt = injectVariables(baseTemplate, {
+                bookTitle: bookData?.title || "Senza Titolo",
+                genre: genre,
+                tone: toneDesc,
+                target: config?.targets?.join(", ") || "Pubblico generale",
+                chapterTitle: currentChapter?.title || "Senza Titolo",
+                chapterSummary: currentChapter?.summary || "Nessun sommario disponibile"
+            });
+
             await callBookAgent('WRITE', {
-                chapterId: id
+                chapterId: id,
+                systemPrompt: writerPrompt
             }, bookId);
 
             // n8n will update the DB, which triggers Realtime update

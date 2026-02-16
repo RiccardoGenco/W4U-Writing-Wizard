@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
@@ -6,21 +6,53 @@ import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
 import { callBookAgent, supabase } from '../../lib/api';
 import type { BookContext, BookConfiguration, Chapter } from '../../types';
 import { useToast } from '../../context/ToastContext';
+import { getBookTypeForGenre, getPromptsForGenre, type BookType } from '../../data/genres';
+import { getToneDescription, injectVariables } from '../../utils/prompt-engine';
 
 const ConfigurationPage: React.FC = () => {
     const navigate = useNavigate();
     const { error } = useToast();
     const [loading, setLoading] = useState(false);
 
-    // State
+    // Context State
+    const [genre, setGenre] = useState<string | null>(null);
+
+    // Config State
     const [toneSerious, setToneSerious] = useState(0.5); // 0 = Playful, 1 = Serious
     const [toneConcise, setToneConcise] = useState(0.5); // 0 = Verbose, 1 = Concise
     const [toneSimple, setToneSimple] = useState(0.5);   // 0 = Complex, 1 = Simple
     const [chaptersRate, setChaptersRate] = useState(10); // Pages per chapter default
 
     const [targets, setTargets] = useState<string[]>([]);
+    const [availableTargets, setAvailableTargets] = useState<string[]>([]);
 
-    const availableTargets = ['Principianti', 'Appassionati', 'Professionisti', 'Studenti', 'Curiosi', 'Bambini'];
+    const bookId = localStorage.getItem('active_book_id');
+
+    // Fetch Book Data (Genre)
+    useEffect(() => {
+        if (!bookId) return;
+        const fetchGenre = async () => {
+            const { data } = await supabase.from('books').select('genre').eq('id', bookId).single();
+            if (data?.genre) {
+                setGenre(data.genre);
+            }
+        };
+        fetchGenre();
+    }, [bookId]);
+
+    // Derived Book Type
+    const bookType: BookType = genre ? getBookTypeForGenre(genre) : 'FICTION';
+
+    useEffect(() => {
+        if (bookType === 'FICTION') {
+            setAvailableTargets(['Adolescenti', 'Giovani Adulti', 'Adulti', 'Appassionati del Genere', 'Chi cerca evasione', 'Bambini']);
+            // Reset targets if switching type might be good, or keep them if they match. For simplicity, clear.
+            setTargets([]);
+        } else {
+            setAvailableTargets(['Principianti', 'Studenti', 'Professionisti', 'Imprenditori', 'Hobbyist', 'Accademici', 'Curiosi']);
+            setTargets([]);
+        }
+    }, [bookType]);
 
     const toggleTarget = (t: string) => {
         if (targets.includes(t)) {
@@ -32,8 +64,14 @@ const ConfigurationPage: React.FC = () => {
 
     const handleGenerateOutline = async () => {
         setLoading(true);
-        const config: BookConfiguration = { toneSerious, toneConcise, toneSimple, targets, chaptersRate };
-        const bookId = localStorage.getItem('active_book_id');
+        const config: BookConfiguration = {
+            toneSerious,
+            toneConcise,
+            toneSimple,
+            targets,
+            chaptersRate,
+            book_type: bookType
+        };
         let currentContext: BookContext = {};
 
         try {
@@ -48,11 +86,24 @@ const ConfigurationPage: React.FC = () => {
                 }).eq('id', bookId);
             }
 
+            // Prepare Dynamic Prompt
+            const rawPrompts = getPromptsForGenre(genre || '');
+            const baseTemplate = rawPrompts?.ARCHITECT || '';
+
+            const toneDesc = getToneDescription(bookType, toneSerious, toneConcise, toneSimple);
+
+            const architectPrompt = injectVariables(baseTemplate, {
+                tone: toneDesc,
+                target: targets.join(", ") || "Pubblico generale",
+                synopsis: currentContext.selected_concept?.description || "Sinossi non fornita"
+            });
+
             // 1. Call n8n to generate outline
             const targetPages = currentContext.target_pages;
             const data = await callBookAgent('OUTLINE', {
                 configuration: config,
-                targetPages: targetPages
+                targetPages: targetPages,
+                systemPrompt: architectPrompt // Passing the specific prompt!
             }, bookId);
 
             const resData = data.data || data;
@@ -93,7 +144,7 @@ const ConfigurationPage: React.FC = () => {
             <header style={{ marginBottom: '3rem', textAlign: 'center' }}>
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Metti a punto lo stile</h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>
-                    Definisci il tono di voce e il pubblico ideale per il tuo libro.
+                    Definisci il tono di voce e il pubblico ideale per il tuo {genre || 'libro'}.
                 </p>
             </header>
 
@@ -122,8 +173,8 @@ const ConfigurationPage: React.FC = () => {
 
                         <div className="slider-group">
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                                <span>Narrativo/Descrittivo</span>
-                                <span>Conciso/Pratico</span>
+                                <span>{bookType === 'FICTION' ? 'Descrittivo' : 'Approfondito'}</span>
+                                <span>{bookType === 'FICTION' ? 'Conciso' : 'Sintetico'}</span>
                             </div>
                             <input
                                 type="range"
@@ -136,7 +187,7 @@ const ConfigurationPage: React.FC = () => {
 
                         <div className="slider-group">
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                                <span>Tecnico/Complesso</span>
+                                <span>{bookType === 'FICTION' ? 'Complesso/Letterario' : 'Tecnico/Specialistico'}</span>
                                 <span>Semplice/Divulgativo</span>
                             </div>
                             <input
@@ -149,8 +200,6 @@ const ConfigurationPage: React.FC = () => {
                         </div>
                     </div>
                 </section>
-
-
 
                 {/* Structure Settings */}
                 <section style={{ marginBottom: '4rem' }}>
