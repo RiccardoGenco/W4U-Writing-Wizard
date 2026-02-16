@@ -4,9 +4,12 @@ import { motion } from 'framer-motion';
 import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
 
 import { callBookAgent, supabase } from '../../lib/api';
+import type { BookContext, BookConfiguration, Chapter } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 const ConfigurationPage: React.FC = () => {
     const navigate = useNavigate();
+    const { error } = useToast();
     const [loading, setLoading] = useState(false);
 
     // State
@@ -29,9 +32,9 @@ const ConfigurationPage: React.FC = () => {
 
     const handleGenerateOutline = async () => {
         setLoading(true);
-        const config = { toneSerious, toneConcise, toneSimple, targets, chaptersRate };
+        const config: BookConfiguration = { toneSerious, toneConcise, toneSimple, targets, chaptersRate };
         const bookId = localStorage.getItem('active_book_id');
-        let currentContext: any = {};
+        let currentContext: BookContext = {};
 
         try {
             // Save config to Supabase first
@@ -55,11 +58,12 @@ const ConfigurationPage: React.FC = () => {
             const resData = data.data || data;
 
             // 2. Save transient outline and config
-            if (resData.chapters) {
-                const chaptersWithIds = resData.chapters.map((c: any, i: number) => ({
+            if (resData.chapters && Array.isArray(resData.chapters)) {
+                const chaptersWithIds: Chapter[] = resData.chapters.map((c: { title: string; summary?: string; scene_description?: string }, i: number) => ({
                     id: `chap-${i}-${Date.now()}`,
                     title: c.title,
-                    summary: c.summary || c.scene_description,
+                    summary: c.summary || c.scene_description || '',
+                    scene_description: c.scene_description,
                     status: 'pending'
                 }));
                 localStorage.setItem('project_chapters', JSON.stringify(chaptersWithIds));
@@ -70,7 +74,7 @@ const ConfigurationPage: React.FC = () => {
 
         } catch (err) {
             console.error(err);
-            alert("Errore generazione indice. Riprova.");
+            error("Errore generazione indice. Riprova.");
         } finally {
             setLoading(false);
         }

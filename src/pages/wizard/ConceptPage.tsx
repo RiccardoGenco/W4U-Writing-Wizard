@@ -5,13 +5,8 @@ import { Sparkles, ArrowRight, Loader2, Upload, FileText, User, AlertCircle } fr
 import { callBookAgent, supabase, logDebug } from '../../lib/api';
 import { getQuestionsForGenre } from '../../data/genres';
 import mammoth from 'mammoth';
-
-interface ConceptCard {
-    id: string;
-    title: string;
-    description: string;
-    style: string;
-}
+import type { ConceptCard } from '../../types';
+import { useToast } from '../../context/ToastContext';
 
 
 const CONCEPT_LOADING_PHASES = [
@@ -27,6 +22,7 @@ const CONCEPT_LOADING_PHASES = [
 
 const ConceptPage: React.FC = () => {
     const navigate = useNavigate();
+    const { success, error: toastError } = useToast();
     const [loading, setLoading] = useState(false);
     const [concepts, setConcepts] = useState<ConceptCard[]>([]);
     const [bookTitle, setBookTitle] = useState<string | null>(null);
@@ -119,10 +115,13 @@ const ConceptPage: React.FC = () => {
 
             setUploadedFileContent(text);
             await logDebug('frontend', 'file_uploaded', { fileName: file.name, length: text.length }, bookId);
+            success('File caricato con successo!');
 
-        } catch (err: any) {
-            console.error(err);
-            setFileError(err.message);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error(error);
+            setFileError(error.message);
+            toastError(error.message);
             setFileName(null);
             setUploadedFileContent('');
         } finally {
@@ -164,9 +163,11 @@ const ConceptPage: React.FC = () => {
 
             setBookTitle(concept.title);
             navigate('/create/configuration');
-        } catch (err: any) {
-            console.error(err);
-            await logDebug('frontend', 'concept_selection_error', { error: err.message }, bookId);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error(error);
+            toastError("Errore durante la selezione del concept. Riprova.");
+            await logDebug('frontend', 'concept_selection_error', { error: error.message }, bookId);
         }
     };
 
@@ -214,10 +215,12 @@ const ConceptPage: React.FC = () => {
                     duration_ms: Math.round(performance.now() - startTime)
                 }, bookId);
             }
-        } catch (err: any) {
-            console.error(err);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error(error);
+            toastError("Errore nella generazione dei concept. Riprova più tardi.");
             await logDebug('frontend', 'concept_generation_error', {
-                error: err.message,
+                error: error.message,
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
         } finally {

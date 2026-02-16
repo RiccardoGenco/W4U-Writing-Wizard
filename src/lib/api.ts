@@ -4,11 +4,16 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const N8N_API_KEY = import.meta.env.VITE_N8N_API_KEY;
+const WEBHOOK_SECRET = import.meta.env.VITE_WEBHOOK_SECRET;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error('[API] CRITICAL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
 } else {
     console.log('[API] Supabase initialized:', SUPABASE_URL);
+}
+
+if (!WEBHOOK_SECRET) {
+    console.warn('[API] VITE_WEBHOOK_SECRET not set — webhooks may be rejected if backend requires auth');
 }
 
 if (!N8N_API_KEY) {
@@ -28,7 +33,7 @@ export const logDebug = async (source: string, eventType: string, payload: any, 
             payload,
             book_id: bookId || null
         });
-    } catch (e) {
+    } catch (e: unknown) {
         console.error("Failed to log to DB:", e);
     }
 };
@@ -69,14 +74,20 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
         } else {
             console.warn('[API] getAuthHeaders: no active session — request will be unauthenticated');
         }
-    } catch (err: any) {
-        console.error('[API] getAuthHeaders: CRASH getting session:', err.message);
+    } catch (err: unknown) {
+        const error = err as Error;
+        console.error('[API] getAuthHeaders: CRASH getting session:', error.message);
         // Don't block the request — proceed without JWT
     }
 
     // Add API key if configured
     if (N8N_API_KEY) {
         headers['X-API-Key'] = N8N_API_KEY;
+    }
+
+    // Add Webhook Secret if configured
+    if (WEBHOOK_SECRET) {
+        headers['X-Webhook-Secret'] = WEBHOOK_SECRET;
     }
 
     return headers;
@@ -146,16 +157,17 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
 
             return data;
 
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const error = err as Error;
             const duration = Math.round(performance.now() - startTime);
             // Log errore di rete/exception per questo tentativo specifico
             await logDebug('frontend', `n8n_exception_${action.toLowerCase()}`, {
-                message: err.message,
-                type: err.name || 'Error',
+                message: error.message,
+                type: (error as any).name || 'Error',
                 duration_ms: duration,
                 attempt: attemptLabel
             }, bookId);
-            throw err;
+            throw error;
         }
     }, 3); // 3 tentativi totali
 };

@@ -2,7 +2,7 @@
 
 W4U Writing Wizard è un assistente alla scrittura AI-powered che guida l'autore dalla fase di ideazione fino alla produzione del manoscritto completo, inclusa la generazione della copertina.
 
-## ✨ Funzionalità
+##  Funzionalità
 
 - **Wizard Flow**: Percorso guidato in 6 step — Configurazione → Concept → Blueprint → Produzione → Cover → Export
 - **Intervista AI**: Agente intelligente con domande personalizzate per genere
@@ -12,7 +12,7 @@ W4U Writing Wizard è un assistente alla scrittura AI-powered che guida l'autore
 - **Token Monitoring**: Tracciamento automatico dei token consumati con stima costi in EUR
 - **Loading avanzato**: Overlay full-page con messaggi rotanti durante la generazione
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Tecnologia |
 |-------|-----------|
@@ -22,7 +22,7 @@ W4U Writing Wizard è un assistente alla scrittura AI-powered che guida l'autore
 | **Modelli AI** | OpenAI GPT-4o mini (testo), DALL-E 3 (immagini) |
 | **Database** | Supabase (PostgreSQL + Auth + Storage + RLS) |
 
-## ⚙️ Installazione
+## Installazione
 
 1. **Clona il progetto**:
    ```bash
@@ -51,13 +51,13 @@ W4U Writing Wizard è un assistente alla scrittura AI-powered che guida l'autore
    ```
 
 
-## 🤖 Backend n8n
+##  Backend n8n
 
 1. Importa `n8n/workflows/W4U_Generate_Cover_DALLE3.json` nella tua istanza n8n
 2. Configura le credenziali: **OpenAI API** (`OpenAi account 5`), **Postgres**, **Header Auth**
 3. Attiva il workflow
 
-## 📁 Struttura Progetto
+##  Struttura Progetto
 
 ```
 ├── src/
@@ -71,7 +71,7 @@ W4U Writing Wizard è un assistente alla scrittura AI-powered che guida l'autore
 └── supabase/              → Migrazioni e funzioni DB
 ```
 
-## 🔐 Sicurezza
+##  Sicurezza
 
 - **Autenticazione**: Supabase Auth (email/password)
 - **Autorizzazione**: Row Level Security (RLS) su tutte le tabelle
