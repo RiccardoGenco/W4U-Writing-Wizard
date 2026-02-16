@@ -121,7 +121,7 @@ const CoverPage: React.FC = () => {
             }, bookId);
 
             // Call the book agent to generate cover
-            setProgressStage('Generazione immagine con DALL-E 3 (può richiedere fino a 30s)...');
+            setProgressStage('Generazione con DALL-E 3 (può richiedere fino a 60s)...');
             const response = await callBookAgent('GENERATE_COVER', {
                 title: bookTitle,
                 author: bookAuthor,
@@ -155,8 +155,32 @@ const CoverPage: React.FC = () => {
                 bookId,
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
-            alert('Errore durante la generazione della copertina. Riprova.');
             setGenerating(false);
+            if (err.message && err.message.includes('timeout')) {
+                alert('La generazione sta richiedendo più tempo del previsto. L\'immagine apparirà qui appena pronta.');
+            } else {
+                alert('Errore durante la generazione. Verifica i crediti o riprova tra poco.');
+            }
+        }
+    };
+
+    const downloadCover = async () => {
+        if (!coverUrl) return;
+        try {
+            // Fetch blob to force download instead of opening in new tab
+            const response = await fetch(coverUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${bookTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_cover.png`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (e) {
+            console.error('Download failed, falling back to new tab', e);
+            window.open(coverUrl, '_blank');
         }
     };
 
@@ -299,12 +323,12 @@ const CoverPage: React.FC = () => {
 
                         {coverUrl && (
                             <button
-                                onClick={() => window.open(coverUrl, '_blank')}
+                                onClick={downloadCover}
                                 className="btn-secondary"
                                 style={{ width: '100%' }}
                             >
                                 <Download size={20} />
-                                Scarica Copertina
+                                Scarica Copertina (.png)
                             </button>
                         )}
                     </div>
