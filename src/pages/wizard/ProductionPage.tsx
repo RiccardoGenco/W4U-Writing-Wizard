@@ -11,7 +11,12 @@ interface DBChapter {
     summary: string;
     content: string | null;
     status: string;
-    structure: Array<{ title: string; description: string }> | null;
+    structure: Array<{
+        title: string;
+        description: string;
+        content?: string;
+        status?: 'PENDING' | 'GENERATING' | 'COMPLETED'
+    }> | null;
     chapter_number: number;
 }
 
@@ -105,8 +110,10 @@ const ProductionPage: React.FC = () => {
     useEffect(() => {
         const current = chapters.find(c => c.id === selectedChapterId);
         if (current) {
-            setEditorContent(current.content || "");
-            setIsEditing(false); // Reset editing mode on change? Or keep visual mode?
+            // Se abbiamo paragrafi con contenuto, uniamo tutto; altrimenti usiamo chapter.content come fallback
+            const combinedContent = current.structure?.map(p => p.content).filter(Boolean).join('\n\n') || current.content || "";
+            setEditorContent(combinedContent);
+            setIsEditing(false);
         }
     }, [selectedChapterId, chapters]);
 
@@ -152,18 +159,29 @@ const ProductionPage: React.FC = () => {
         }
     };
 
-    const generateChapter = async (id: string) => {
-        setChapters(prev => prev.map(c => c.id === id ? { ...c, status: 'GENERATING' } : c));
+    const generateParagraph = async (chapterId: string, paragraphIndex: number) => {
+        // Set generating status for this specific paragraph
+        setChapters(prev => prev.map(c => {
+            if (c.id === chapterId && c.structure) {
+                const nextStructure = [...c.structure];
+                if (nextStructure[paragraphIndex]) {
+                    nextStructure[paragraphIndex] = { ...nextStructure[paragraphIndex], status: 'GENERATING' };
+                }
+                return { ...c, structure: nextStructure, status: 'GENERATING' };
+            }
+            return c;
+        }));
+
         try {
             const { data: bookData } = await supabase.from('books').select('genre, context_data, title').eq('id', bookId).single();
             const genre = bookData?.genre || '';
             const config = bookData?.context_data?.configuration;
+            const plotSummary = config?.plot_summary || "";
 
             const rawPrompts = getPromptsForGenre(genre);
             const baseTemplate = rawPrompts?.WRITER || '';
             const bookType = getBookTypeForGenre(genre);
 
-            // Derive style factors to map the stored configuration correctly
             const genreDef = GENRE_DEFINITIONS[genre];
             const currentStyleFactors = genreDef?.styleFactors || [
                 { id: 'serious', labelLow: 'Giocoso/Ironico', labelHigh: 'Serio/Accademico', defaultValue: 0.5 },
@@ -173,23 +191,54 @@ const ProductionPage: React.FC = () => {
 
             const toneDesc = getToneDescription(bookType, config || {}, currentStyleFactors);
 
-            const currentChapter = chapters.find(c => c.id === id);
+            const currentChapter = chapters.find(c => c.id === chapterId);
+            const currentParagraph = currentChapter?.structure?.[paragraphIndex];
+
             const writerPrompt = injectVariables(baseTemplate, {
                 bookTitle: bookData?.title || "Senza Titolo",
                 genre: genre,
                 tone: toneDesc,
                 target: config?.targets?.join(", ") || "Pubblico generale",
+                plotSummary: plotSummary,
                 chapterTitle: currentChapter?.title || "Senza Titolo",
                 chapterSummary: currentChapter?.summary || "Nessun sommario disponibile",
-                paragraphs: JSON.stringify(currentChapter?.structure || [])
+                paragraphTitle: currentParagraph?.title || "Paragrafo",
+                paragraphDescription: currentParagraph?.description || "Espandi questo punto.",
+                contextParagraphs: JSON.stringify(currentChapter?.structure || [])
             });
 
-            await callBookAgent('WRITE', { chapterId: id, systemPrompt: writerPrompt }, bookId);
+            await callBookAgent('WRITE_PARAGRAPH', {
+                chapterId,
+                paragraphIndex,
+                systemPrompt: writerPrompt
+            }, bookId);
+
+            // Wait a bit for n8n to finish and DB to update via webhook (or we poll)
             setTimeout(() => { fetchChapters(); }, 5000);
+
         } catch (e) {
             console.error(e);
-            alert("Errore avvio generazione.");
-            setChapters(prev => prev.map(c => c.id === id ? { ...c, status: 'PENDING' } : c));
+            alert("Errore avvio generazione paragrafo.");
+            setChapters(prev => prev.map(c => {
+                if (c.id === chapterId && c.structure) {
+                    const nextStructure = [...c.structure];
+                    if (nextStructure[paragraphIndex]) {
+                        nextStructure[paragraphIndex] = { ...nextStructure[paragraphIndex], status: 'PENDING' };
+                    }
+                    return { ...c, structure: nextStructure };
+                }
+                return c;
+            }));
+        }
+    };
+
+    const generateChapter = async (id: string) => {
+        const chapter = chapters.find(c => c.id === id);
+        if (!chapter || !chapter.structure) return;
+
+        for (let i = 0; i < chapter.structure.length; i++) {
+            await generateParagraph(id, i);
+            await new Promise(r => setTimeout(r, 2000)); // Stagger paragraphs
         }
     };
 
@@ -326,10 +375,13 @@ const ProductionPage: React.FC = () => {
                                         <div key={idx}
                                             style={{
                                                 fontSize: '0.8rem',
-                                                color: 'var(--text-muted)',
+                                                color: selectedChapterId === chapter.id ? 'var(--text-main)' : 'var(--text-muted)',
                                                 padding: '4px 8px',
                                                 borderLeft: '1px solid var(--glass-border)',
-                                                cursor: 'pointer'
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center'
                                             }}
                                             className="hover:text-white transition-colors"
                                             onClick={(e) => {
@@ -337,7 +389,22 @@ const ProductionPage: React.FC = () => {
                                                 setSelectedChapterId(chapter.id);
                                             }}
                                         >
-                                            {para.title || `Paragrafo ${idx + 1}`}
+                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {para.title || `Paragrafo ${idx + 1}`}
+                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                {para.status === 'GENERATING' && <Loader2 size={10} className="animate-spin" color="var(--accent)" />}
+                                                {para.status === 'COMPLETED' ? <CheckCircle2 size={10} color="var(--success)" /> : (
+                                                    <Play
+                                                        size={10}
+                                                        className="hover:text-primary transition-colors"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            generateParagraph(chapter.id, idx);
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

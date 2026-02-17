@@ -108,6 +108,42 @@
     },
     {
       "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT prompt_text FROM ai_prompts WHERE name = $1 AND book_type = $2 AND is_active = true LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Map Action Name\"].json.prompt_name, $node[\"Webhook Router\"].json.body.book_type || 'FICTION'] }}"
+        }
+      },
+      "id": "fetch-prompt-001",
+      "name": "Fetch AI Prompt",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -1632,
+        192
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const action = $node[\"Webhook Router\"].json.body.action;\nconst mapping = {\n  'GENERATE_PLOT': 'PLOT_ARCHITECT',\n  'OUTLINE': 'ARCHITECT',\n  'WRITE': 'WRITER',\n  'WRITE_PARAGRAPH': 'WRITER',\n  'EDIT': 'WRITER'\n};\nreturn { prompt_name: mapping[action] || 'WRITER' };"
+      },
+      "id": "map-action-001",
+      "name": "Map Action Name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1840,
+        192
+      ]
+    },
+    {
+      "parameters": {
         "rules": {
           "values": [
             {
@@ -264,6 +300,50 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "plot-action-001",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "GENERATE_PLOT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "para-write-001",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "WRITE_PARAGRAPH",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -358,7 +438,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ \n{\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": ($node[\"Webhook Router\"].json.body.systemPrompt ? $node[\"Webhook Router\"].json.body.systemPrompt : (['Business & Self-Help', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Hobby e Passioni', 'Spiritualità e New Age', 'Relazioni e Parenting', 'Tecnologia e AI', 'Viaggi e Guide di Nicchia', 'Biografie e Memorie', 'Saggistica Scientifica o Storica'].includes($node['Get Book Context Concept Architect1'].json.genre) ?\n      \"Sei un Architetto Editoriale di Saggistica. Il tuo compito è creare o MODIFICARE l'indice di un manuale/saggio.\\n\\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\\n\\n\" + \n      ( $node[\"Webhook Router\"].json.body.feedback ? \n        \"STAI AGGIORNANDO UN INDICE ESISTENTE.\\n\" + \n        \"FEEDBACK UTENTE: \" + $node[\"Webhook Router\"].json.body.feedback + \"\\n\\n\" + \n        \"INDICE ATTUALE DA MODIFICARE:\\n\" + JSON.stringify($node[\"Webhook Router\"].json.body.currentChapters) + \"\\n\\n\" + \n        \"ISTRUZIONI: Modifica L'INDICE in base al feedback. Copia esattamente intatti i capitoli che non richiedono modifiche.\" \n        : \n        \"STAI CREANDO UN NUOVO INDICE DA ZERO.\\n\\n\" + \n        \"BLUEPRINT CONTESTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\n\" + \n        \"FLUSSO LOGICO (Outine) DA SEGUIRE:\\n\" + $node[\"Agent: Plotter\"].json.choices[0].message.content \n      ) + \n      \"\\n\\nDATI TECNICI:\\n- Numero Capitoli: \" + $node[\"Calculator\"].json.num_chapters + \"\\n- Target per Capitolo: \" + $node[\"Calculator\"].json.words_per_chapter + \" parole\\n\\nOutput JSON: { \\\"chapters\\\": [ { \\\"chapter_number\\\": 1, \\\"title\\\": \\\"...\\\", \\\"summary\\\": \\\"...\\\", \\\"subtitles\\\": [], \\\"key_points\\\": [], \\\"target_word_count\\\": \" + $node[\"Calculator\"].json.words_per_chapter + \" } ] }\" :\n      \"Sei l'Architetto Letterario W4U. Il tuo compito è creare o MODIFICARE l'indice di un libro.\\n\\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\\n\\n\" + \n( $node[\"Webhook Router\"].json.body.feedback ? \n  \"STAI AGGIORNANDO UN INDICE ESISTENTE.\\n\" + \n  \"FEEDBACK UTENTE: \" + $node[\"Webhook Router\"].json.body.feedback + \"\\n\\n\" + \n  \"INDICE ATTUALE DA MODIFICARE:\\n\" + JSON.stringify($node[\"Webhook Router\"].json.body.currentChapters) + \"\\n\\n\" + \n  \"ISTRUZIONI: Modifica L'INDICE in base al feedback. Copia esattamente intatti i capitoli che non richiedono modifiche.\" \n  : \n  \"STAI CREANDO UN NUOVO INDICE DA ZERO.\\n\\n\" + \n  \"BLUEPRINT CONTESTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\n\" + \n  \"TRAMA DA SEGUIRE:\\n\" + $node[\"Agent: Plotter\"].json.choices[0].message.content \n) + \n\"\\n\\nDATI TECNICI:\\n- Numero Capitoli: \" + $node[\"Calculator\"].json.num_chapters + \"\\n- Target per Capitolo: \" + $node[\"Calculator\"].json.words_per_chapter + \" parole\\n\\nOutput JSON: { \\\"chapters\\\": [ { \\\"chapter_number\\\": 1, \\\"title\\\": \\\"...\\\", \\\"summary\\\": \\\"...\\\", \\\"subtitles\\\": [], \\\"key_points\\\": [], \\\"target_word_count\\\": \" + $node[\"Calculator\"].json.words_per_chapter + \" } ] }\"))\n    },\n    { \"role\": \"user\", \"content\": ( $node[\"Webhook Router\"].json.body.feedback ? \"Aggiorna l'indice in base al feedback. JSON only.\" : \"Genera l'indice completo. JSON only.\" ) }\n  ]\n}\n}}",
+        "jsonBody": "={{ \n{\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": $node[\"Fetch AI Prompt\"].json[\"prompt_text\"]\n    },\n    { \"role\": \"user\", \"content\": ( $node[\"Webhook Router\"].json.body.feedback ? \"Aggiorna l'indice in base al feedback: \" + $node[\"Webhook Router\"].json.body.feedback + \"\\nINDICE ATTUALE: \" + JSON.stringify($node[\"Webhook Router\"].json.body.currentChapters) : \"Genera l'indice completo basandoti sulla trama: \" + ($node[\"Get Book Context Concept Architect1\"].json.plot_summary || $node[\"Agent: Plotter\"].json.choices[0].message.content) ) }\n  ]\n}\n}}",
         "options": {}
       },
       "id": "af0757be-d7b2-48e8-8ded-fb976a1dd5e5",
@@ -454,7 +534,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": (['Business & Self-Help', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Hobby e Passioni', 'Spiritualità e New Age', 'Relazioni e Parenting', 'Tecnologia e AI', 'Viaggi e Guide di Nicchia', 'Biografie e Memorie', 'Saggistica Scientifica o Storica'].includes($node['Get Book'].json.genre) ?\n        \"Sei un saggista esperto. Scrivi il capitolo indicato con un tono chiaro, autorevole e divulgativo. NON USARE MAI EMOJI.\\n\\n\" + \n        \"BLUEPRINT (CONTESTO MACRO):\\n\" + \n        JSON.stringify($node[\"Get Book\"].json.context_data?.blueprint || {}) + \"\\n\\n\" +\n        \"SOMMARIO CONTENUTI GENERALE:\\n\" + \n        ($node[\"Get Book\"].json.plot_summary || \"Usa il blueprint come riferimento.\") + \"\\n\\n\" +\n        \"DETTAGLI CAPITOLO:\\n\" + \n        \"- Titolo: \" + ($node[\"Get Chapter\"].json.title || \"Capitolo Senza Titolo\") + \"\\n\" +\n        \"- Sommario: \" + ($node[\"Get Chapter\"].json.summary || \"Nessun sommario\") + \"\\n\" +\n        ($node[\"Get Previous Chapter\"].json.summary ? \"- COSA È STATO TRATTATO PRIMA: \" + $node[\"Get Previous Chapter\"].json.summary : \"\") + \"\\n\\n\" +\n        \"ISTRUZIONI DI SCRITTURA:\\n\" +\n        \"- Spiega i concetti in modo logico e strutturato.\\n\" +\n        \"- Usa esempi pratici, metafore chiarificatrici e, se utile, liste puntate.\\n\" +\n        \"- Mantieni il focus sul valore per il lettore (risoluzione problemi, apprendimento).\" :\n        \"Sei uno scrittore professionista. Scrivi il capitolo indicato, NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\" + \n        \"BLUEPRINT (CONTESTO MACRO):\\n\" + \n        JSON.stringify($node[\"Get Book\"].json.context_data?.blueprint || {}) + \"\\n\\n\" +\n        \"TRAMA GENERALE:\\n\" + \n        ($node[\"Get Book\"].json.plot_summary || \"Usa il blueprint come riferimento.\") + \"\\n\\n\" +\n        \"DETTAGLI CAPITOLO:\\n\" + \n        \"- Titolo: \" + ($node[\"Get Chapter\"].json.title || \"Capitolo Senza Titolo\") + \"\\n\" +\n        \"- Sommario: \" + ($node[\"Get Chapter\"].json.summary || \"Nessun sommario\") + \"\\n\" +\n        ($node[\"Get Previous Chapter\"].json.summary ? \"- COSA È SUCCESSO PRIMA: \" + $node[\"Get Previous Chapter\"].json.summary : \"\") + \"\\n\\n\" +\n        \"ISTRUZIONI DI SCRITTURA:\\n\" +\n        \"- Scrivi in modo dettagliato, evita i riassunti, mostra l'azione.\\n\" +\n        \"- Mantieni coerenza con il BLUEPRINT e la trama.\")\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Scrivi ora il capitolo: \" + $node[\"Get Chapter\"].json.title\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": $node[\"Fetch AI Prompt\"].json[\"prompt_text\"]\n    },\n    {\n      \"role\": \"user\",\n      \"content\": (\n        $node[\"Webhook Router\"].json.body.action === 'WRITE_PARAGRAPH' ? \n        \"Scrivi il paragrafo: \" + $node[\"Webhook Router\"].json.body.paragraphTitle + \"\\nDescrizione: \" + $node[\"Webhook Router\"].json.body.paragraphDescription + \"\\nContesto Capitolo: \" + ($node[\"Webhook Router\"].json.body.contextParagraphs || '') :\n        \"Scrivi l'intero capitolo: \" + ($node[\"Get Chapter\"].json.title || \"Capitolo\") + \"\\nSommario: \" + ($node[\"Get Chapter\"].json.summary || \"\")\n      ) + \"\\n\\nTitolo Libro: \" + $node[\"Get Book\"].json.title + \"\\nTrama: \" + ($node[\"Get Book\"].json.plot_summary || \"\")\n    }\n  ]\n} }}",
         "options": {}
       },
       "id": "c7430356-ad39-4b85-9213-b64ab0c930d6",
@@ -616,7 +696,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ \n{\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": (['Business & Self-Help', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Hobby e Passioni', 'Spiritualità e New Age', 'Relazioni e Parenting', 'Tecnologia e AI', 'Viaggi e Guide di Nicchia', 'Biografie e Memorie', 'Saggistica Scientifica o Storica'].includes($node['Get Book Context Concept Architect1'].json.genre) ?\n      \"Sei un esperto di contenuti saggistici. Crea un SOMMARIO CONTENUTISTICO dettagliato basato sul BLUEPRINT del manuale. NON USARE MAI EMOJI.\\n\\nCONTESTO:\\n- Titolo: \" + ($node[\"Get Book Context Concept Architect1\"].json.title || \"Nuovo Libro\") + \"\\n- Genere: \" + ($node[\"Get Book Context Concept Architect1\"].json.genre || \"In definizione\") + \"\\n\\nBLUEPRINT (ELEMENTI CHIAVE):\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\nCONCEPT SCELTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.selected_concept || {}) + \"\\n\\nGenera un flusso logico degli argomenti (da Problema a Soluzione) coerente con questi elementi.\" :\n      \"Sei un Master Plotter. Crea una trama dettagliata basata sul BLUEPRINT del libro. NON USARE MAI EMOJI.\\n\\nCONTESTO:\\n- Titolo: \" + ($node[\"Get Book Context Concept Architect1\"].json.title || \"Nuovo Libro\") + \"\\n- Genere: \" + ($node[\"Get Book Context Concept Architect1\"].json.genre || \"In definizione\") + \"\\n\\nBLUEPRINT (ELEMENTI CHIAVE):\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\nCONCEPT SCELTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.selected_concept || {}) + \"\\n\\nGenera una trama coerente con questi elementi.\")\n    }\n  ]\n}\n}}",
+        "jsonBody": "={{ \n{\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 4000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": $node[\"Fetch AI Prompt\"].json[\"prompt_text\"]\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Genera il sommario della trama basandoti sui fatti noti: \" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {})\n    }\n  ]\n}\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1462,6 +1542,51 @@
         ]
       ]
     },
+    "Auth Check": {
+      "main": [
+        [
+          {
+            "node": "Auth Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Map Action Name",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Action Name": {
+      "main": [
+        [
+          {
+            "node": "Fetch AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "Init Book (Optional)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Action Switch": {
       "main": [
         [
@@ -1509,6 +1634,20 @@
         [
           {
             "node": "Get Book Context Cover",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent: Plotter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Book",
             "type": "main",
             "index": 0
           }

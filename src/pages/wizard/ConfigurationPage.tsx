@@ -13,12 +13,14 @@ const ConfigurationPage: React.FC = () => {
     const navigate = useNavigate();
     const { error } = useToast();
     const [loading, setLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('Elaborazione...');
 
     // Context State
     const [genre, setGenre] = useState<string | null>(null);
 
     // Config State
     const [styleValues, setStyleValues] = useState<Record<string, number>>({});
+    const [targetPages, setTargetPages] = useState(100);
     const [chaptersRate, setChaptersRate] = useState(10); // Pages per chapter default
 
     const [targets, setTargets] = useState<string[]>([]);
@@ -40,18 +42,19 @@ const ConfigurationPage: React.FC = () => {
                     def.styleFactors.forEach(f => {
                         initial[f.id] = f.defaultValue;
                     });
-                    // Fallback for default sliders if they are represented differently or add them if missing
-                    // For now, if genre has styleFactors, we use only those. 
-                    // If it doesn't, we provide the 3 defaults.
                     setStyleValues(initial);
                 } else {
-                    // Default values
                     setStyleValues({
                         serious: 0.5,
                         concise: 0.5,
                         simple: 0.5
                     });
                 }
+            }
+
+            const { data: bookData } = await supabase.from('books').select('context_data').eq('id', bookId).single();
+            if (bookData?.context_data?.target_pages) {
+                setTargetPages(parseInt(bookData.context_data.target_pages, 10));
             }
         };
         fetchGenre();
@@ -104,36 +107,54 @@ const ConfigurationPage: React.FC = () => {
 
                 await supabase.from('books').update({
                     status: 'BLUEPRINT',
-                    context_data: { ...currentContext, configuration: config }
+                    context_data: {
+                        ...currentContext,
+                        configuration: config,
+                        target_pages: targetPages,
+                        chapters_rate: chaptersRate
+                    }
                 }).eq('id', bookId);
             }
 
             // Prepare Dynamic Prompt
             const rawPrompts = getPromptsForGenre(genre || '');
-            const baseTemplate = rawPrompts?.ARCHITECT || '';
-
-            // Map values to descriptions using the IDs from styleFactors
             const toneDesc = getToneDescription(bookType, styleValues, currentStyleFactors);
+            const numChapters = Math.ceil(targetPages / chaptersRate);
 
-            // Calculate Chapter Count
-            const targetPages = parseInt(String(currentContext.target_pages || '100'), 10);
-            const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
-
-            const architectPrompt = injectVariables(baseTemplate, {
+            // STEP 1: GENERATE PLOT SUMMARY
+            setLoadingMessage('Generazione trama...');
+            const plotData = await callBookAgent('GENERATE_PLOT', {
+                configuration: config,
                 tone: toneDesc,
                 target: targets.join(", ") || "Pubblico generale",
-                synopsis: currentContext.selected_concept?.description || "Sinossi non fornita",
+                synopsis: currentContext.selected_concept?.description || "Sinossi non fornita"
+            }, bookId);
+
+            const plotSummary = plotData.data?.plot_summary || plotData.plot_summary || "Trama generata";
+
+            // STEP 2: GENERATE HIERARCHICAL OUTLINE
+            setLoadingMessage('Creazione indice e paragrafi...');
+            const architectPrompt = injectVariables(rawPrompts?.ARCHITECT || '', {
+                tone: toneDesc,
+                target: targets.join(", ") || "Pubblico generale",
+                synopsis: plotSummary,
                 chapterCount: String(numChapters)
             });
 
-            // 1. Call n8n to generate outline
             const data = await callBookAgent('OUTLINE', {
-                configuration: config,
+                configuration: { ...config, target_pages: targetPages, chapters_rate: chaptersRate },
                 targetPages: targetPages,
-                systemPrompt: architectPrompt // Passing the specific prompt!
+                plotSummary: plotSummary,
+                systemPrompt: architectPrompt
             }, bookId);
 
             const resData = data.data || data;
+
+            // STEP 3: GENERATE PARAGRAPH DESCRIPTIONS (if missing or as part of outline)
+            // For now, we assume the ARCHITECT prompt is updated to include descriptions.
+            // But we'll add a step if the user specifically asked for "short description for each paragraph".
+
+            // 2. Save transient outline and config
 
             // 2. Save transient outline and config
             if (resData.chapters && Array.isArray(resData.chapters)) {
@@ -146,6 +167,7 @@ const ConfigurationPage: React.FC = () => {
                     status: 'pending'
                 }));
                 localStorage.setItem('project_chapters', JSON.stringify(chaptersWithIds));
+                localStorage.setItem('project_plot_summary', plotSummary);
                 navigate('/create/blueprint');
             } else {
                 throw new Error("Invalid outline format received");
@@ -203,27 +225,51 @@ const ConfigurationPage: React.FC = () => {
                     </div>
                 </section>
 
-                {/* Structure Settings */}
                 <section style={{ marginBottom: '4rem' }}>
                     <h3 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <SlidersHorizontal size={20} color="var(--accent)" /> Struttura
+                        <SlidersHorizontal size={20} color="var(--accent)" /> Struttura e Volume
                     </h3>
 
-                    <div className="slider-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                            <span>Densità Capitoli (1 cap. ogni {chaptersRate} pag.)</span>
-                            <span>{chaptersRate} pagine</span>
+                    <div style={{ display: 'grid', gap: '2.5rem' }}>
+                        <div className="slider-group">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                                <span>Lunghezza Target</span>
+                                <span>{targetPages} pagine</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="50" max="500" step="10"
+                                value={targetPages}
+                                onChange={(e) => setTargetPages(parseInt(e.target.value))}
+                                style={{ width: '100%' }}
+                            />
                         </div>
-                        <input
-                            type="range"
-                            min="10" max="20" step="1"
-                            value={chaptersRate}
-                            onChange={(e) => setChaptersRate(parseInt(e.target.value))}
-                            style={{ width: '100%' }}
-                        />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            <span>Frequente (Brevi)</span>
-                            <span>Rado (Lunghi)</span>
+
+                        <div className="slider-group">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                                <span>Densità Capitoli (1 cap ogni {chaptersRate} pag.)</span>
+                                <span>{chaptersRate} pagine</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="5" max="30" step="1"
+                                value={chaptersRate}
+                                onChange={(e) => setChaptersRate(parseInt(e.target.value))}
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+
+                        <div style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            padding: '1.5rem',
+                            borderRadius: '12px',
+                            border: '1px solid var(--glass-border)',
+                            textAlign: 'center'
+                        }}>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Configurazione Calcolata</p>
+                            <h4 style={{ fontSize: '1.5rem', color: 'var(--primary)' }}>
+                                {Math.ceil(targetPages / chaptersRate)} Capitoli stimati
+                            </h4>
                         </div>
                     </div>
                 </section>
@@ -262,7 +308,7 @@ const ConfigurationPage: React.FC = () => {
                         disabled={loading}
                         style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}
                     >
-                        {loading ? <><Loader2 className="animate-spin" /> Elaborazione...</> : <>Genera Architettura <ChevronRight size={18} /></>}
+                        {loading ? <><Loader2 className="animate-spin" /> {loadingMessage}</> : <>Genera Architettura <ChevronRight size={18} /></>}
                     </button>
                 </div>
 

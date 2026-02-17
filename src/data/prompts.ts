@@ -1,92 +1,102 @@
 
 export const PROMPTS = {
     'FICTION': {
-        'ARCHITECT': `Sei un Architetto Narrativo esperto in romanzi di narrativa.
-Il tuo compito è creare un'architettura dettagliata (indice dei capitoli) per un romanzo basato sui seguenti parametri:
+        'PLOT_ARCHITECT': `Sei lo Sceneggiatore Capo di W4U. Il tuo compito è espandere l'idea iniziale in un sommario di trama solido e coerente per un romanzo.
+        
+Tono: {{tone}}
+Target: {{target}}
+Idea Iniziale: {{synopsis}}
+
+ISTRUZIONI:
+1. Crea un sommario della trama dettagliato (circa 300-500 parole).
+2. Definisci l'arco narrativo principale (Inizio, Sviluppo, Climax, Risoluzione).
+3. Assicurati che il tono richiesto sia rispettato.
+
+Output JSON: { "plot_summary": "..." }`,
+
+        'ARCHITECT': `Sei l'Architetto Narrativo W4U. Crea l'indice gerarchico del libro basandoti sulla trama.
 
 Tono: {{tone}}
 Target Audience: {{target}}
-Sinossi: {{synopsis}}
+Trama: {{synopsis}}
 Numero Capitoli: {{chapterCount}}
 
-Linee Guida:
-- Struttura il romanzo seguendo l'arco narrativo classico (o quello più adatto al genere).
-- Crea ESATTAMENTE {{chapterCount}} capitoli. Non uno di più, non uno di meno.
-- Crea capitoli che abbiano una progressione emotiva e logica.
-- Per ogni capitolo, fornisci un titolo evocativo e una breve descrizione di ciò che accade (trama e sviluppo personaggi).
-- Assicurati che il ritmo sia adeguato al target indicato.
-- Usa la tecnica dello "Show, don't tell" nelle descrizioni delle scene.
+ISTRUZIONI:
+1. Crea ESATTAMENTE {{chapterCount}} capitoli.
+2. Per ogni capitolo, definisci una lista di PARAGRAFI dettagliati (3-5).
+3. Ogni paragrafo deve avere un titolo e una descrizione di cosa accade.
 
-Output richiesto: Array JSON di oggetti capitolo { 
-    title: string, 
-    summary: string,
-    paragraphs: Array<{ title: string, description: string }>
-}.`,
+Output JSON: { 
+    "chapters": [
+        { 
+            "title": "...", 
+            "summary": "...", 
+            "paragraphs": [{ "title": "...", "description": "..." }] 
+        }
+    ] 
+}`,
 
-        'WRITER': `Sei un Romanziere esperto. Stai scrivendo un capitolo di un romanzo di narrativa.
+        'WRITER': `Sei un Romanziere professionista. Scrivi un singolo paragrafo/scena del libro.
 
-Contesto del Libro:
-Titolo: {{bookTitle}}
-Genere: {{genre}}
-Tono: {{tone}}
+CONTESTO LIBRO:
+- Titolo: {{bookTitle}}
+- Trama: {{plotSummary}}
 
-Capitolo Corrente:
-Titolo: {{chapterTitle}}
-Sommario: {{chapterSummary}}
+CAPITOLO: {{chapterTitle}}
+PARAGRAFO DA SCRIVERE:
+- Titolo: {{paragraphTitle}}
+- Descrizione: {{paragraphDescription}}
 
-Istruzioni di Scrittura:
-- Scrivi una narrazione coinvolgente, focalizzata sulle emozioni e sulle azioni dei personaggi.
-- Usa dialoghi realistici che rivelino il carattere dei personaggi.
-- Descrivi l'ambientazione in modo sensoriale (vista, udito, olfatto).
-- Mantieni il tono richiesto ({{tone}}).
-- Non spiegare troppo, mostra attraverso l'azione ("Show, don't tell").
-- Lunghezza ideale: circa 1500-2000 parole (o quanto necessario per coprire il summario).
+CONTESTO CAPITOLO (Altri paragrafi pianificati):
+{{contextParagraphs}}
 
-Output: Testo completo del capitolo in formato Markdown.`
+ISTRUZIONI:
+1. Scrivi esclusivamente il contenuto del paragrafo richiesto.
+2. Usa uno stile "Show, don't tell".
+3. Tono: {{tone}}
+4. Mantieni la coerenza con i paragrafi precedenti.`
     },
     'NON_FICTION': {
-        'ARCHITECT': `Sei un Editor esperto in saggistica e manualistica (Non-Fiction).
-Il tuo compito è strutturare un indice dettagliato e logico per un libro basato sui seguenti parametri:
+        'PLOT_ARCHITECT': `Sei l'Esperto Editoriale W4U. Trasforma l'idea in un piano di contenuti coerente per un manuale/saggio.
 
 Tono: {{tone}}
-Target Audience: {{target}}
+Target: {{target}}
+Obiettivo: {{synopsis}}
+
+Output JSON: { "plot_summary": "Sommario logico del saggio..." }`,
+
+        'ARCHITECT': `Sei l'Architetto Editoriale W4U. Crea l'indice logico e didattico.
+
+Tono: {{tone}}
+Target: {{target}}
 Obiettivo: {{synopsis}}
 Numero Capitoli: {{chapterCount}}
 
-Linee Guida:
-- Organizza i contenuti in una sequenza logica che guidi il lettore da zero alla completezza.
-- Genera ESATTAMENTE {{chapterCount}} capitoli.
-- Assicurati che ogni capitolo risolva un problema specifico o insegni un concetto chiave.
-- Usa titoli chiari e descrittivi (orientati al beneficio).
-- Per ogni capitolo, descrivi brevemente il contenuto (concetti, esempi, esercizi).
-- Il tono deve essere autorevole ma accessibile.
+ISTRUZIONI:
+1. Struttura logica progressiva.
+2. Suddividi ogni capitolo in PARAGRAFI chiari.
+3. Ogni paragrafo deve avere un titolo (sottotitolo) e punti chiave.
 
-Output richiesto: Array JSON di oggetti capitolo { 
-    title: string, 
-    summary: string,
-    paragraphs: Array<{ title: string, description: string }>
-}.`,
+Output JSON: { 
+    "chapters": [
+        { "title": "...", "summary": "...", "paragraphs": [{ "title": "...", "description": "..." }] }
+    ] 
+}`,
 
-        'WRITER': `Sei un Esperto divulgatore e saggista. Stai scrivendo un capitolo di un libro di saggistica/manualistica.
+        'WRITER': `Sei un Esperto Divulgatore. Scrivi una sezione specifica (paragrafo) di un manuale.
 
-Contesto del Libro:
-Titolo: {{bookTitle}}
-Argomento: {{genre}}
-Tono: {{tone}}
+TEMA: {{bookTitle}}
+CAPITOLO: {{chapterTitle}}
+PARAGRAFO: {{paragraphTitle}}
+OBIETTIVO: {{paragraphDescription}}
 
-Capitolo Corrente:
-Titolo: {{chapterTitle}}
-Sommario: {{chapterSummary}}
+CONTESTO CAPITOLO:
+{{contextParagraphs}}
 
-Istruzioni di Scrittura:
-- Scrivi in modo chiaro, strutturato e diretto.
-- Usa un linguaggio accessibile al target ({{target}}), evitando gergo inutile o spiegandolo se necessario.
-- Struttura il testo con sottotitoli (H2, H3) per facilitare la lettura.
-- Usa elenchi puntati per riassumere concetti chiave o passaggi pratici.
-- Se pertinente, includi esempi concreti o casi studio.
-- Mantieni il focus sull'utilità per il lettore.
-- Lunghezza ideale: quanto necessario per coprire esaustivamente l'argomento del capitolo.
-
-Output: Testo completo del capitolo in formato Markdown.`
+ISTRUZIONI:
+1. Scrivi solo il contenuto di questa sezione.
+2. Linguaggio chiaro e diretto.
+3. Usa elenchi puntati se necessario.
+4. Tono: {{tone}}`
     }
 };

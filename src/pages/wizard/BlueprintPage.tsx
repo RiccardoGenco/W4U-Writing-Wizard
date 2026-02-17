@@ -14,6 +14,7 @@ interface Chapter {
 const BlueprintPage: React.FC = () => {
     const navigate = useNavigate();
     const [chapters, setChapters] = useState<Chapter[]>([]);
+    const [plotSummary, setPlotSummary] = useState('');
     const [saving, setSaving] = useState(false);
     const [chapterFeedbacks, setChapterFeedbacks] = useState<Record<string, string>>({});
     const [modifiedChapters, setModifiedChapters] = useState<Set<string>>(new Set());
@@ -25,6 +26,8 @@ const BlueprintPage: React.FC = () => {
             if (saved) {
                 try {
                     setChapters(JSON.parse(saved));
+                    const savedPlot = localStorage.getItem('project_plot_summary');
+                    if (savedPlot) setPlotSummary(savedPlot);
                     return;
                 } catch (e) {
                     console.error("Failed to parse chapters", e);
@@ -49,6 +52,12 @@ const BlueprintPage: React.FC = () => {
                     }));
                     setChapters(formatted);
                     localStorage.setItem('project_chapters', JSON.stringify(formatted));
+
+                    // Fetch plot from book context
+                    const { data: book } = await supabase.from('books').select('context_data').eq('id', bookId).single();
+                    if (book?.context_data?.configuration?.plot_summary) {
+                        setPlotSummary(book.context_data.configuration.plot_summary);
+                    }
                 }
             }
         };
@@ -80,9 +89,21 @@ const BlueprintPage: React.FC = () => {
 
             if (error) throw error;
 
+            const { data: currentBook } = await supabase.from('books').select('context_data').eq('id', bookId).single();
+            const currentContext = currentBook?.context_data || {};
+
             await supabase
                 .from('books')
-                .update({ status: 'PRODUCTION' })
+                .update({
+                    status: 'PRODUCTION',
+                    context_data: {
+                        ...currentContext,
+                        configuration: {
+                            ...currentContext.configuration,
+                            plot_summary: plotSummary
+                        }
+                    }
+                })
                 .eq('id', bookId);
 
             await logDebug('frontend', 'blueprint_confirm_success', {
@@ -204,6 +225,13 @@ const BlueprintPage: React.FC = () => {
                     Questa è l'ossatura del tuo libro. La struttura è fissa per garantire la coerenza del volume scelto.
                 </p>
             </header>
+
+            {plotSummary && (
+                <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', border: '1px solid var(--primary-low)' }}>
+                    <h3 style={{ color: 'var(--primary)', marginBottom: '1rem', fontSize: '1.2rem' }}>Sommario della Trama</h3>
+                    <p style={{ fontSize: '1rem', lineHeight: '1.6', color: 'var(--text-main)' }}>{plotSummary}</p>
+                </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {chapters.map((chapter, index) => {
