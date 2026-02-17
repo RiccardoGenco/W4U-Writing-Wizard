@@ -16,7 +16,7 @@ const LoginPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    const from = (location.state as any)?.from?.pathname || '/';
+    const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
 
     // If user is already logged in, redirect away from login
     useEffect(() => {

@@ -116,12 +116,13 @@ const ExportPage: React.FC = () => {
             }
 
             setFinished(true);
-        } catch (err: any) {
-            console.error("Export failed:", err);
-            setErrorMsg(`Errore durante l'esportazione: ${err.message}`);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error("Export failed:", error);
+            setErrorMsg(`Errore durante l'esportazione: ${error.message}`);
             await logDebug('frontend', 'export_failed', {
-                error: err.message,
-                stack: err.stack,
+                error: error.message,
+                stack: error.stack,
                 format: selectedFormat
             }, bookId);
         } finally {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight, Loader2, Upload, FileText, User, AlertCircle } from 'lucide-react';
@@ -40,25 +40,7 @@ const ConceptPage: React.FC = () => {
 
     const bookId = localStorage.getItem('active_book_id');
 
-    useEffect(() => {
-        if (bookId) {
-            fetchBookData();
-        }
-    }, [bookId]);
-
-    // Rotating loading messages
-    useEffect(() => {
-        if (!loading) return;
-        let phaseIndex = 0;
-        setLoadingMessage(CONCEPT_LOADING_PHASES[0]);
-        const interval = setInterval(() => {
-            phaseIndex = (phaseIndex + 1) % CONCEPT_LOADING_PHASES.length;
-            setLoadingMessage(CONCEPT_LOADING_PHASES[phaseIndex]);
-        }, 2500);
-        return () => clearInterval(interval);
-    }, [loading]);
-
-    const fetchBookData = async () => {
+    const fetchBookData = useCallback(async () => {
         if (!supabase || !bookId) return;
         const { data } = await supabase.from('books').select('title, genre, context_data, author').eq('id', bookId).single();
         if (data) {
@@ -71,9 +53,24 @@ const ConceptPage: React.FC = () => {
             if (data.context_data?.pseudonym) {
                 setPseudonym(data.context_data.pseudonym);
             }
-            // If we stored file content previously, retrieve (optional, might be too heavy for DB context_data, better to just keep in UI state if navigating back)
         }
-    };
+    }, [bookId]);
+
+    useEffect(() => {
+        if (bookId) {
+            fetchBookData();
+        }
+    }, [bookId, fetchBookData]);
+
+    useEffect(() => {
+        if (!loading) return;
+        let phaseIndex = 0;
+        const interval = setInterval(() => {
+            phaseIndex = (phaseIndex + 1) % CONCEPT_LOADING_PHASES.length;
+            setLoadingMessage(CONCEPT_LOADING_PHASES[phaseIndex]);
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [loading]);
 
     const handleAnswerChange = (index: number, value: string) => {
         const newAnswers = [...answers];
@@ -123,7 +120,6 @@ const ConceptPage: React.FC = () => {
             setFileError(error.message);
             toastError(error.message);
             setFileName(null);
-            setUploadedFileContent('');
         } finally {
             setIsAnalyzingFile(false);
         }

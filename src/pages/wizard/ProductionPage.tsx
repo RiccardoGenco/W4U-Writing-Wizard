@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Play, CheckCircle2, Loader2, FileText, ChevronRight, ChevronDown, Save, Edit3 } from 'lucide-react';
 import { marked } from 'marked';
 import { callBookAgent, supabase } from '../../lib/api';
@@ -17,7 +16,6 @@ interface DBChapter {
 }
 
 const ProductionPage: React.FC = () => {
-    const navigate = useNavigate();
 
     const [chapters, setChapters] = useState<DBChapter[]>([]);
     const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
@@ -34,7 +32,7 @@ const ProductionPage: React.FC = () => {
     const [loadingMessage, setLoadingMessage] = useState("Analisi del blueprint narrativo...");
     const [loadingSubMessage, setLoadingSubMessage] = useState("");
 
-    const loadingPhases = [
+    const loadingPhases = useRef([
         "Analisi del blueprint narrativo...",
         "Sviluppo personaggi...",
         "Costruzione ambientazione...",
@@ -42,9 +40,27 @@ const ProductionPage: React.FC = () => {
         "Controllo coerenza...",
         "Revisione grammaticale...",
         "Finalizzazione capitoli..."
-    ];
+    ]);
 
     const bookId = localStorage.getItem('active_book_id');
+
+    const fetchChapters = useCallback(async () => {
+        if (!bookId) return;
+        const { data, error } = await supabase
+            .from('chapters')
+            .select('*')
+            .eq('book_id', bookId)
+            .order('chapter_number', { ascending: true });
+
+        if (error) console.error(error);
+        if (data) {
+            setChapters(data);
+            if (data.length > 0 && !selectedChapterId) {
+                setSelectedChapterId(data[0].id);
+                setExpandedChapters(new Set([data[0].id]));
+            }
+        }
+    }, [bookId, selectedChapterId]);
 
     useEffect(() => {
         if (!bookId) return;
@@ -60,9 +76,10 @@ const ProductionPage: React.FC = () => {
                     table: 'chapters',
                     filter: `book_id=eq.${bookId}`
                 },
-                (payload) => {
-                    if (payload.eventType === 'UPDATE') {
-                        const updated = payload.new as DBChapter;
+                (payload: unknown) => {
+                    const p = payload as { eventType: string; new: DBChapter };
+                    if (p.eventType === 'UPDATE') {
+                        const updated = p.new;
                         setChapters(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
 
                         // If we are viewing this chapter and it's not being edited, update content
@@ -82,7 +99,7 @@ const ProductionPage: React.FC = () => {
         return () => {
             supabase.removeChannel(channel);
         }
-    }, [bookId]);
+    }, [bookId, fetchChapters, isEditing, selectedChapterId]);
 
     // Quando cambia il capitolo selezionato, aggiorna l'editor
     useEffect(() => {
@@ -93,38 +110,20 @@ const ProductionPage: React.FC = () => {
         }
     }, [selectedChapterId, chapters]);
 
-    // ... (Loading effect logic remains similar, omitted for brevity but logic is preserved if needed)
+    // Loading effect logic
     useEffect(() => {
         if (!globalGenerating) return;
         let phaseIndex = 0;
-        setLoadingMessage(loadingPhases[0]);
+        setLoadingMessage(loadingPhases.current[0]);
         setLoadingSubMessage(`Preparazione generazione ${chapters.length} capitoli...`);
         const interval = setInterval(() => {
-            phaseIndex = (phaseIndex + 1) % loadingPhases.length;
-            setLoadingMessage(loadingPhases[phaseIndex]);
+            phaseIndex = (phaseIndex + 1) % loadingPhases.current.length;
+            setLoadingMessage(loadingPhases.current[phaseIndex]);
             const completed = chapters.filter(c => c.status === 'COMPLETED' || (c.content && c.content.length > 50)).length;
             setLoadingSubMessage(`Progresso: ${completed}/${chapters.length} capitoli completati`);
         }, 2500);
         return () => clearInterval(interval);
     }, [globalGenerating, chapters]);
-
-
-    const fetchChapters = async () => {
-        const { data, error } = await supabase
-            .from('chapters')
-            .select('*')
-            .eq('book_id', bookId)
-            .order('chapter_number', { ascending: true });
-
-        if (error) console.error(error);
-        if (data) {
-            setChapters(data);
-            if (data.length > 0 && !selectedChapterId) {
-                setSelectedChapterId(data[0].id);
-                setExpandedChapters(new Set([data[0].id]));
-            }
-        }
-    };
 
     const toggleChapter = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
@@ -160,7 +159,6 @@ const ProductionPage: React.FC = () => {
             const genre = bookData?.genre || '';
             const config = bookData?.context_data?.configuration;
 
-            // Re-fetch prompts and logic... (Same as before)
             const rawPrompts = getPromptsForGenre(genre);
             const baseTemplate = rawPrompts?.WRITER || '';
             const bookType = getBookTypeForGenre(genre);
@@ -189,7 +187,6 @@ const ProductionPage: React.FC = () => {
         setGlobalGenerating(true);
         const toGenerate = chapters.filter(c => !c.content || c.status === 'PENDING' || c.status === 'ERROR');
         for (const chap of toGenerate) {
-            // Simplified logic for brevity/robustness
             await generateChapter(chap.id);
             await new Promise(r => setTimeout(r, 2000)); // Stagger slightly
         }
@@ -203,7 +200,6 @@ const ProductionPage: React.FC = () => {
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', height: '100%', gap: '1rem', overflow: 'hidden' }}>
 
-            {/* OVERLAY GENERAZIONE */}
             {globalGenerating && (
                 <div style={{
                     position: 'fixed',
@@ -273,7 +269,6 @@ const ProductionPage: React.FC = () => {
                 </div>
             )}
 
-            {/* SIDEBAR */}
             <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '90vh' }}>
                 <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -291,7 +286,7 @@ const ProductionPage: React.FC = () => {
                     {chapters.map(chapter => (
                         <div key={chapter.id} style={{ marginBottom: '0.5rem' }}>
                             <div
-                                onClick={() => { setSelectedChapterId(chapter.id); if (!expandedChapters.has(chapter.id)) toggleChapter({ stopPropagation: () => { } } as any, chapter.id); }}
+                                onClick={() => { setSelectedChapterId(chapter.id); if (!expandedChapters.has(chapter.id)) toggleChapter({ stopPropagation: () => { } } as unknown as React.MouseEvent, chapter.id); }}
                                 style={{
                                     padding: '0.8rem',
                                     borderRadius: '8px',
@@ -304,7 +299,7 @@ const ProductionPage: React.FC = () => {
                                 }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-                                    <div onClick={(e) => toggleChapter(e, chapter.id)} style={{ padding: '2px', cursor: 'pointer' }}>
+                                    <div onClick={(e: React.MouseEvent) => toggleChapter(e, chapter.id)} style={{ padding: '2px', cursor: 'pointer' }}>
                                         {expandedChapters.has(chapter.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                     </div>
                                     <span style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -315,7 +310,6 @@ const ProductionPage: React.FC = () => {
                                 {chapter.status === 'COMPLETED' && <CheckCircle2 size={14} color="var(--success)" />}
                             </div>
 
-                            {/* Paragraphs List */}
                             {expandedChapters.has(chapter.id) && chapter.structure && (
                                 <div style={{ paddingLeft: '2rem', marginTop: '0.2rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     {chapter.structure.map((para, idx) => (
@@ -331,7 +325,6 @@ const ProductionPage: React.FC = () => {
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setSelectedChapterId(chapter.id);
-                                                // Future: Scroll to paragraph or insert into editor
                                             }}
                                         >
                                             {para.title || `Paragrafo ${idx + 1}`}
@@ -350,7 +343,6 @@ const ProductionPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* EDITOR / PREVIEW PANEL */}
             <div className="glass-panel" style={{ height: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Image, ChevronRight, Loader2, Wand2, Download, CheckCircle, Type } from 'lucide-react';
 import { supabase, logDebug, callBookAgent } from '../../lib/api';
@@ -23,41 +23,8 @@ const CoverPage: React.FC = () => {
 
     const bookId = localStorage.getItem('active_book_id');
 
-    useEffect(() => {
-        if (!bookId) {
-            setLoading(false);
-            return;
-        }
-        fetchBookData();
-
-        // Realtime subscription for async cover generation
-        const channel = supabase
-            .channel(`book-cover-${bookId}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'books',
-                    filter: `id=eq.${bookId}`
-                },
-                (payload: any) => {
-                    const newBook = payload.new;
-                    if (newBook.cover_url && newBook.cover_url !== coverUrl) {
-                        setCoverUrl(newBook.cover_url);
-                        setGenerating(false);
-                        logDebug('frontend', 'cover_generation_realtime_received', { url: newBook.cover_url }, bookId);
-                    }
-                }
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [bookId, coverUrl]);
-
-    const fetchBookData = async () => {
+    const fetchBookData = useCallback(async () => {
+        if (!bookId) return;
         try {
             const { data, error } = await supabase
                 .from('books')
@@ -110,7 +77,41 @@ const CoverPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [bookId, coverUrl]);
+
+    useEffect(() => {
+        if (!bookId) {
+            setLoading(false);
+            return;
+        }
+        fetchBookData();
+
+        // Realtime subscription for async cover generation
+        const channel = supabase
+            .channel(`book-cover-${bookId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'books',
+                    filter: `id=eq.${bookId}`
+                },
+                (payload: { new: { cover_url: string } }) => {
+                    const newBook = payload.new;
+                    if (newBook.cover_url && newBook.cover_url !== coverUrl) {
+                        setCoverUrl(newBook.cover_url);
+                        setGenerating(false);
+                        logDebug('frontend', 'cover_generation_realtime_received', { url: newBook.cover_url }, bookId);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [bookId, coverUrl, fetchBookData]);
 
     const generateCover = async () => {
         if (!bookId) return;
@@ -154,15 +155,16 @@ const CoverPage: React.FC = () => {
                 }, bookId);
                 setGenerating(false);
             }
-        } catch (err: any) {
-            console.error('Cover generation error:', err);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error('Cover generation error:', error);
             await logDebug('frontend', 'cover_generation_error', {
-                error: err.message,
+                error: error.message,
                 bookId,
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
             setGenerating(false);
-            if (err.message && err.message.includes('timeout')) {
+            if (error.message && error.message.includes('timeout')) {
                 alert('La generazione sta richiedendo più tempo del previsto. L\'immagine apparirà qui appena pronta.');
             } else {
                 alert('Errore durante la generazione. Verifica i crediti o riprova tra poco.');

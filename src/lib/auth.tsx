@@ -102,12 +102,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 setUser(session?.user ?? null);
                 setLoading(false);
             })
-            .catch((err) => {
+            .catch((err: unknown) => {
                 // Network error or Supabase unreachable
                 const duration = Math.round(performance.now() - startTime);
-                console.error(`[Auth] getSession CRASHED (${duration}ms):`, err);
+                const error = err as Error;
+                console.error(`[Auth] getSession CRASHED (${duration}ms):`, error);
                 logDebug('auth', 'session_init_crash', {
-                    error: err.message,
+                    error: error.message,
                     duration_ms: duration
                 });
                 setLoading(false); // Fallback: don't block the app forever
@@ -137,7 +138,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     supabase.rpc('claim_legacy_books').then(({ data, error }) => {
                         if (error) {
                             console.warn('[Auth] claim_legacy_books failed:', error.message);
-                        } else if (data && data > 0) {
+                            logDebug('auth', 'claim_legacy_books_error', {
+                                error: error.message,
+                                email: session?.user?.email
+                            });
+                        } else if (data && typeof data === 'number' && data > 0) {
                             console.log(`[Auth] Claimed ${data} legacy book(s)`);
                             logDebug('auth', 'legacy_books_claimed', {
                                 claimed_count: data,
@@ -189,13 +194,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthError(null);
             return { error: null };
 
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const error = err as Error;
             const duration = Math.round(performance.now() - startTime);
-            const translated = translateError(err);
-            console.error(`[Auth] signIn CRASH (${duration}ms):`, err);
+            const translated = translateError(error);
+            console.error(`[Auth] signIn CRASH (${duration}ms):`, error);
             logDebug('auth', 'signin_crash', {
                 email,
-                error: err.message,
+                error: error.message,
                 duration_ms: duration
             });
             setAuthError(translated);
@@ -246,13 +252,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setAuthError(null);
             return { error: null, needsConfirmation };
 
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const error = err as Error;
             const duration = Math.round(performance.now() - startTime);
-            const translated = translateError(err);
-            console.error(`[Auth] signUp CRASH (${duration}ms):`, err);
+            const translated = translateError(error);
+            console.error(`[Auth] signUp CRASH (${duration}ms):`, error);
             logDebug('auth', 'signup_crash', {
                 email,
-                error: err.message,
+                error: error.message,
                 duration_ms: duration
             });
             setAuthError(translated);
@@ -290,12 +297,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.removeItem('active_book_id');
             setAuthError(null);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const error = err as Error;
             const duration = Math.round(performance.now() - startTime);
-            console.error(`[Auth] signOut CRASH (${duration}ms):`, err);
+            console.error(`[Auth] signOut CRASH (${duration}ms):`, error);
             logDebug('auth', 'signout_crash', {
                 email: user?.email,
-                error: err.message,
+                error: error.message,
                 duration_ms: duration
             });
             // Force clean local state anyway — user expects to be logged out
@@ -315,6 +323,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 // ─── Hook ──────────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = (): AuthContextType => {
     const context = useContext(AuthContext);
     if (!context) {

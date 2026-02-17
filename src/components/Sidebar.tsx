@@ -32,8 +32,9 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
             await signOut();
             console.log('[Sidebar] Sign out completed — navigating to /login');
             navigate('/login');
-        } catch (err: any) {
-            console.error('[Sidebar] Sign out failed:', err.message);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error('[Sidebar] Sign out failed:', error.message);
             setSignOutError(true);
             setSigningOut(false);
 

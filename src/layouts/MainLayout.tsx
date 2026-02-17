@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
@@ -19,6 +19,29 @@ const MainLayout: React.FC = () => {
     const [activeBookId, setActiveBookId] = useState<string | null>(localStorage.getItem('active_book_id'));
     const [switching, setSwitching] = useState(false);
 
+    const fetchProjects = useCallback(async () => {
+        if (!supabase) return;
+        const { data } = await supabase
+            .from('books')
+            .select('id, title')
+            .order('created_at', { ascending: false });
+
+        if (data) setProjects(data);
+    }, []);
+
+    const fetchActiveBookDetails = useCallback(async () => {
+        if (!supabase || !activeBookId) return;
+        const { data } = await supabase
+            .from('books')
+            .select('context_data')
+            .eq('id', activeBookId)
+            .single();
+
+        if (data?.context_data?.target_pages) {
+            setActiveBookPages(parseInt(data.context_data.target_pages));
+        }
+    }, [activeBookId]);
+
     useEffect(() => {
         fetchProjects();
         // Sync state with localStorage and fetch project list if it changed
@@ -30,7 +53,7 @@ const MainLayout: React.FC = () => {
             }
         }, 1500);
         return () => clearInterval(interval);
-    }, [activeBookId]);
+    }, [activeBookId, fetchProjects]);
 
     useEffect(() => {
         if (activeBookId) {
@@ -38,30 +61,7 @@ const MainLayout: React.FC = () => {
         } else {
             setActiveBookPages(null);
         }
-    }, [activeBookId]);
-
-    const fetchProjects = async () => {
-        if (!supabase) return;
-        const { data } = await supabase
-            .from('books')
-            .select('id, title')
-            .order('created_at', { ascending: false });
-
-        if (data) setProjects(data);
-    };
-
-    const fetchActiveBookDetails = async () => {
-        if (!supabase || !activeBookId) return;
-        const { data } = await supabase
-            .from('books')
-            .select('context_data')
-            .eq('id', activeBookId)
-            .single();
-
-        if (data?.context_data?.target_pages) {
-            setActiveBookPages(parseInt(data.context_data.target_pages));
-        }
-    };
+    }, [activeBookId, fetchActiveBookDetails]);
 
     const handleSelectProject = async (id: string) => {
         if (switching) return;

@@ -25,7 +25,7 @@ if (!N8N_API_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Centralized logger
-export const logDebug = async (source: string, eventType: string, payload: any, bookId?: string | null) => {
+export const logDebug = async (source: string, eventType: string, payload: unknown, bookId?: string | null) => {
     try {
         await supabase.from('debug_logs').insert({
             source,
@@ -40,7 +40,7 @@ export const logDebug = async (source: string, eventType: string, payload: any, 
 
 // Retry helper with linear backoff (1s, 2s, 3s)
 export const callWithRetry = async <T>(fn: (attempt: number) => Promise<T>, retries = 3): Promise<T> => {
-    let lastError: any;
+    let lastError: unknown;
 
     for (let i = 0; i < retries; i++) {
         try {
@@ -94,7 +94,7 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
 };
 
 // Wrapper for n8n API calls with automatic retry logic
-export const callBookAgent = async (action: string, body: any, bookId?: string | null, customPath?: string) => {
+export const callBookAgent = async (action: string, body: Record<string, unknown>, bookId?: string | null, customPath?: string) => {
     let WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
 
     // If a custom path is provided, construct the URL based on the same base
@@ -163,7 +163,7 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
             // Log errore di rete/exception per questo tentativo specifico
             await logDebug('frontend', `n8n_exception_${action.toLowerCase()}`, {
                 message: error.message,
-                type: (error as any).name || 'Error',
+                type: error.name || 'Error',
                 duration_ms: duration,
                 attempt: attemptLabel
             }, bookId);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
@@ -10,23 +10,30 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, loading } = useAuth();
     const location = useLocation();
     const [timedOut, setTimedOut] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (!loading) {
             console.log(`[AuthGuard] Auth resolved — user: ${user?.email ?? 'none'}, path: ${location.pathname}`);
-            setTimedOut(false);
+            // Reset timedOut if auth resolves, but only if it's currently true to avoid unnecessary state updates
+            setTimedOut(prev => prev ? false : prev);
             return;
         }
 
         console.log(`[AuthGuard] Waiting for auth to resolve (timeout: ${AUTH_TIMEOUT_MS}ms)...`);
-        const timer = setTimeout(() => {
+        timerRef.current = setTimeout(() => {
+            // Only set timedOut if loading is still true after the timeout
             if (loading) {
                 console.error(`[AuthGuard] Auth loading timed out after ${AUTH_TIMEOUT_MS}ms — showing fallback`);
                 setTimedOut(true);
             }
         }, AUTH_TIMEOUT_MS);
 
-        return () => clearTimeout(timer);
+        return () => {
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+            }
+        };
     }, [loading, user, location.pathname]);
 
     // ─── Timeout Fallback ──────────────────────────────────────────────────────

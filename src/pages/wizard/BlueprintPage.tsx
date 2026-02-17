@@ -45,7 +45,7 @@ const BlueprintPage: React.FC = () => {
                         id: d.id,
                         title: d.title,
                         summary: d.summary,
-                        paragraphs: d.structure as any // Cast JSONB to expected type
+                        paragraphs: d.structure as Array<{ title: string; description: string }> || []
                     }));
                     setChapters(formatted);
                     localStorage.setItem('project_chapters', JSON.stringify(formatted));
@@ -91,10 +91,11 @@ const BlueprintPage: React.FC = () => {
 
             navigate('/create/production');
 
-        } catch (err: any) {
-            console.error("Error saving blueprint:", err);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error("Error saving blueprint:", error);
             await logDebug('frontend', 'blueprint_confirm_error', {
-                error: err.message,
+                error: error.message,
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
             alert("Errore salvataggio struttura.");
@@ -145,11 +146,11 @@ const BlueprintPage: React.FC = () => {
                         };
                     } else {
                         // Fallback: Use the new list but preserve IDs where possible
-                        const fallback = resData.chapters.map((c: any, i: number) => ({
+                        const fallback = resData.chapters.map((c: { title: string; summary?: string; scene_description?: string; paragraphs?: Array<{ title: string; description: string }> }, i: number) => ({
                             id: prev[i]?.id || `chap-${i}-${Date.now()}`,
                             title: c.title,
-                            summary: c.summary || c.scene_description,
-                            paragraphs: c.paragraphs
+                            summary: c.summary || c.scene_description || '',
+                            paragraphs: c.paragraphs || []
                         }));
                         localStorage.setItem('project_chapters', JSON.stringify(fallback));
                         return fallback;
@@ -174,11 +175,12 @@ const BlueprintPage: React.FC = () => {
                     duration_ms: Math.round(performance.now() - startTime)
                 }, bookId);
             }
-        } catch (err: any) {
-            console.error(err);
+        } catch (err: unknown) {
+            const error = err as Error;
+            console.error(error);
             await logDebug('frontend', 'chapter_modification_error', {
                 chapterId,
-                error: err.message,
+                error: error.message,
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
             alert("Errore durante l'aggiornamento. Riprova.");
