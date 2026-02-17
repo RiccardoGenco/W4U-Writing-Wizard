@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Play, CheckCircle2, Loader2, FileText, ChevronRight, ChevronDown, Save, Edit3 } from 'lucide-react';
 import { marked } from 'marked';
 import { callBookAgent, supabase } from '../../lib/api';
-import { getBookTypeForGenre, getPromptsForGenre } from '../../data/genres';
+import { getBookTypeForGenre, getPromptsForGenre, GENRE_DEFINITIONS } from '../../data/genres';
 import { getToneDescription, injectVariables } from '../../utils/prompt-engine';
 
 interface DBChapter {
@@ -162,7 +162,16 @@ const ProductionPage: React.FC = () => {
             const rawPrompts = getPromptsForGenre(genre);
             const baseTemplate = rawPrompts?.WRITER || '';
             const bookType = getBookTypeForGenre(genre);
-            const toneDesc = getToneDescription(bookType, config?.toneSerious ?? 0.5, config?.toneConcise ?? 0.5, config?.toneSimple ?? 0.5);
+
+            // Derive style factors to map the stored configuration correctly
+            const genreDef = GENRE_DEFINITIONS[genre];
+            const currentStyleFactors = genreDef?.styleFactors || [
+                { id: 'serious', labelLow: 'Giocoso/Ironico', labelHigh: 'Serio/Accademico', defaultValue: 0.5 },
+                { id: 'concise', labelLow: bookType === 'FICTION' ? 'Descrittivo' : 'Approfondito', labelHigh: bookType === 'FICTION' ? 'Conciso' : 'Sintetico', defaultValue: 0.5 },
+                { id: 'simple', labelLow: bookType === 'FICTION' ? 'Complesso/Letterario' : 'Tecnico/Specialistico', labelHigh: 'Semplice/Divulgativo', defaultValue: 0.5 }
+            ];
+
+            const toneDesc = getToneDescription(bookType, config || {}, currentStyleFactors);
 
             const currentChapter = chapters.find(c => c.id === id);
             const writerPrompt = injectVariables(baseTemplate, {
@@ -171,7 +180,8 @@ const ProductionPage: React.FC = () => {
                 tone: toneDesc,
                 target: config?.targets?.join(", ") || "Pubblico generale",
                 chapterTitle: currentChapter?.title || "Senza Titolo",
-                chapterSummary: currentChapter?.summary || "Nessun sommario disponibile"
+                chapterSummary: currentChapter?.summary || "Nessun sommario disponibile",
+                paragraphs: JSON.stringify(currentChapter?.structure || [])
             });
 
             await callBookAgent('WRITE', { chapterId: id, systemPrompt: writerPrompt }, bookId);

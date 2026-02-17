@@ -6,7 +6,7 @@ import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
 import { callBookAgent, supabase } from '../../lib/api';
 import type { BookContext, BookConfiguration, Chapter } from '../../types';
 import { useToast } from '../../context/ToastContext';
-import { getBookTypeForGenre, getPromptsForGenre, type BookType } from '../../data/genres';
+import { getBookTypeForGenre, getPromptsForGenre, GENRE_DEFINITIONS, type BookType, type StyleFactor } from '../../data/genres';
 import { getToneDescription, injectVariables } from '../../utils/prompt-engine';
 
 const ConfigurationPage: React.FC = () => {
@@ -18,9 +18,7 @@ const ConfigurationPage: React.FC = () => {
     const [genre, setGenre] = useState<string | null>(null);
 
     // Config State
-    const [toneSerious, setToneSerious] = useState(0.5); // 0 = Playful, 1 = Serious
-    const [toneConcise, setToneConcise] = useState(0.5); // 0 = Verbose, 1 = Concise
-    const [toneSimple, setToneSimple] = useState(0.5);   // 0 = Complex, 1 = Simple
+    const [styleValues, setStyleValues] = useState<Record<string, number>>({});
     const [chaptersRate, setChaptersRate] = useState(10); // Pages per chapter default
 
     const [targets, setTargets] = useState<string[]>([]);
@@ -35,6 +33,25 @@ const ConfigurationPage: React.FC = () => {
             const { data } = await supabase.from('books').select('genre').eq('id', bookId).single();
             if (data?.genre) {
                 setGenre(data.genre);
+                // Initialize dynamic style factors
+                const def = GENRE_DEFINITIONS[data.genre];
+                if (def?.styleFactors) {
+                    const initial: Record<string, number> = {};
+                    def.styleFactors.forEach(f => {
+                        initial[f.id] = f.defaultValue;
+                    });
+                    // Fallback for default sliders if they are represented differently or add them if missing
+                    // For now, if genre has styleFactors, we use only those. 
+                    // If it doesn't, we provide the 3 defaults.
+                    setStyleValues(initial);
+                } else {
+                    // Default values
+                    setStyleValues({
+                        serious: 0.5,
+                        concise: 0.5,
+                        simple: 0.5
+                    });
+                }
             }
         };
         fetchGenre();
@@ -42,6 +59,13 @@ const ConfigurationPage: React.FC = () => {
 
     // Derived Book Type
     const bookType: BookType = genre ? getBookTypeForGenre(genre) : 'FICTION';
+
+    const genreDef = genre ? GENRE_DEFINITIONS[genre] : null;
+    const currentStyleFactors: StyleFactor[] = genreDef?.styleFactors || [
+        { id: 'serious', labelLow: 'Giocoso/Ironico', labelHigh: 'Serio/Accademico', defaultValue: 0.5 },
+        { id: 'concise', labelLow: bookType === 'FICTION' ? 'Descrittivo' : 'Approfondito', labelHigh: bookType === 'FICTION' ? 'Conciso' : 'Sintetico', defaultValue: 0.5 },
+        { id: 'simple', labelLow: bookType === 'FICTION' ? 'Complesso/Letterario' : 'Tecnico/Specialistico', labelHigh: 'Semplice/Divulgativo', defaultValue: 0.5 }
+    ];
 
     useEffect(() => {
         if (bookType === 'FICTION') {
@@ -65,9 +89,7 @@ const ConfigurationPage: React.FC = () => {
     const handleGenerateOutline = async () => {
         setLoading(true);
         const config: BookConfiguration = {
-            toneSerious,
-            toneConcise,
-            toneSimple,
+            ...styleValues, // Spread dynamic values
             targets,
             chaptersRate,
             book_type: bookType
@@ -90,7 +112,8 @@ const ConfigurationPage: React.FC = () => {
             const rawPrompts = getPromptsForGenre(genre || '');
             const baseTemplate = rawPrompts?.ARCHITECT || '';
 
-            const toneDesc = getToneDescription(bookType, toneSerious, toneConcise, toneSimple);
+            // Map values to descriptions using the IDs from styleFactors
+            const toneDesc = getToneDescription(bookType, styleValues, currentStyleFactors);
 
             // Calculate Chapter Count
             const targetPages = parseInt(String(currentContext.target_pages || '100'), 10);
@@ -114,11 +137,12 @@ const ConfigurationPage: React.FC = () => {
 
             // 2. Save transient outline and config
             if (resData.chapters && Array.isArray(resData.chapters)) {
-                const chaptersWithIds: Chapter[] = resData.chapters.map((c: { title: string; summary?: string; scene_description?: string }, i: number) => ({
+                const chaptersWithIds: Chapter[] = resData.chapters.map((c: { title: string; summary?: string; scene_description?: string; paragraphs?: any[] }, i: number) => ({
                     id: `chap-${i}-${Date.now()}`,
                     title: c.title,
                     summary: c.summary || c.scene_description || '',
                     scene_description: c.scene_description,
+                    paragraphs: c.paragraphs || [],
                     status: 'pending'
                 }));
                 localStorage.setItem('project_chapters', JSON.stringify(chaptersWithIds));
@@ -157,51 +181,25 @@ const ConfigurationPage: React.FC = () => {
                 {/* Tone Sliders */}
                 <section style={{ marginBottom: '4rem' }}>
                     <h3 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <SlidersHorizontal size={20} color="var(--accent)" /> Tono di Voce
+                        <SlidersHorizontal size={20} color="var(--accent)" /> Tono e Stile
                     </h3>
 
                     <div style={{ display: 'grid', gap: '2.5rem' }}>
-                        <div className="slider-group">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                                <span>Giocoso/Ironico</span>
-                                <span>Serio/Accademico</span>
+                        {currentStyleFactors.map(factor => (
+                            <div className="slider-group" key={factor.id}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                                    <span>{factor.labelLow}</span>
+                                    <span>{factor.labelHigh}</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="0" max="1" step="0.1"
+                                    value={styleValues[factor.id] ?? factor.defaultValue}
+                                    onChange={(e) => setStyleValues(prev => ({ ...prev, [factor.id]: parseFloat(e.target.value) }))}
+                                    style={{ width: '100%' }}
+                                />
                             </div>
-                            <input
-                                type="range"
-                                min="0" max="1" step="0.1"
-                                value={toneSerious}
-                                onChange={(e) => setToneSerious(parseFloat(e.target.value))}
-                                style={{ width: '100%' }}
-                            />
-                        </div>
-
-                        <div className="slider-group">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                                <span>{bookType === 'FICTION' ? 'Descrittivo' : 'Approfondito'}</span>
-                                <span>{bookType === 'FICTION' ? 'Conciso' : 'Sintetico'}</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0" max="1" step="0.1"
-                                value={toneConcise}
-                                onChange={(e) => setToneConcise(parseFloat(e.target.value))}
-                                style={{ width: '100%' }}
-                            />
-                        </div>
-
-                        <div className="slider-group">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                                <span>{bookType === 'FICTION' ? 'Complesso/Letterario' : 'Tecnico/Specialistico'}</span>
-                                <span>Semplice/Divulgativo</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="0" max="1" step="0.1"
-                                value={toneSimple}
-                                onChange={(e) => setToneSimple(parseFloat(e.target.value))}
-                                style={{ width: '100%' }}
-                            />
-                        </div>
+                        ))}
                     </div>
                 </section>
 

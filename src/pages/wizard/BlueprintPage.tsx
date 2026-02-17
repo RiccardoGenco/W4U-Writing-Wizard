@@ -254,12 +254,38 @@ const BlueprintPage: React.FC = () => {
                                         }}
                                     />
                                 </div>
-                                {isModified && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontSize: '0.8rem', fontWeight: 600 }}>
-                                        <CheckCircle size={16} /> Modificato
-                                    </div>
-                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                    {isModified && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontSize: '0.8rem', fontWeight: 600 }}>
+                                            <CheckCircle size={16} /> Modificato
+                                        </div>
+                                    )}
+                                    {chapter.paragraphs && chapter.paragraphs.length > 0 && (
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 600 }}>
+                                            {chapter.paragraphs.length} Paragrafi definiti
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+
+                            {/* Paragraphs List */}
+                            {chapter.paragraphs && chapter.paragraphs.length > 0 && (
+                                <div style={{
+                                    paddingLeft: '1.5rem',
+                                    borderLeft: '2px solid rgba(255,255,255,0.1)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.6rem',
+                                    marginTop: '0.5rem'
+                                }}>
+                                    {chapter.paragraphs.map((p, pi) => (
+                                        <div key={pi} style={{ fontSize: '0.85rem' }}>
+                                            <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{pi + 1}. {p.title}</span>
+                                            <p style={{ margin: '0.1rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{p.description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             {!isModified && (
                                 <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
@@ -315,7 +341,7 @@ const BlueprintPage: React.FC = () => {
                     {saving ? <Loader2 className="animate-spin" /> : <><CheckCircle size={18} /> Conferma Struttura Finale</>}
                 </button>
             </div>
-        </div>
+        </div >
     );
 };
 

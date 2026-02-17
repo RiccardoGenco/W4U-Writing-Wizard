@@ -31,38 +31,35 @@ export const injectVariables = (template: string, variables: PromptVariables): s
     });
 };
 
+import type { StyleFactor } from '../data/genres';
+
 /**
  * Centralized logic to convert numeric tone sliders (0-1) into human-readable descriptions.
  */
 export const getToneDescription = (
     bookType: 'FICTION' | 'NON_FICTION',
-    serious: number,
-    concise: number,
-    simple: number
+    styleValues: Record<string, number>,
+    factors: StyleFactor[]
 ): string => {
     const parts: string[] = [];
 
-    // Serious vs Playful
-    if (serious > 0.6) {
-        parts.push(bookType === 'FICTION' ? "Serio e Drammatico" : "Formale e Professionale");
-    } else if (serious < 0.4) {
-        parts.push(bookType === 'FICTION' ? "Leggero e Ironico" : "Colloquiale e Amichevole");
-    } else {
-        parts.push("Bilanciato");
-    }
+    factors.forEach(f => {
+        const val = styleValues[f.id] ?? f.defaultValue;
 
-    // Concise vs Verbose
-    if (concise > 0.6) {
-        parts.push(bookType === 'FICTION' ? "Sintetico" : "Essenziale");
-    } else if (concise < 0.4) {
-        parts.push(bookType === 'FICTION' ? "Ricco di dettagli" : "Approfondito");
-    }
+        // Skip if value is neutral (around 0.5) to avoid clutter,
+        // UNLESS it's a critical factor or we want explicit instructions.
+        // Let's be explicit for now.
+        if (val > 0.6) {
+            parts.push(f.labelHigh);
+        } else if (val < 0.4) {
+            parts.push(f.labelLow);
+        } else {
+            // Optional: parts.push(`Equilibrato (${f.labelLow}/${f.labelHigh})`);
+        }
+    });
 
-    // Simple vs Complex
-    if (simple > 0.6) {
-        parts.push("Linguaggio semplice e accessibile");
-    } else if (simple < 0.4) {
-        parts.push(bookType === 'FICTION' ? "Stile letterario e complesso" : "Linguaggio tecnico per esperti");
+    if (parts.length === 0) {
+        return bookType === 'FICTION' ? "Stile narrativo bilanciato" : "Tono professionale e chiaro";
     }
 
     return parts.join(", ");

@@ -6,12 +6,13 @@ export interface ConceptCard {
 }
 
 export interface BookConfiguration {
-    toneSerious: number;
-    toneConcise: number;
-    toneSimple: number;
+    toneSerious?: number;
+    toneConcise?: number;
+    toneSimple?: number;
     targets: string[];
     chaptersRate: number;
     book_type?: 'FICTION' | 'NON_FICTION';
+    [key: string]: any; // Allow dynamic style factors
 }
 
 export interface Chapter {

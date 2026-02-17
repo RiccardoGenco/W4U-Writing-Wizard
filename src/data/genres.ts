@@ -3,12 +3,20 @@ import { PROMPTS } from './prompts';
 export type GenreCategory = 'Non-Fiction e Manualistica' | 'Altri Generi Chiave' | 'Fiction (Narrativa di Genere)';
 export type BookType = 'FICTION' | 'NON_FICTION';
 
+export interface StyleFactor {
+    id: string;
+    labelLow: string;
+    labelHigh: string;
+    defaultValue: number;
+}
+
 export interface GenreDefinition {
     label: string;
     category: GenreCategory;
     type: BookType;
     questions: string[];
     description?: string;
+    styleFactors?: StyleFactor[];
 }
 
 export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
@@ -26,6 +34,11 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
             'Vuoi includere esercizi pratici o riflessioni alla fine di ogni capitolo?',
             'Quale tono preferisci: motivazionale e diretto o analitico e basato sui dati?',
             'Qual è il "falso mito" in questo settore che vuoi smascherare?'
+        ],
+        styleFactors: [
+            { id: 'practical', labelLow: 'Teorico/Strategico', labelHigh: 'Pratico/Operativo', defaultValue: 0.7 },
+            { id: 'tone', labelLow: 'Ispirazionale', labelHigh: 'Analitico', defaultValue: 0.5 },
+            { id: 'simple', labelLow: 'Tecnico', labelHigh: 'Divulgativo', defaultValue: 0.8 }
         ]
     },
     'Salute, Dieta e Benessere': {
@@ -180,6 +193,11 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
             'Il tono deve essere adrenalinico o psicologico e lento?',
             'Qual è l\'arma o il metodo del delitto?',
             'Qual è la posta in gioco se il colpevole non viene catturato?'
+        ],
+        styleFactors: [
+            { id: 'pacing', labelLow: 'Lento/Atmosferico', labelHigh: 'Adrenalinico/Fast-paced', defaultValue: 0.6 },
+            { id: 'suspense', labelLow: 'Deduttivo/Giallo', labelHigh: 'Thriller/Azione', defaultValue: 0.5 },
+            { id: 'darkness', labelLow: 'Soft/Enigma', labelHigh: 'Crudo/Noir', defaultValue: 0.5 }
         ]
     },
     'Romance': {
@@ -195,6 +213,11 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
             'Qual è il livello di sensualità (da "pulito" a "esplicito")?',
             'Qual è l\'elemento che li costringe a passare del tempo insieme?',
             'Qual è il tono: ironico e leggero o drammatico e intenso?'
+        ],
+        styleFactors: [
+            { id: 'emotion', labelLow: 'Leggero/Rom-Com', labelHigh: 'Drammatico/Intenso', defaultValue: 0.5 },
+            { id: 'spice', labelLow: 'Pulito (Sweet)', labelHigh: 'Esplicito (Hot)', defaultValue: 0.3 },
+            { id: 'pacing', labelLow: 'Slow Burn', labelHigh: 'Fast Pace', defaultValue: 0.4 }
         ]
     },
     'Fantasy': {
@@ -210,6 +233,11 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
             'Il tono deve essere epico e solenne o "urban" e moderno?',
             'Qual è il costo della magia nel tuo mondo?',
             'Qual è la lezione morale o il tema di fondo della storia?'
+        ],
+        styleFactors: [
+            { id: 'world_building', labelLow: 'Minimalista', labelHigh: 'Dettagliato/Epico', defaultValue: 0.8 },
+            { id: 'magic', labelLow: 'Low Magic (Rara)', labelHigh: 'High Magic (Onnipresente)', defaultValue: 0.6 },
+            { id: 'tone', labelLow: 'Fiabesco', labelHigh: 'Cupo/Gritty', defaultValue: 0.4 }
         ]
     },
     'Sci-Fi': {
@@ -225,6 +253,11 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
             'Il tono deve essere "Hard Sci-Fi" (scientifico) o d\'avventura?',
             'Come si viaggia o si comunica in questo futuro?',
             'Qual è il monito che vuoi lanciare al presente?'
+        ],
+        styleFactors: [
+            { id: 'science', labelLow: 'Soft Sci-Fi (Avventura)', labelHigh: 'Hard Sci-Fi (Teorico)', defaultValue: 0.5 },
+            { id: 'tone', labelLow: 'Utopico/Speranzoso', labelHigh: 'Distopico/Cupo', defaultValue: 0.7 },
+            { id: 'scale', labelLow: 'Locale/Intimo', labelHigh: 'Epico/Galattico', defaultValue: 0.6 }
         ]
     },
     'Horror': {
