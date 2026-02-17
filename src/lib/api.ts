@@ -3,23 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 // ─── ENV Validation ────────────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const N8N_API_KEY = import.meta.env.VITE_N8N_API_KEY;
-const WEBHOOK_SECRET = import.meta.env.VITE_WEBHOOK_SECRET;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error('[API] CRITICAL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
 } else {
     console.log('[API] Supabase initialized:', SUPABASE_URL);
-}
-
-if (!WEBHOOK_SECRET) {
-    console.warn('[API] VITE_WEBHOOK_SECRET not set — webhooks may be rejected if backend requires auth');
-}
-
-if (!N8N_API_KEY) {
-    console.warn('[API] VITE_N8N_API_KEY not set — n8n calls will rely on JWT only');
-} else {
-    console.log('[API] N8N API Key configured');
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -56,52 +44,28 @@ export const callWithRetry = async <T>(fn: (attempt: number) => Promise<T>, retr
     throw lastError;
 };
 
-// Get current auth headers for n8n calls
+// Get current auth headers for Proxy calls
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json'
     };
 
     try {
-        // Add JWT token from Supabase session
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-            console.error('[API] getAuthHeaders: failed to get session:', error.message);
-        } else if (session?.access_token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
             headers['Authorization'] = `Bearer ${session.access_token}`;
-            console.log('[API] getAuthHeaders: JWT attached (expires:', new Date((session.expires_at || 0) * 1000).toISOString(), ')');
-        } else {
-            console.warn('[API] getAuthHeaders: no active session — request will be unauthenticated');
         }
     } catch (err: unknown) {
-        const error = err as Error;
-        console.error('[API] getAuthHeaders: CRASH getting session:', error.message);
-        // Don't block the request — proceed without JWT
-    }
-
-    // Add API key if configured
-    if (N8N_API_KEY) {
-        headers['X-API-Key'] = N8N_API_KEY;
-    }
-
-    // Add Webhook Secret if configured
-    if (WEBHOOK_SECRET) {
-        headers['X-Webhook-Secret'] = WEBHOOK_SECRET;
+        console.error('[API] getAuthHeaders: failed to get session');
     }
 
     return headers;
 };
 
-// Wrapper for n8n API calls with automatic retry logic
-export const callBookAgent = async (action: string, body: any, bookId?: string | null, customPath?: string) => {
-    let WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
-
-    // If a custom path is provided, construct the URL based on the same base
-    if (customPath) {
-        const baseUrl = WEBHOOK_URL.split('/webhook/')[0];
-        WEBHOOK_URL = `${baseUrl}/webhook/${customPath}`;
-    }
+// Wrapper for Proxy calls with automatic retry logic
+export const callBookAgent = async (action: string, body: any, bookId?: string | null) => {
+    // Forward to our local API proxy
+    const PROXY_URL = '/api/ai-agent';
 
     const requestPayload = {
         action,
@@ -109,23 +73,22 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
         ...body
     };
 
-    // Wrappa la chiamata nel retry logic
     return callWithRetry(async (attempt) => {
         const startTime = performance.now();
         const attemptLabel = `attempt_${attempt + 1}`;
 
-        // Log ad ogni tentativo
-        console.log(`[API] Calling n8n [${action}] on ${WEBHOOK_URL} (${attemptLabel}):`, requestPayload);
-        await logDebug('frontend', `n8n_request_${action.toLowerCase()}`, {
-            url: WEBHOOK_URL,
+        console.log(`[API] Calling Proxy [${action}] (${attemptLabel}):`, requestPayload);
+        await logDebug('frontend', `ai_request_${action.toLowerCase()}`, {
+            action,
+            bookId,
             attempt: attemptLabel,
-            ...requestPayload
+            ...body
         }, bookId);
 
         try {
             const authHeaders = await getAuthHeaders();
 
-            const response = await fetch(WEBHOOK_URL, {
+            const response = await fetch(PROXY_URL, {
                 method: 'POST',
                 headers: authHeaders,
                 body: JSON.stringify(requestPayload)
@@ -135,21 +98,20 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`[API] n8n Error ${response.status}:`, errorText);
-                await logDebug('frontend', `n8n_http_error_${action.toLowerCase()}`, {
+                console.error(`[API] AI Service Error ${response.status}:`, errorText);
+                await logDebug('frontend', `ai_http_error_${action.toLowerCase()}`, {
                     status: response.status,
                     statusText: response.statusText,
                     duration_ms: duration,
                     attempt: attemptLabel,
                     body: errorText
                 }, bookId);
-                throw new Error(`N8N Error ${response.status}: ${response.statusText}`);
+                throw new Error(`AI Service Error ${response.status}: ${errorText}`);
             }
 
             const data = await response.json();
 
-            // Log successo
-            await logDebug('frontend', `n8n_success_${action.toLowerCase()}`, {
+            await logDebug('frontend', `ai_success_${action.toLowerCase()}`, {
                 ...data,
                 duration_ms: duration,
                 attempt: attemptLabel
@@ -160,8 +122,7 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
         } catch (err: unknown) {
             const error = err as Error;
             const duration = Math.round(performance.now() - startTime);
-            // Log errore di rete/exception per questo tentativo specifico
-            await logDebug('frontend', `n8n_exception_${action.toLowerCase()}`, {
+            await logDebug('frontend', `ai_exception_${action.toLowerCase()}`, {
                 message: error.message,
                 type: (error as any).name || 'Error',
                 duration_ms: duration,
@@ -169,7 +130,7 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
             }, bookId);
             throw error;
         }
-    }, 3); // 3 tentativi totali
+    }, 3);
 };
 
 export { supabase };
