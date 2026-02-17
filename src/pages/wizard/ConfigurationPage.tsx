@@ -92,14 +92,18 @@ const ConfigurationPage: React.FC = () => {
 
             const toneDesc = getToneDescription(bookType, toneSerious, toneConcise, toneSimple);
 
+            // Calculate Chapter Count
+            const targetPages = parseInt(String(currentContext.target_pages || '100'), 10);
+            const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
+
             const architectPrompt = injectVariables(baseTemplate, {
                 tone: toneDesc,
                 target: targets.join(", ") || "Pubblico generale",
-                synopsis: currentContext.selected_concept?.description || "Sinossi non fornita"
+                synopsis: currentContext.selected_concept?.description || "Sinossi non fornita",
+                chapterCount: String(numChapters)
             });
 
             // 1. Call n8n to generate outline
-            const targetPages = currentContext.target_pages;
             const data = await callBookAgent('OUTLINE', {
                 configuration: config,
                 targetPages: targetPages,

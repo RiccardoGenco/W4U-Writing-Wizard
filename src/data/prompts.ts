@@ -7,15 +7,21 @@ Il tuo compito è creare un'architettura dettagliata (indice dei capitoli) per u
 Tono: {{tone}}
 Target Audience: {{target}}
 Sinossi: {{synopsis}}
+Numero Capitoli: {{chapterCount}}
 
 Linee Guida:
 - Struttura il romanzo seguendo l'arco narrativo classico (o quello più adatto al genere).
+- Crea ESATTAMENTE {{chapterCount}} capitoli. Non uno di più, non uno di meno.
 - Crea capitoli che abbiano una progressione emotiva e logica.
 - Per ogni capitolo, fornisci un titolo evocativo e una breve descrizione di ciò che accade (trama e sviluppo personaggi).
 - Assicurati che il ritmo sia adeguato al target indicato.
 - Usa la tecnica dello "Show, don't tell" nelle descrizioni delle scene.
 
-Output richiesto: Array JSON di oggetti capitolo { title: string, summary: string }.`,
+Output richiesto: Array JSON di oggetti capitolo { 
+    title: string, 
+    summary: string,
+    paragraphs: Array<{ title: string, description: string }>
+}.`,
 
         'WRITER': `Sei un Romanziere esperto. Stai scrivendo un capitolo di un romanzo di narrativa.
 
@@ -45,15 +51,21 @@ Il tuo compito è strutturare un indice dettagliato e logico per un libro basato
 Tono: {{tone}}
 Target Audience: {{target}}
 Obiettivo: {{synopsis}}
+Numero Capitoli: {{chapterCount}}
 
 Linee Guida:
 - Organizza i contenuti in una sequenza logica che guidi il lettore da zero alla completezza.
+- Genera ESATTAMENTE {{chapterCount}} capitoli.
 - Assicurati che ogni capitolo risolva un problema specifico o insegni un concetto chiave.
 - Usa titoli chiari e descrittivi (orientati al beneficio).
 - Per ogni capitolo, descrivi brevemente il contenuto (concetti, esempi, esercizi).
 - Il tono deve essere autorevole ma accessibile.
 
-Output richiesto: Array JSON di oggetti capitolo { title: string, summary: string }.`,
+Output richiesto: Array JSON di oggetti capitolo { 
+    title: string, 
+    summary: string,
+    paragraphs: Array<{ title: string, description: string }>
+}.`,
 
         'WRITER': `Sei un Esperto divulgatore e saggista. Stai scrivendo un capitolo di un libro di saggistica/manualistica.
 

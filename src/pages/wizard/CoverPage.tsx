@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Image, ChevronRight, Loader2, Wand2, Download, CheckCircle } from 'lucide-react';
+import { Image, ChevronRight, Loader2, Wand2, Download, CheckCircle, Type } from 'lucide-react';
 import { supabase, logDebug, callBookAgent } from '../../lib/api';
 import { motion } from 'framer-motion';
 
@@ -14,6 +14,12 @@ const CoverPage: React.FC = () => {
     const [style, setStyle] = useState('modern literary fiction');
     const [loading, setLoading] = useState(true);
     const [progressStage, setProgressStage] = useState<string>('');
+
+    // Overlay State
+    const [showOverlay, setShowOverlay] = useState(true);
+    const [titleColor, setTitleColor] = useState('#ffffff');
+    const [titleFont, setTitleFont] = useState('Cinzel');
+    const [overlayShadow, setOverlayShadow] = useState(true);
 
     const bookId = localStorage.getItem('active_book_id');
 
@@ -166,8 +172,10 @@ const CoverPage: React.FC = () => {
 
     const downloadCover = async () => {
         if (!coverUrl) return;
+        // NOTE: Downloading just the image. To download with text, we'd need canvas composition.
+        // For now, we rely on the user taking the image and ensuring the text is part of their final layout elsewhere if needed,
+        // or this is just for preview.
         try {
-            // Fetch blob to force download instead of opening in new tab
             const response = await fetch(coverUrl);
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
@@ -211,46 +219,88 @@ const CoverPage: React.FC = () => {
                 <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--text-muted)' }}>Anteprima Copertina</h3>
 
-                    {coverUrl ? (
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            style={{
-                                width: '280px',
-                                height: '420px',
+                    <div style={{ position: 'relative' }}>
+                        {coverUrl ? (
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                style={{
+                                    width: '320px',
+                                    height: '480px',
+                                    borderRadius: '8px',
+                                    overflow: 'hidden',
+                                    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    position: 'relative'
+                                }}
+                            >
+                                <img
+                                    src={coverUrl}
+                                    alt="Copertina del libro"
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                />
+                                {/* HTML TEXT OVERLAY */}
+                                {showOverlay && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between',
+                                        padding: '2rem',
+                                        textAlign: 'center',
+                                        textShadow: overlayShadow ? '0 2px 10px rgba(0,0,0,0.8)' : 'none'
+                                    }}>
+                                        <div style={{ marginTop: '2rem' }}>
+                                            <h1 style={{
+                                                fontFamily: titleFont,
+                                                color: titleColor,
+                                                fontSize: '2.5rem',
+                                                lineHeight: 1.1,
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.05em'
+                                            }}>
+                                                {bookTitle}
+                                            </h1>
+                                        </div>
+                                        <div style={{ marginBottom: '2rem' }}>
+                                            <p style={{
+                                                fontFamily: 'Montserrat, sans-serif',
+                                                color: titleColor,
+                                                fontSize: '1.1rem',
+                                                fontWeight: 600,
+                                                letterSpacing: '0.2em',
+                                                textTransform: 'uppercase',
+                                                opacity: 0.9
+                                            }}>
+                                                {bookAuthor}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </motion.div>
+                        ) : (
+                            <div style={{
+                                width: '320px',
+                                height: '480px',
                                 borderRadius: '8px',
-                                overflow: 'hidden',
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #0f172a 100%)',
                                 boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-                                border: '1px solid rgba(255,255,255,0.2)'
-                            }}
-                        >
-                            <img
-                                src={coverUrl}
-                                alt="Copertina del libro"
-                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                        </motion.div>
-                    ) : (
-                        <div style={{
-                            width: '280px',
-                            height: '420px',
-                            borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #4f46e5 0%, #0f172a 100%)',
-                            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-                            border: '1px solid rgba(255,255,255,0.2)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white',
-                            textAlign: 'center',
-                            padding: '2rem'
-                        }}>
-                            <Image size={64} style={{ marginBottom: '1rem', opacity: 0.7 }} />
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>{bookTitle}</h2>
-                            <p style={{ fontSize: '1rem', opacity: 0.8 }}>di {bookAuthor}</p>
-                        </div>
-                    )}
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                textAlign: 'center',
+                                padding: '2rem'
+                            }}>
+                                <Image size={64} style={{ marginBottom: '1rem', opacity: 0.7 }} />
+                                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>{bookTitle}</h2>
+                                <p style={{ fontSize: '1rem', opacity: 0.8 }}>di {bookAuthor}</p>
+                            </div>
+                        )}
+                    </div>
 
                     {coverUrl && (
                         <motion.div
@@ -294,6 +344,51 @@ const CoverPage: React.FC = () => {
                                     placeholder="Es. pittura a olio, minimalista, cyberpunk..."
                                     style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', color: 'white' }}
                                 />
+                            </div>
+
+                            {/* OVERLAY CONTROLS */}
+                            <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', cursor: 'pointer' }} onClick={() => setShowOverlay(!showOverlay)}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', fontWeight: 600, cursor: 'pointer' }}>
+                                        <Type size={16} /> Sovrapponi Testo
+                                    </label>
+                                    <div style={{
+                                        width: '36px', height: '20px', background: showOverlay ? 'var(--primary)' : 'var(--bg-disabled)',
+                                        borderRadius: '20px', position: 'relative', transition: 'all 0.3s'
+                                    }}>
+                                        <div style={{
+                                            position: 'absolute', width: '16px', height: '16px', background: 'white', borderRadius: '50%',
+                                            top: '2px', left: showOverlay ? '18px' : '2px', transition: 'all 0.3s'
+                                        }} />
+                                    </div>
+                                </div>
+
+                                {showOverlay && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                                            <button onClick={() => setTitleColor('#ffffff')} style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#ffffff', border: titleColor === '#ffffff' ? '2px solid var(--primary)' : '1px solid #ccc' }} title="White" />
+                                            <button onClick={() => setTitleColor('#000000')} style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#000000', border: titleColor === '#000000' ? '2px solid var(--primary)' : '1px solid #ccc' }} title="Black" />
+                                            <button onClick={() => setTitleColor('#FFD700')} style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#FFD700', border: titleColor === '#FFD700' ? '2px solid var(--primary)' : '1px solid #ccc' }} title="Gold" />
+
+                                            <div style={{ width: '1px', background: 'var(--glass-border)', margin: '0 0.5rem' }} />
+
+                                            <select
+                                                value={titleFont}
+                                                onChange={(e) => setTitleFont(e.target.value)}
+                                                style={{ padding: '0.2rem', fontSize: '0.8rem', background: 'transparent', border: '1px solid var(--glass-border)', color: 'white' }}
+                                            >
+                                                <option value="Cinzel">Cinzel (Fantasy)</option>
+                                                <option value="Playfair Display">Playfair (Elegant)</option>
+                                                <option value="Montserrat">Montserrat (Modern)</option>
+                                                <option value="Inter">Inter (Clean)</option>
+                                            </select>
+                                        </div>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                            <input type="checkbox" checked={overlayShadow} onChange={(e) => setOverlayShadow(e.target.checked)} />
+                                            Ombreggiatura testo
+                                        </label>
+                                    </motion.div>
+                                )}
                             </div>
                         </div>
 

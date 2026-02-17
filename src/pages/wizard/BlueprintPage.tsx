@@ -7,6 +7,7 @@ interface Chapter {
     id: string;
     title: string;
     summary: string;
+    paragraphs?: Array<{ title: string; description: string }>;
 }
 
 
@@ -35,7 +36,7 @@ const BlueprintPage: React.FC = () => {
             if (bookId) {
                 const { data } = await supabase
                     .from('chapters')
-                    .select('id, title, summary')
+                    .select('id, title, summary, structure')
                     .eq('book_id', bookId)
                     .order('chapter_number', { ascending: true });
 
@@ -43,7 +44,8 @@ const BlueprintPage: React.FC = () => {
                     const formatted = data.map(d => ({
                         id: d.id,
                         title: d.title,
-                        summary: d.summary
+                        summary: d.summary,
+                        paragraphs: d.structure as any // Cast JSONB to expected type
                     }));
                     setChapters(formatted);
                     localStorage.setItem('project_chapters', JSON.stringify(formatted));
@@ -68,6 +70,7 @@ const BlueprintPage: React.FC = () => {
                 chapter_number: index + 1,
                 title: c.title,
                 summary: c.summary,
+                structure: c.paragraphs, // Save paragraphs to DB
                 status: 'PENDING'
             }));
 
@@ -119,7 +122,7 @@ const BlueprintPage: React.FC = () => {
             const data = await callBookAgent('OUTLINE', {
                 feedback,
                 targetChapterIndex: index, // Indicating which chapter to change if the agent supports it
-                currentChapters: chapters.map(c => ({ title: c.title, summary: c.summary }))
+                currentChapters: chapters.map(c => ({ title: c.title, summary: c.summary, paragraphs: c.paragraphs }))
             }, bookId);
             const resData = data.data || data;
 
@@ -137,14 +140,16 @@ const BlueprintPage: React.FC = () => {
                         next[index] = {
                             ...next[index],
                             title: aiChapter.title,
-                            summary: aiChapter.summary || aiChapter.scene_description
+                            summary: aiChapter.summary || aiChapter.scene_description,
+                            paragraphs: aiChapter.paragraphs // Update paragraphs from AI
                         };
                     } else {
                         // Fallback: Use the new list but preserve IDs where possible
                         const fallback = resData.chapters.map((c: any, i: number) => ({
                             id: prev[i]?.id || `chap-${i}-${Date.now()}`,
                             title: c.title,
-                            summary: c.summary || c.scene_description
+                            summary: c.summary || c.scene_description,
+                            paragraphs: c.paragraphs
                         }));
                         localStorage.setItem('project_chapters', JSON.stringify(fallback));
                         return fallback;
