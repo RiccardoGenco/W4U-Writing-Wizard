@@ -99,6 +99,9 @@ const ConfigurationPage: React.FC = () => {
         };
         let currentContext: BookContext = {};
 
+        // Calculate chapters using standardized formula (matches n8n Calculator)
+        const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
+
         try {
             // Save config to Supabase first
             if (bookId) {
@@ -107,6 +110,7 @@ const ConfigurationPage: React.FC = () => {
 
                 await supabase.from('books').update({
                     status: 'BLUEPRINT',
+                    target_chapters: numChapters,  // Persist for n8n workflow
                     context_data: {
                         ...currentContext,
                         configuration: config,
@@ -119,7 +123,7 @@ const ConfigurationPage: React.FC = () => {
             // Prepare Dynamic Prompt
             const rawPrompts = getPromptsForGenre(genre || '');
             const toneDesc = getToneDescription(bookType, styleValues, currentStyleFactors);
-            const numChapters = Math.ceil(targetPages / chaptersRate);
+
 
             // STEP 1: GENERATE PLOT SUMMARY
             setLoadingMessage('Generazione trama...');
@@ -155,9 +159,25 @@ const ConfigurationPage: React.FC = () => {
             // But we'll add a step if the user specifically asked for "short description for each paragraph".
 
             // 2. Save transient outline and config
-
-            // 2. Save transient outline and config
             if (resData.chapters && Array.isArray(resData.chapters)) {
+                // VALIDATION: Verify chapter count matches target
+                if (resData.chapters.length !== numChapters) {
+                    console.warn(
+                        `[ARCHITECT] Generated ${resData.chapters.length} chapters instead of ${numChapters}. ` +
+                        `This may indicate the AI prompt needs adjustment.`
+                    );
+                    // Log to debug_logs for monitoring
+                    await supabase.from('debug_logs').insert({
+                        source: 'frontend',
+                        event_type: 'chapter_count_mismatch',
+                        metadata: {
+                            expected: numChapters,
+                            actual: resData.chapters.length,
+                            book_id: bookId
+                        }
+                    });
+                }
+
                 const chaptersWithIds: Chapter[] = resData.chapters.map((c: { title: string; summary?: string; scene_description?: string; paragraphs?: any[] }, i: number) => ({
                     id: `chap-${i}-${Date.now()}`,
                     title: c.title,
@@ -268,7 +288,7 @@ const ConfigurationPage: React.FC = () => {
                         }}>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Configurazione Calcolata</p>
                             <h4 style={{ fontSize: '1.5rem', color: 'var(--primary)' }}>
-                                {Math.ceil(targetPages / chaptersRate)} Capitoli stimati
+                                {Math.max(1, Math.floor(targetPages / chaptersRate))} Capitoli stimati
                             </h4>
                         </div>
                     </div>

@@ -592,6 +592,91 @@ app.post("/api/projects/delete", async (req, res) => {
     }
 });
 
+// --- AI AGENT PROXY (SECURITY) ---
+
+/**
+ * Secure proxy for n8n AI workflow calls.
+ * Validates user JWT and forwards requests to n8n using server-side credentials.
+ * This prevents exposing n8n credentials in the client bundle.
+ */
+app.post("/api/ai-agent", async (req, res) => {
+    try {
+        // 1. Extract and validate JWT from Authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+
+        const token = authHeader.substring(7); // Remove "Bearer "
+
+        // 2. Verify JWT with Supabase
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+        if (authError || !user) {
+            console.error("[AI Proxy] Auth error:", authError?.message);
+            return res.status(401).json({ error: "Invalid or expired token" });
+        }
+
+        // 3. Validate required fields
+        const { action, bookId, ...otherParams } = req.body;
+        if (!action) {
+            return res.status(400).json({ error: "Missing 'action' parameter" });
+        }
+
+        // 4. Prepare n8n webhook request
+        const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+        if (!n8nWebhookUrl) {
+            console.error("[AI Proxy] N8N_WEBHOOK_URL not configured");
+            return res.status(500).json({ error: "AI service not configured" });
+        }
+
+        const n8nPayload = {
+            action,
+            bookId,
+            userId: user.id, // Inject validated user ID
+            ...otherParams
+        };
+
+        const n8nHeaders = {
+            'Content-Type': 'application/json'
+        };
+
+        // Add optional authentication headers
+        if (process.env.N8N_API_KEY) {
+            n8nHeaders['X-API-Key'] = process.env.N8N_API_KEY;
+        }
+        if (process.env.N8N_WEBHOOK_SECRET) {
+            n8nHeaders['X-Webhook-Secret'] = process.env.N8N_WEBHOOK_SECRET;
+        }
+
+        console.log(`[AI Proxy] Forwarding ${action} for user ${user.id}, book ${bookId || 'N/A'}`);
+
+        // 5. Forward request to n8n
+        const n8nResponse = await fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: n8nHeaders,
+            body: JSON.stringify(n8nPayload)
+        });
+
+        if (!n8nResponse.ok) {
+            const errorText = await n8nResponse.text();
+            console.error(`[AI Proxy] n8n error ${n8nResponse.status}:`, errorText);
+            return res.status(n8nResponse.status).json({
+                error: "AI service error",
+                details: errorText
+            });
+        }
+
+        // 6. Return n8n response to client
+        const n8nData = await n8nResponse.json();
+        res.json(n8nData);
+
+    } catch (error) {
+        console.error("[AI Proxy] Unexpected error:", error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
 // --- SHARED SANITIZATION ENDPOINT ---
 
 app.post("/api/sanitize", (req, res) => {

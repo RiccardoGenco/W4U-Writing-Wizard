@@ -3,8 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 // ─── ENV Validation ────────────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const N8N_API_KEY = import.meta.env.VITE_N8N_API_KEY;
-const WEBHOOK_SECRET = import.meta.env.VITE_WEBHOOK_SECRET;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error('[API] CRITICAL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
@@ -12,15 +10,8 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.log('[API] Supabase initialized:', SUPABASE_URL);
 }
 
-if (!WEBHOOK_SECRET) {
-    console.warn('[API] VITE_WEBHOOK_SECRET not set — webhooks may be rejected if backend requires auth');
-}
-
-if (!N8N_API_KEY) {
-    console.warn('[API] VITE_N8N_API_KEY not set — n8n calls will rely on JWT only');
-} else {
-    console.log('[API] N8N API Key configured');
-}
+// NOTE: n8n credentials (N8N_API_KEY, N8N_WEBHOOK_SECRET) are now server-side only
+// They should NOT be prefixed with VITE_ and will not be accessible from the client
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -80,28 +71,17 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
         // Don't block the request — proceed without JWT
     }
 
-    // Add API key if configured
-    if (N8N_API_KEY) {
-        headers['X-API-Key'] = N8N_API_KEY;
-    }
-
-    // Add Webhook Secret if configured
-    if (WEBHOOK_SECRET) {
-        headers['X-Webhook-Secret'] = WEBHOOK_SECRET;
-    }
+    // NOTE: n8n credentials are now handled server-side by the proxy
+    // No need to expose VITE_N8N_API_KEY or VITE_WEBHOOK_SECRET here
 
     return headers;
 };
 
 // Wrapper for n8n API calls with automatic retry logic
-export const callBookAgent = async (action: string, body: Record<string, unknown>, bookId?: string | null, customPath?: string) => {
-    let WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
-
-    // If a custom path is provided, construct the URL based on the same base
-    if (customPath) {
-        const baseUrl = WEBHOOK_URL.split('/webhook/')[0];
-        WEBHOOK_URL = `${baseUrl}/webhook/${customPath}`;
-    }
+// NOW USES SECURE PROXY: /api/ai-agent instead of direct n8n webhook
+export const callBookAgent = async (action: string, body: Record<string, unknown>, bookId?: string | null) => {
+    // Use the secure proxy endpoint
+    const PROXY_URL = '/api/ai-agent';
 
     const requestPayload = {
         action,
@@ -115,9 +95,8 @@ export const callBookAgent = async (action: string, body: Record<string, unknown
         const attemptLabel = `attempt_${attempt + 1}`;
 
         // Log ad ogni tentativo
-        console.log(`[API] Calling n8n [${action}] on ${WEBHOOK_URL} (${attemptLabel}):`, requestPayload);
-        await logDebug('frontend', `n8n_request_${action.toLowerCase()}`, {
-            url: WEBHOOK_URL,
+        console.log(`[API] Calling AI Agent [${action}] via proxy (${attemptLabel}):`, requestPayload);
+        await logDebug('frontend', `ai_request_${action.toLowerCase()}`, {
             attempt: attemptLabel,
             ...requestPayload
         }, bookId);
@@ -125,7 +104,7 @@ export const callBookAgent = async (action: string, body: Record<string, unknown
         try {
             const authHeaders = await getAuthHeaders();
 
-            const response = await fetch(WEBHOOK_URL, {
+            const response = await fetch(PROXY_URL, {
                 method: 'POST',
                 headers: authHeaders,
                 body: JSON.stringify(requestPayload)
@@ -135,21 +114,21 @@ export const callBookAgent = async (action: string, body: Record<string, unknown
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`[API] n8n Error ${response.status}:`, errorText);
-                await logDebug('frontend', `n8n_http_error_${action.toLowerCase()}`, {
+                console.error(`[API] Proxy Error ${response.status}:`, errorText);
+                await logDebug('frontend', `ai_http_error_${action.toLowerCase()}`, {
                     status: response.status,
                     statusText: response.statusText,
                     duration_ms: duration,
                     attempt: attemptLabel,
                     body: errorText
                 }, bookId);
-                throw new Error(`N8N Error ${response.status}: ${response.statusText}`);
+                throw new Error(`AI Service Error ${response.status}: ${response.statusText}`);
             }
 
             const data = await response.json();
 
             // Log successo
-            await logDebug('frontend', `n8n_success_${action.toLowerCase()}`, {
+            await logDebug('frontend', `ai_success_${action.toLowerCase()}`, {
                 ...data,
                 duration_ms: duration,
                 attempt: attemptLabel
@@ -161,7 +140,7 @@ export const callBookAgent = async (action: string, body: Record<string, unknown
             const error = err as Error;
             const duration = Math.round(performance.now() - startTime);
             // Log errore di rete/exception per questo tentativo specifico
-            await logDebug('frontend', `n8n_exception_${action.toLowerCase()}`, {
+            await logDebug('frontend', `ai_exception_${action.toLowerCase()}`, {
                 message: error.message,
                 type: error.name || 'Error',
                 duration_ms: duration,
