@@ -600,15 +600,22 @@ app.post("/api/projects/delete", async (req, res) => {
  */
 async function forwardToN8n(requestId, userId, payload) {
     try {
-        const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+        const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
+
+        // Ensure absolute URL for Node fetch
+        const n8nWebhookUrl = n8nWebhookUrlRaw?.startsWith('/')
+            ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
+            : n8nWebhookUrlRaw;
+
         const n8nPayload = { ...payload, userId, requestId };
 
         const n8nHeaders = {
             'Content-Type': 'application/json',
         };
 
-        if (process.env.N8N_API_KEY) {
-            n8nHeaders['X-API-Key'] = process.env.N8N_API_KEY;
+        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
+        if (n8nApiKey) {
+            n8nHeaders['X-API-Key'] = n8nApiKey;
         }
         if (process.env.WEBHOOK_SECRET) {
             n8nHeaders['X-Webhook-Secret'] = process.env.WEBHOOK_SECRET;
@@ -796,7 +803,13 @@ app.post("/api/ai-agent-sync", async (req, res) => {
             return res.status(400).json({ error: "Missing 'action' parameter" });
         }
 
-        const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;
+        const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
+
+        // Ensure absolute URL
+        const n8nWebhookUrl = n8nWebhookUrlRaw?.startsWith('/')
+            ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
+            : n8nWebhookUrlRaw;
+
         if (!n8nWebhookUrl) {
             console.error("[AI Proxy] N8N_WEBHOOK_URL not configured");
             return res.status(500).json({ error: "AI service not configured" });
@@ -813,8 +826,9 @@ app.post("/api/ai-agent-sync", async (req, res) => {
             'Content-Type': 'application/json'
         };
 
-        if (process.env.N8N_API_KEY) {
-            n8nHeaders['X-API-Key'] = process.env.N8N_API_KEY;
+        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
+        if (n8nApiKey) {
+            n8nHeaders['X-API-Key'] = n8nApiKey;
         }
         if (process.env.N8N_WEBHOOK_SECRET) {
             n8nHeaders['X-Webhook-Secret'] = process.env.N8N_WEBHOOK_SECRET;
