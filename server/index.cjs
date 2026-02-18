@@ -588,8 +588,25 @@ app.post("/api/projects/delete", async (req, res) => {
  * Async helper to forward requests to n8n in the background.
  * Updates ai_requests table with results when complete.
  */
-async function forwardToN8n(requestId, userId, payload) {
+async function forwardToN8n(requestId, userId, payload, token) {
     try {
+        // Create client: usage scoped if token provided, otherwise global (which is anon - likely to fail if RLS blocks update)
+        // If we don't have service_role, we MUST use the user token and have RLS "Users can update own"
+        let dbClient = supabase;
+        if (token) {
+            dbClient = createClient(
+                process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+                process.env.VITE_SUPABASE_ANON_KEY || "",
+                {
+                    global: {
+                        headers: {
+                            Authorization: `Bearer ${token}`
+                        }
+                    }
+                }
+            );
+        }
+
         const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
 
         // Ensure absolute URL for Node fetch
@@ -616,7 +633,7 @@ async function forwardToN8n(requestId, userId, payload) {
         }
 
         // Update status to processing
-        await supabase.from('ai_requests')
+        await dbClient.from('ai_requests')
             .update({ status: 'processing', updated_at: new Date().toISOString() })
             .eq('id', requestId);
 
@@ -637,7 +654,7 @@ async function forwardToN8n(requestId, userId, payload) {
         console.log(`[AI Proxy] Request ${requestId} completed successfully`);
 
         // Update ai_requests with result
-        await supabase.from('ai_requests')
+        await dbClient.from('ai_requests')
             .update({
                 status: 'completed',
                 response_data: responseData,
@@ -649,7 +666,17 @@ async function forwardToN8n(requestId, userId, payload) {
         console.error(`[AI Proxy] Request ${requestId} failed:`, error.message);
 
         // Update ai_requests with error
-        await supabase.from('ai_requests')
+        // Re-create client in catch block if needed, or use same
+        let dbClient = supabase;
+        if (token) {
+            dbClient = createClient(
+                process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+                process.env.VITE_SUPABASE_ANON_KEY || "",
+                { global: { headers: { Authorization: `Bearer ${token}` } } }
+            );
+        }
+
+        await dbClient.from('ai_requests')
             .update({
                 status: 'failed',
                 error_message: error.message,
@@ -718,8 +745,22 @@ app.post("/api/ai-agent", async (req, res) => {
 
         const token = authHeader.substring(7);
 
-        // Verify JWT with Supabase
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        // Create a scoped Supabase client for this user
+        // This allows us to interact with the DB acting AS the user, respecting RLS
+        const scopedSupabase = createClient(
+            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+            process.env.VITE_SUPABASE_ANON_KEY || "",
+            {
+                global: {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            }
+        );
+
+        // Get user from the scoped client
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
 
         if (authError || !user) {
             console.error("[AI Proxy] Auth error:", authError?.message);
@@ -731,8 +772,8 @@ app.post("/api/ai-agent", async (req, res) => {
             return res.status(400).json({ error: "Missing 'action' parameter" });
         }
 
-        // Create ai_requests record
-        const { data: aiRequest, error: insertError } = await supabase
+        // Create ai_requests record using the scoped client
+        const { data: aiRequest, error: insertError } = await scopedSupabase
             .from('ai_requests')
             .insert({
                 user_id: user.id,
@@ -746,7 +787,7 @@ app.post("/api/ai-agent", async (req, res) => {
 
         if (insertError) {
             console.error("[AI Proxy] Failed to create ai_request:", insertError);
-            return res.status(500).json({ error: "Failed to queue request" });
+            return res.status(500).json({ error: "Failed to queue request: " + insertError.message });
         }
 
         console.log(`[AI Proxy] Created async request ${aiRequest.id} for user ${user.id}`);
@@ -759,7 +800,8 @@ app.post("/api/ai-agent", async (req, res) => {
         });
 
         // Forward to n8n asynchronously (don't await)
-        forwardToN8n(aiRequest.id, user.id, req.body).catch(err => {
+        // Pass the token so `forwardToN8n` can also create a scoped client to update the record
+        forwardToN8n(aiRequest.id, user.id, req.body, token).catch(err => {
             console.error('[AI Proxy] Background n8n forward error:', err);
         });
 
