@@ -15,10 +15,15 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
+# Environment variables - NEVER commit secrets!
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development
+# Also ignore .env.example (keep local only)
+.env.example
 
 # Editor directories and files
 .vscode/*
