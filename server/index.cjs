@@ -50,53 +50,52 @@ const supabase = createClient(
 
 const removeEmojis = (text) => {
     if (!text) return "";
-    return text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
+    return text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}]/gu, "");
 };
 
 const normalizeText = (text) => {
     if (!text) return "";
     return text
-        .replace(/\\n/g, "\n")
         .replace(/\r\n/g, "\n")
-        .replace(/\u00A0/g, " ")
+        .replace(/\r/g, "\n")
+        .replace(/[ \t]+/g, " ")
         .replace(/\n{3,}/g, "\n\n")
-        .replace(/<hr\s*\/?>/gi, "") // Phase 1: Remove all <hr/>
         .trim();
 };
 
-/**
- * Editorial Casing: Transforms ALL CAPS to Sentence case, preserving 2-4 letter acronyms.
- */
 const editorialCasing = (text) => {
     if (!text) return "";
-    // Check if it's mostly uppercase
-    const upperCaseMatches = text.match(/[A-Z]/g) || [];
-    const lowerCaseMatches = text.match(/[a-z]/g) || [];
-
-    if (upperCaseMatches.length > lowerCaseMatches.length && upperCaseMatches.length > 4) {
-        return text.split(" ").map(word => {
-            // Preserve potential acronyms (2-4 letters, all uppercase)
-            if (word.length >= 2 && word.length <= 4 && /^[A-Z]+$/.test(word)) {
-                return word;
+    const minorWords = new Set([
+        "a", "an", "the", "and", "but", "or", "nor", "for", "yet", "so",
+        "at", "by", "in", "of", "on", "to", "up", "as", "is", "it",
+        "di", "del", "della", "dei", "degli", "delle", "da", "dal", "dalla",
+        "dai", "dagli", "dalle", "in", "nel", "nella", "nei", "negli", "nelle",
+        "su", "sul", "sulla", "sui", "sugli", "sulle", "con", "per", "tra", "fra",
+        "e", "o", "ma", "se", "che", "un", "una", "uno", "il", "lo", "la", "i", "gli", "le"
+    ]);
+    return text
+        .toLowerCase()
+        .split(" ")
+        .map((word, index) => {
+            if (index === 0 || !minorWords.has(word)) {
+                return word.charAt(0).toUpperCase() + word.slice(1);
             }
-            return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-        }).join(" ");
-    }
-    return text;
+            return word;
+        })
+        .join(" ");
 };
 
-/**
- * Chapter Hierarchy Normalization: Removes repetitive "Capitolo X:" markers using regex.
- */
-const cleanChapterTitle = (title) => {
-    if (!title) return "";
-    // Removes common prefixes like "Capitolo 1:", "Chapter 1 -", "1."
-    return title.replace(/^(Capitolo|Chapter|Cap|Ch|Parte|Part)\s*\d+[:\s\-\.]*/i, "").trim();
+const cleanChapterTitle = (text) => {
+    if (!text) return "";
+    return text
+        .replace(/^(capitolo|chapter|cap\.?)\s*\d+\s*[:\-–—]?\s*/i, "")
+        .replace(/^\d+\.\s*/, "")
+        .trim();
 };
 
 const formatChapterTitle = (index, rawTitle) => {
-    const clean = editorialCasing(cleanChapterTitle(normalizeText(removeEmojis(rawTitle))));
-    return `Capitolo ${index + 1}: ${clean}`;
+    const cleanTitle = editorialCasing(cleanChapterTitle(normalizeText(removeEmojis(rawTitle))));
+    return `Capitolo ${index + 1} – ${cleanTitle}`;
 };
 
 // --- HELPER: Get Temp Path ---
@@ -143,14 +142,12 @@ app.post("/export/epub", async (req, res) => {
         const content = chapters.map((ch, index) => {
             const fullTitle = formatChapterTitle(index, ch.title || "Senza titolo");
 
-            // 2. Content Sanitization
+            // Content Sanitization
             const cleanMarkdown = normalizeText(removeEmojis(ch.content || ""));
             const semanticHtml = marked.parse(cleanMarkdown);
 
-            // Re-adding the lang="it" wrapper if needed, but let's keep it simple
             return {
                 title: fullTitle,
-                // Phase 1: Ensure lang="it" and single <h1>
                 data: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
             };
         });
@@ -163,11 +160,10 @@ app.post("/export/epub", async (req, res) => {
             author: cleanAuthor,
             publisher: "W4U",
             content: content,
-            appendChapterTitles: false, // We added them manually in 'data'
+            appendChapterTitles: false,
             lang: "it",
             uuid: exportUuid,
             output: outputPath,
-            // Phase 2: Reflowable-First CSS
             css: `
         body { font-family: serif; line-height: 1.5; text-align: justify; }
         h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: bold; font-size: 1.5em; page-break-before: always; }
@@ -234,18 +230,14 @@ app.post("/export/docx", async (req, res) => {
         const publisher = "W4U";
 
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
-            Header, Footer, PageNumber, convertInchesToTwip, BorderStyle,
-            TableOfContents, InternalHyperlink } = docx;
+            Header, Footer, PageNumber, convertInchesToTwip,
+            InternalHyperlink } = docx;
 
         const processedChapters = chapters.map((ch, index) => {
             const rawTitle = ch.title || "Senza titolo";
             const fullTitle = formatChapterTitle(index, rawTitle);
             const cleanMarkdown = normalizeText(removeEmojis(ch.content || ""));
-            const htmlContent = marked.parse(cleanMarkdown); // Logic for HTML parsing below needs to be robust
-
-            // We need to strip HTML tags for DOCX Paragraphs. 
-            // Better: Use a markdown-to-docx parser or simple text extraction.
-            // Using existing simple HTML parser logic:
+            const htmlContent = marked.parse(cleanMarkdown);
 
             return {
                 number: index + 1,
@@ -294,7 +286,6 @@ app.post("/export/docx", async (req, res) => {
             })
         );
 
-        // Manual TOC Construction if TableOfContents isn't flexible enough
         processedChapters.forEach((ch) => {
             children.push(
                 new Paragraph({
@@ -344,7 +335,7 @@ app.post("/export/docx", async (req, res) => {
         function parseHtmlToParagraphs(html) {
             const paragraphs = [];
             const textContent = html
-                .replace(/<\/?[^>]+(>|$)/g, "\n")
+                .replace(/<\/?[^>]+(\>|$)/g, "\n")
                 .replace(/&nbsp;/g, " ")
                 .replace(/&amp;/g, "&")
                 .replace(/&lt;/g, "<")
@@ -395,7 +386,7 @@ app.post("/export/docx", async (req, res) => {
                                         italics: true
                                     })
                                 ],
-                                alignment: AlignmentType.CENTER // Centered "Author - Title"
+                                alignment: AlignmentType.CENTER
                             })
                         ]
                     })
@@ -420,7 +411,6 @@ app.post("/export/docx", async (req, res) => {
         });
 
         const exportUuid = uuidv4();
-        // Vercel compatible path
         const outputPath = getTempPath(`export_${bookId}_${exportUuid}.docx`);
 
         const buffer = await Packer.toBuffer(doc);
@@ -538,7 +528,6 @@ app.post("/export/pdf", async (req, res) => {
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
         const exportUuid = uuidv4();
-        // Vercel compatible path
         const outputPath = getTempPath(`export_${bookId}_${exportUuid}.pdf`);
 
         await page.pdf({
@@ -588,8 +577,194 @@ app.post("/api/projects/delete", async (req, res) => {
 
         res.json({ success: true, message: "Project deleted successfully" });
     } catch (error) {
-        console.error("Delete project error:", error);
         res.status(500).json({ error: "Failed to delete project" });
+    }
+});
+
+// --- AI AGENT PROXY (ASYNC WITH POLLING) ---
+
+/**
+ * Async helper to forward requests to n8n in the background.
+ * Updates ai_requests table with results when complete.
+ */
+async function forwardToN8n(requestId, userId, payload) {
+    try {
+        const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
+
+        // Ensure absolute URL for Node fetch
+        const n8nWebhookUrl = n8nWebhookUrlRaw?.startsWith('/')
+            ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
+            : n8nWebhookUrlRaw;
+
+        if (!n8nWebhookUrl) {
+            throw new Error("N8N_WEBHOOK_URL not configured");
+        }
+
+        const n8nPayload = { ...payload, userId, requestId };
+
+        const n8nHeaders = {
+            'Content-Type': 'application/json',
+        };
+
+        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
+        if (n8nApiKey) {
+            n8nHeaders['X-API-Key'] = n8nApiKey;
+        }
+        if (process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET) {
+            n8nHeaders['X-Webhook-Secret'] = process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
+        }
+
+        // Update status to processing
+        await supabase.from('ai_requests')
+            .update({ status: 'processing', updated_at: new Date().toISOString() })
+            .eq('id', requestId);
+
+        console.log(`[AI Proxy] Forwarding request ${requestId} to n8n: ${n8nWebhookUrl}`);
+
+        const n8nResponse = await fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: n8nHeaders,
+            body: JSON.stringify(n8nPayload)
+        });
+
+        const responseData = await n8nResponse.json();
+
+        if (!n8nResponse.ok) {
+            throw new Error(`n8n error ${n8nResponse.status}: ${JSON.stringify(responseData)}`);
+        }
+
+        console.log(`[AI Proxy] Request ${requestId} completed successfully`);
+
+        // Update ai_requests with result
+        await supabase.from('ai_requests')
+            .update({
+                status: 'completed',
+                response_data: responseData,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', requestId);
+
+    } catch (error) {
+        console.error(`[AI Proxy] Request ${requestId} failed:`, error.message);
+
+        // Update ai_requests with error
+        await supabase.from('ai_requests')
+            .update({
+                status: 'failed',
+                error_message: error.message,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', requestId);
+    }
+}
+
+/**
+ * GET /api/ai-agent/status/:requestId
+ * Check the status of an async AI request
+ */
+app.get("/api/ai-agent/status/:requestId", async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.split('Bearer ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        const requestId = req.params.requestId;
+
+        // Query ai_requests table
+        const { data: request, error } = await supabase
+            .from('ai_requests')
+            .select('*')
+            .eq('id', requestId)
+            .eq('user_id', user.id)
+            .single();
+
+        if (error || !request) {
+            return res.status(404).json({ error: 'Request not found' });
+        }
+
+        res.json({
+            status: request.status,
+            data: request.response_data,
+            error: request.error_message,
+            created_at: request.created_at,
+            updated_at: request.updated_at
+        });
+    } catch (err) {
+        console.error('[AI Proxy] Status check error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * POST /api/ai-agent
+ * Creates async AI request and returns immediately with requestId.
+ * Frontend should poll /api/ai-agent/status/:requestId for result.
+ */
+app.post("/api/ai-agent", async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+
+        const token = authHeader.substring(7);
+
+        // Verify JWT with Supabase
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+        if (authError || !user) {
+            console.error("[AI Proxy] Auth error:", authError?.message);
+            return res.status(401).json({ error: "Invalid or expired token" });
+        }
+
+        const { action, bookId } = req.body;
+        if (!action) {
+            return res.status(400).json({ error: "Missing 'action' parameter" });
+        }
+
+        // Create ai_requests record
+        const { data: aiRequest, error: insertError } = await supabase
+            .from('ai_requests')
+            .insert({
+                user_id: user.id,
+                book_id: bookId,
+                action: action,
+                status: 'pending',
+                request_payload: req.body
+            })
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error("[AI Proxy] Failed to create ai_request:", insertError);
+            return res.status(500).json({ error: "Failed to queue request" });
+        }
+
+        console.log(`[AI Proxy] Created async request ${aiRequest.id} for user ${user.id}`);
+
+        // Return immediately with requestId
+        res.json({
+            status: 'pending',
+            requestId: aiRequest.id,
+            message: 'Request queued for processing'
+        });
+
+        // Forward to n8n asynchronously (don't await)
+        forwardToN8n(aiRequest.id, user.id, req.body).catch(err => {
+            console.error('[AI Proxy] Background n8n forward error:', err);
+        });
+
+    } catch (err) {
+        console.error("[AI Proxy] Error:", err);
+        res.status(500).json({ error: err.message });
     }
 });
 
@@ -613,113 +788,6 @@ app.post("/api/sanitize", (req, res) => {
     } catch (error) {
         console.error("Sanitization error:", error);
         res.status(500).json({ error: "Sanitization failed" });
-    }
-});
-/**
- * Forwards requests to n8n for background processing.
- */
-async function forwardToN8n(requestId, userId, payload) {
-    try {
-        const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
-
-        // Ensure absolute URL for Node fetch
-        const n8nWebhookUrl = n8nWebhookUrlRaw?.startsWith('/')
-            ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
-            : n8nWebhookUrlRaw;
-
-        const n8nPayload = { ...payload, userId, requestId };
-
-        const n8nHeaders = {
-            'Content-Type': 'application/json',
-        };
-
-        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
-        if (n8nApiKey) {
-            n8nHeaders['X-API-Key'] = n8nApiKey;
-        }
-        if (process.env.WEBHOOK_SECRET) {
-            n8nHeaders['X-Webhook-Secret'] = process.env.WEBHOOK_SECRET;
-        }
-
-        // Update status to processing
-        await supabase.from('ai_requests')
-            .update({ status: 'processing', updated_at: new Date().toISOString() })
-            .eq('id', requestId);
-
-        console.log(`[AI Proxy] Forwarding request ${requestId} to n8n`);
-
-        const n8nResponse = await fetch(n8nWebhookUrl, {
-            method: 'POST',
-            headers: n8nHeaders,
-            body: JSON.stringify(n8nPayload)
-        });
-
-        const responseData = await n8nResponse.json();
-        console.log(`[AI Proxy] n8n response for ${requestId}:`, responseData);
-
-    } catch (error) {
-        console.error(`[AI Proxy] Fatal error forwarding ${requestId}:`, error);
-        await supabase.from('ai_requests')
-            .update({
-                status: 'error',
-                error_message: error.message,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', requestId);
-    }
-}
-
-// --- NEW PROXY ENDPOINT (ASYNC) ---
-
-app.post("/api/ai-agent", async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ error: "Missing or invalid Authorization header" });
-    }
-
-    const token = authHeader.substring(7);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-        console.error("[AI Proxy] Auth error:", authError?.message);
-        return res.status(401).json({ error: "Invalid or expired token" });
-    }
-
-    const { action, bookId, ...otherParams } = req.body;
-    if (!action) {
-        return res.status(400).json({ error: "Missing 'action' parameter" });
-    }
-
-    try {
-        // Create Request Record in Supabase
-        const { data: request, error: requestError } = await supabase
-            .from('ai_requests')
-            .insert({
-                user_id: user.id,
-                book_id: bookId,
-                action,
-                status: 'pending',
-                request_payload: req.body
-            })
-            .select()
-            .single();
-
-        if (requestError) throw requestError;
-
-        // Fire and forget n8n forwarding
-        forwardToN8n(request.id, user.id, req.body);
-
-        // Immediate Response
-        res.json({
-            success: true,
-            requestId: request.id,
-            status: 'pending',
-            message: "Request queued for processing"
-        });
-
-    } catch (error) {
-        console.error("[AI Proxy] Error:", error);
-        res.status(500).json({ error: error.message });
     }
 });
 

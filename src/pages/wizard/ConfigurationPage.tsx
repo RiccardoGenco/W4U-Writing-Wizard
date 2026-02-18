@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
 
-import { callBookAgent, supabase } from '../../lib/api';
+import { callBookAgent, supabase, logDebug } from '../../lib/api';
 import type { BookContext, BookConfiguration, Chapter } from '../../types';
 import { useToast } from '../../context/ToastContext';
 
@@ -37,25 +37,42 @@ const ConfigurationPage: React.FC = () => {
         let currentContext: BookContext = {};
 
         try {
-            // Save config to Supabase first
+            // Fetch current context first
             if (bookId) {
                 const { data: currentBook } = await supabase.from('books').select('context_data').eq('id', bookId).single();
                 currentContext = currentBook?.context_data || {};
+            }
 
+            // 1. Call n8n to generate outline
+            const targetPages = parseInt(currentContext.target_pages as any) || 100;
+            const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
+
+            // Save config to Supabase
+            if (bookId) {
                 await supabase.from('books').update({
                     status: 'BLUEPRINT',
+                    target_chapters: numChapters,
                     context_data: { ...currentContext, configuration: config }
                 }).eq('id', bookId);
             }
 
-            // 1. Call n8n to generate outline
-            const targetPages = currentContext.target_pages;
             const data = await callBookAgent('OUTLINE', {
                 configuration: config,
-                targetPages: targetPages
+                targetPages: targetPages,
+                numChapters: numChapters
             }, bookId);
 
             const resData = data.data || data;
+
+            // Validation: check if AI generated the expected number of chapters
+            if (resData.chapters && Array.isArray(resData.chapters) && resData.chapters.length !== numChapters) {
+                console.warn(`[ARCHITECT] Mismatch: Expected ${numChapters}, got ${resData.chapters.length}`);
+                await logDebug('frontend', 'chapter_count_mismatch', {
+                    expected: numChapters,
+                    actual: resData.chapters.length,
+                    book_id: bookId
+                }, bookId);
+            }
 
             // 2. Save transient outline and config
             if (resData.chapters && Array.isArray(resData.chapters)) {

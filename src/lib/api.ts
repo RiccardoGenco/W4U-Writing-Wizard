@@ -3,23 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 // ─── ENV Validation ────────────────────────────────────────────────────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const N8N_API_KEY = import.meta.env.VITE_N8N_API_KEY;
-const WEBHOOK_SECRET = import.meta.env.VITE_WEBHOOK_SECRET;
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error('[API] CRITICAL: Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
 } else {
     console.log('[API] Supabase initialized:', SUPABASE_URL);
-}
-
-if (!WEBHOOK_SECRET) {
-    console.warn('[API] VITE_WEBHOOK_SECRET not set — webhooks may be rejected if backend requires auth');
-}
-
-if (!N8N_API_KEY) {
-    console.warn('[API] VITE_N8N_API_KEY not set — n8n calls will rely on JWT only');
-} else {
-    console.log('[API] N8N API Key configured');
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -56,120 +44,132 @@ export const callWithRetry = async <T>(fn: (attempt: number) => Promise<T>, retr
     throw lastError;
 };
 
-// Get current auth headers for n8n calls
+// Get current auth headers for Proxy calls
 const getAuthHeaders = async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json'
     };
 
     try {
-        // Add JWT token from Supabase session
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-            console.error('[API] getAuthHeaders: failed to get session:', error.message);
-        } else if (session?.access_token) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
             headers['Authorization'] = `Bearer ${session.access_token}`;
-            console.log('[API] getAuthHeaders: JWT attached (expires:', new Date((session.expires_at || 0) * 1000).toISOString(), ')');
-        } else {
-            console.warn('[API] getAuthHeaders: no active session — request will be unauthenticated');
         }
     } catch (err: unknown) {
-        const error = err as Error;
-        console.error('[API] getAuthHeaders: CRASH getting session:', error.message);
-        // Don't block the request — proceed without JWT
-    }
-
-    // Add API key if configured
-    if (N8N_API_KEY) {
-        headers['X-API-Key'] = N8N_API_KEY;
-    }
-
-    // Add Webhook Secret if configured
-    if (WEBHOOK_SECRET) {
-        headers['X-Webhook-Secret'] = WEBHOOK_SECRET;
+        console.error('[API] getAuthHeaders: failed to get session');
     }
 
     return headers;
 };
 
-// Wrapper for n8n API calls with automatic retry logic
-export const callBookAgent = async (action: string, body: any, bookId?: string | null, customPath?: string) => {
-    let WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL;
+/**
+ * Poll for async AI request completion
+ */
+async function pollForCompletion(
+    requestId: string,
+    headers: any,
+    bookId?: string | null,
+    maxAttempts = 60
+): Promise<any> {
+    const POLL_INTERVAL = 2000; // 2 seconds
 
-    // If a custom path is provided, construct the URL based on the same base
-    if (customPath) {
-        const baseUrl = WEBHOOK_URL.split('/webhook/')[0];
-        WEBHOOK_URL = `${baseUrl}/webhook/${customPath}`;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+
+        try {
+            const statusResponse = await fetch(`/api/ai-agent/status/${requestId}`, { method: 'GET', headers });
+
+            if (!statusResponse.ok) {
+                logDebug('frontend', 'polling_error', { requestId, attempt, status: statusResponse.status }, bookId);
+                if (statusResponse.status === 404) throw new Error('Request not found');
+                continue; // Retry on other errors
+            }
+
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'completed') {
+                logDebug('frontend', 'ai_request_completed', { requestId, attempt, duration_ms: attempt * POLL_INTERVAL }, bookId);
+                return statusData.data;
+            }
+
+            if (statusData.status === 'failed') {
+                logDebug('frontend', 'ai_request_failed', { requestId, error: statusData.error, attempt }, bookId);
+                throw new Error(statusData.error || 'Request failed');
+            }
+
+            // Still processing, continue polling
+            if (attempt % 10 === 0 && attempt > 0) {
+                logDebug('frontend', 'polling_progress', { requestId, attempt, status: statusData.status }, bookId);
+            }
+        } catch (error) {
+            if (attempt === maxAttempts - 1) throw error;
+        }
     }
+
+    throw new Error('Request timeout: Max polling attempts exceeded (2 minutes)');
+}
+
+// Wrapper for Proxy calls with automatic retry logic
+export const callBookAgent = async (action: string, body: any, bookId?: string | null) => {
+    // Forward to our local API proxy
+    const PROXY_URL = '/api/ai-agent';
+
+    const authHeaders = await getAuthHeaders();
 
     const requestPayload = {
         action,
-        bookId,
+        bookId: bookId || body.bookId,
         ...body
     };
 
-    // Wrappa la chiamata nel retry logic
-    return callWithRetry(async (attempt) => {
-        const startTime = performance.now();
-        const attemptLabel = `attempt_${attempt + 1}`;
+    logDebug('frontend', `ai_request_${action}`, requestPayload, bookId);
 
-        // Log ad ogni tentativo
-        console.log(`[API] Calling n8n [${action}] on ${WEBHOOK_URL} (${attemptLabel}):`, requestPayload);
-        await logDebug('frontend', `n8n_request_${action.toLowerCase()}`, {
-            url: WEBHOOK_URL,
-            attempt: attemptLabel,
-            ...requestPayload
+    try {
+        // Step 1: Initiate async request
+        const response = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify(requestPayload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            logDebug('frontend', `ai_http_error_${action}`, {
+                status: response.status,
+                statusText: response.statusText,
+                body: errorText
+            }, bookId);
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const initialData = await response.json();
+
+        if (initialData.status === 'completed') {
+            // Immediate response (unlikely but possible for cached/fast operations)
+            logDebug('frontend', `ai_immediate_response_${action}`, { requestId: initialData.requestId }, bookId);
+            return initialData.data;
+        }
+
+        if (!initialData.requestId) {
+            throw new Error('No requestId received from server');
+        }
+
+        logDebug('frontend', `ai_polling_start_${action}`, {
+            requestId: initialData.requestId
         }, bookId);
 
-        try {
-            const authHeaders = await getAuthHeaders();
+        // Step 2: Poll for completion
+        const result = await pollForCompletion(initialData.requestId, authHeaders, bookId);
 
-            const response = await fetch(WEBHOOK_URL, {
-                method: 'POST',
-                headers: authHeaders,
-                body: JSON.stringify(requestPayload)
-            });
+        return result;
 
-            const duration = Math.round(performance.now() - startTime);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`[API] n8n Error ${response.status}:`, errorText);
-                await logDebug('frontend', `n8n_http_error_${action.toLowerCase()}`, {
-                    status: response.status,
-                    statusText: response.statusText,
-                    duration_ms: duration,
-                    attempt: attemptLabel,
-                    body: errorText
-                }, bookId);
-                throw new Error(`N8N Error ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-
-            // Log successo
-            await logDebug('frontend', `n8n_success_${action.toLowerCase()}`, {
-                ...data,
-                duration_ms: duration,
-                attempt: attemptLabel
-            }, bookId);
-
-            return data;
-
-        } catch (err: unknown) {
-            const error = err as Error;
-            const duration = Math.round(performance.now() - startTime);
-            // Log errore di rete/exception per questo tentativo specifico
-            await logDebug('frontend', `n8n_exception_${action.toLowerCase()}`, {
-                message: error.message,
-                type: (error as any).name || 'Error',
-                duration_ms: duration,
-                attempt: attemptLabel
-            }, bookId);
-            throw error;
-        }
-    }, 3); // 3 tentativi totali
+    } catch (error: any) {
+        logDebug('frontend', `ai_exception_${action}`, {
+            type: error.constructor?.name,
+            message: error.message
+        }, bookId);
+        throw error;
+    }
 };
 
 export { supabase };
