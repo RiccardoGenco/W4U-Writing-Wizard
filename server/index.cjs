@@ -6,7 +6,8 @@ const docx = require("docx");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
-const fetch = require("node-fetch");
+// fetch is available natively in Node.js 18+ (used by Vercel)
+// node-fetch v3+ is ESM-only and cannot be used with require()
 
 // Conditional Puppeteer Import
 let puppeteer;
