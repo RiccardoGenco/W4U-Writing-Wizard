@@ -6,6 +6,7 @@ const docx = require("docx");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
+const fetch = require("node-fetch");
 
 // Conditional Puppeteer Import
 let puppeteer;
@@ -612,6 +613,113 @@ app.post("/api/sanitize", (req, res) => {
     } catch (error) {
         console.error("Sanitization error:", error);
         res.status(500).json({ error: "Sanitization failed" });
+    }
+});
+/**
+ * Forwards requests to n8n for background processing.
+ */
+async function forwardToN8n(requestId, userId, payload) {
+    try {
+        const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
+
+        // Ensure absolute URL for Node fetch
+        const n8nWebhookUrl = n8nWebhookUrlRaw?.startsWith('/')
+            ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
+            : n8nWebhookUrlRaw;
+
+        const n8nPayload = { ...payload, userId, requestId };
+
+        const n8nHeaders = {
+            'Content-Type': 'application/json',
+        };
+
+        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
+        if (n8nApiKey) {
+            n8nHeaders['X-API-Key'] = n8nApiKey;
+        }
+        if (process.env.WEBHOOK_SECRET) {
+            n8nHeaders['X-Webhook-Secret'] = process.env.WEBHOOK_SECRET;
+        }
+
+        // Update status to processing
+        await supabase.from('ai_requests')
+            .update({ status: 'processing', updated_at: new Date().toISOString() })
+            .eq('id', requestId);
+
+        console.log(`[AI Proxy] Forwarding request ${requestId} to n8n`);
+
+        const n8nResponse = await fetch(n8nWebhookUrl, {
+            method: 'POST',
+            headers: n8nHeaders,
+            body: JSON.stringify(n8nPayload)
+        });
+
+        const responseData = await n8nResponse.json();
+        console.log(`[AI Proxy] n8n response for ${requestId}:`, responseData);
+
+    } catch (error) {
+        console.error(`[AI Proxy] Fatal error forwarding ${requestId}:`, error);
+        await supabase.from('ai_requests')
+            .update({
+                status: 'error',
+                error_message: error.message,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', requestId);
+    }
+}
+
+// --- NEW PROXY ENDPOINT (ASYNC) ---
+
+app.post("/api/ai-agent", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "Missing or invalid Authorization header" });
+    }
+
+    const token = authHeader.substring(7);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+        console.error("[AI Proxy] Auth error:", authError?.message);
+        return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { action, bookId, ...otherParams } = req.body;
+    if (!action) {
+        return res.status(400).json({ error: "Missing 'action' parameter" });
+    }
+
+    try {
+        // Create Request Record in Supabase
+        const { data: request, error: requestError } = await supabase
+            .from('ai_requests')
+            .insert({
+                user_id: user.id,
+                book_id: bookId,
+                action,
+                status: 'pending',
+                request_payload: req.body
+            })
+            .select()
+            .single();
+
+        if (requestError) throw requestError;
+
+        // Fire and forget n8n forwarding
+        forwardToN8n(request.id, user.id, req.body);
+
+        // Immediate Response
+        res.json({
+            success: true,
+            requestId: request.id,
+            status: 'pending',
+            message: "Request queued for processing"
+        });
+
+    } catch (error) {
+        console.error("[AI Proxy] Error:", error);
+        res.status(500).json({ error: error.message });
     }
 });
 
