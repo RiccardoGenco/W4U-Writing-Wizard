@@ -1,34 +1,11 @@
 const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
-const Epub = require("epub-gen");
-const docx = require("docx");
-const path = require("path");
-const fs = require("fs");
-const { v4: uuidv4 } = require("uuid");
-// fetch is available natively in Node.js 18+ (used by Vercel)
-// node-fetch v3+ is ESM-only and cannot be used with require()
+// Imports moved to specific routes for Lazy Loading to improve cold start and stability
+// const Epub = require("epub-gen");
+// const docx = require("docx");
+// Puppeteer logic moved to /export/pdf
 
-// Conditional Puppeteer Import
-let puppeteer;
-let chromium;
-
-if (process.env.VERCEL) {
-    // Vercel / AWS Lambda environment
-    try {
-        puppeteer = require("puppeteer-core");
-        chromium = require("@sparticuz/chromium");
-    } catch (e) {
-        console.error("Vercel dependencies missing:", e);
-    }
-} else {
-    // Local / Standard Node environment
-    try {
-        puppeteer = require("puppeteer");
-    } catch (e) {
-        console.error("Local puppeteer missing:", e);
-    }
-}
 
 // Load .env
 try {
@@ -41,6 +18,17 @@ try {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Start-up Health Check
+app.get("/api/health", (req, res) => {
+    res.json({
+        status: "ok",
+        uptime: process.uptime(),
+        environment: process.env.VERCEL ? "vercel" : "local",
+        node_version: process.version
+    });
+});
+
 
 const supabase = createClient(
     process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
@@ -115,6 +103,8 @@ app.post("/export/epub", async (req, res) => {
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
+        const Epub = require("epub-gen"); // Lazy load
+
         const { marked } = await import("marked");
 
         // Fetch Book
@@ -206,6 +196,8 @@ app.post("/export/docx", async (req, res) => {
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
+        const docx = require("docx"); // Lazy load
+
         const { marked } = await import("marked");
 
         // Fetch Book
@@ -436,9 +428,28 @@ app.post("/export/pdf", async (req, res) => {
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
-        const { marked } = await import("marked");
+        // Lazy load Puppeteer
+        let puppeteer;
+        let chromium;
 
-        // Fetch Data
+        if (process.env.VERCEL) {
+            try {
+                puppeteer = require("puppeteer-core");
+                chromium = require("@sparticuz/chromium");
+            } catch (e) {
+                throw new Error("Vercel puppeteer dependencies missing: " + e.message);
+            }
+        } else {
+            try {
+                puppeteer = require("puppeteer");
+            } catch (e) {
+                console.warn("Local puppeteer loading warning:", e.message);
+                // Try to proceed, maybe it's installed
+                puppeteer = require("puppeteer");
+            }
+        }
+
+
         const { data: book, error: bookError } = await supabase
             .from("books")
             .select("*")
@@ -699,19 +710,32 @@ app.get("/api/ai-agent/status/:requestId", async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        // Create a scoped Supabase client for this user
+        const scopedSupabase = createClient(
+            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+            process.env.VITE_SUPABASE_ANON_KEY || "",
+            {
+                global: {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            }
+        );
+
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
         if (authError || !user) {
             return res.status(401).json({ error: 'Invalid token' });
         }
 
         const requestId = req.params.requestId;
 
-        // Query ai_requests table
-        const { data: request, error } = await supabase
+        // Query ai_requests table using scoped client
+        const { data: request, error } = await scopedSupabase
             .from('ai_requests')
             .select('*')
             .eq('id', requestId)
-            .eq('user_id', user.id)
+            // .eq('user_id', user.id) // RLS handles this, but extra safety doesn't hurt
             .single();
 
         if (error || !request) {
