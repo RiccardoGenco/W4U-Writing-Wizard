@@ -1,20 +1,25 @@
 {
-    "rewrites": [
+    "routes": [
         {
-            "source": "/webhook/:match*",
-            "destination": "https://auto.mamadev.org/webhook/:match*"
+            "src": "/webhook/(.*)",
+            "dest": "https://auto.mamadev.org/webhook/$1"
         },
         {
-            "source": "/api/(.*)",
-            "destination": "/api/index.cjs"
+            "src": "/api/(.*)",
+            "dest": "/api/index.cjs"
         },
         {
-            "source": "/export/(.*)",
-            "destination": "/api/index.cjs"
+            "src": "/export/(.*)",
+            "dest": "/api/index.cjs"
         },
         {
-            "source": "/(.*)",
-            "destination": "/index.html"
+            "src": "/(.*)",
+            "dest": "/index.html"
         }
-    ]
+    ],
+    "functions": {
+        "api/index.cjs": {
+            "maxDuration": 60
+        }
+    }
 }
