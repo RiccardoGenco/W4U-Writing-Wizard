@@ -11,6 +11,10 @@
         {
             "source": "/(.*)",
             "destination": "/index.html"
+        },
+        {
+            "source": "/webhook/(.*)",
+            "destination": "https://auto.mamadev.org/webhook/$1"
         }
     ]
 }
