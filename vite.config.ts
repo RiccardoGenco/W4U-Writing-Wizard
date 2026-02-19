@@ -15,6 +15,16 @@ export default defineConfig({
         target: 'https://auto.mamadev.org',
         changeOrigin: true,
         secure: true
+      },
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false
+      },
+      '/export': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false
       }
     }
   }
