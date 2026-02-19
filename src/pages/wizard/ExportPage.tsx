@@ -24,6 +24,19 @@ const ExportPage: React.FC = () => {
         try {
             await logDebug('frontend', `export_start_${selectedFormat.toLowerCase()}`, { bookId, format: selectedFormat }, bookId);
 
+            // Get current session token for Auth
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) {
+                throw new Error("Utente non autenticato. Effettua il login.");
+            }
+
+            const authHeaders = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+
             if (selectedFormat === 'PDF') {
                 setProgress("Il server sta impaginando il tuo libro (Richiede circa 10-30 secondi)...");
 
@@ -54,12 +67,13 @@ const ExportPage: React.FC = () => {
             } else if (selectedFormat === 'EPUB') {
                 setProgress("Il server Node sta preparando il file EPUB 3 (Richiede circa 10-20 secondi)...");
 
-                const NODE_BACKEND_URL = import.meta.env.VITE_NODE_BACKEND_URL || 'http://localhost:3001';
+                // Use relative path (handled by Vite proxy in dev, Vercel rewrites in prod)
+                const NODE_BACKEND_URL = '';
                 const response = await fetch(
                     `${NODE_BACKEND_URL}/export/epub`,
                     {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders,
                         body: JSON.stringify({ bookId })
                     }
                 );
@@ -84,12 +98,13 @@ const ExportPage: React.FC = () => {
             } else if (selectedFormat === 'DOCX') {
                 setProgress("Il server Node sta preparando il documento Word (Richiede circa 10-20 secondi)...");
 
-                const NODE_BACKEND_URL = import.meta.env.VITE_NODE_BACKEND_URL || 'http://localhost:3001';
+                // Use relative path (handled by Vite proxy in dev, Vercel rewrites in prod)
+                const NODE_BACKEND_URL = '';
                 const response = await fetch(
                     `${NODE_BACKEND_URL}/export/docx`,
                     {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders,
                         body: JSON.stringify({ bookId })
                     }
                 );

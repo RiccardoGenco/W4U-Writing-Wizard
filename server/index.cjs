@@ -107,17 +107,41 @@ app.post("/export/epub", async (req, res) => {
 
         const { marked } = await import("marked");
 
-        // Fetch Book
-        const { data: book, error: bookError } = await supabase
+        // Extract and validate Auth Token
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+        const token = authHeader.split('Bearer ')[1];
+
+        // Create Scoped Client
+        const scopedSupabase = createClient(
+            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+            process.env.VITE_SUPABASE_ANON_KEY || "",
+            {
+                global: {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            }
+        );
+
+        // Fetch User (Verify Token Validity)
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
+        if (authError || !user) return res.status(401).json({ error: "Invalid token or user not found" });
+
+        // Fetch Book using Scoped Client (Respects RLS)
+        const { data: book, error: bookError } = await scopedSupabase
             .from("books")
             .select("*")
             .eq("id", bookId)
             .single();
 
-        if (bookError || !book) throw new Error("Book not found");
+        if (bookError || !book) throw new Error("Book not found or access denied");
 
-        // Fetch Chapters
-        const { data: chapters, error: chaptersError } = await supabase
+        // Fetch Chapters using Scoped Client
+        const { data: chapters, error: chaptersError } = await scopedSupabase
             .from("chapters")
             .select("*")
             .eq("book_id", bookId)
@@ -200,16 +224,40 @@ app.post("/export/docx", async (req, res) => {
 
         const { marked } = await import("marked");
 
-        // Fetch Book
-        const { data: book, error: bookError } = await supabase
+        // Extract and validate Auth Token
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+        const token = authHeader.split('Bearer ')[1];
+
+        // Create Scoped Client
+        const scopedSupabase = createClient(
+            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+            process.env.VITE_SUPABASE_ANON_KEY || "",
+            {
+                global: {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            }
+        );
+
+        // Fetch User (Verify Token Validity)
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
+        if (authError || !user) return res.status(401).json({ error: "Invalid token or user not found" });
+
+        // Fetch Book using Scoped Client
+        const { data: book, error: bookError } = await scopedSupabase
             .from("books")
             .select("*")
             .eq("id", bookId)
             .single();
 
-        if (bookError || !book) throw new Error("Book not found");
+        if (bookError || !book) throw new Error("Book not found or access denied");
 
-        const { data: chapters, error: chaptersError } = await supabase
+        const { data: chapters, error: chaptersError } = await scopedSupabase
             .from("chapters")
             .select("*")
             .eq("book_id", bookId)
@@ -450,14 +498,38 @@ app.post("/export/pdf", async (req, res) => {
         }
 
 
-        const { data: book, error: bookError } = await supabase
+        // Extract and validate Auth Token
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+        const token = authHeader.split('Bearer ')[1];
+
+        // Create Scoped Client
+        const scopedSupabase = createClient(
+            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+            process.env.VITE_SUPABASE_ANON_KEY || "",
+            {
+                global: {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            }
+        );
+
+        // Fetch User (Verify Token Validity)
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
+        if (authError || !user) return res.status(401).json({ error: "Invalid token or user not found" });
+
+        const { data: book, error: bookError } = await scopedSupabase
             .from("books")
             .select("*")
             .eq("id", bookId)
             .single();
-        if (bookError || !book) throw new Error("Book not found");
+        if (bookError || !book) throw new Error("Book not found or access denied");
 
-        const { data: chapters, error: chaptersError } = await supabase
+        const { data: chapters, error: chaptersError } = await scopedSupabase
             .from("chapters")
             .select("*")
             .eq("book_id", bookId)
@@ -591,6 +663,28 @@ app.post("/api/projects/delete", async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: "Failed to delete project" });
     }
+});
+
+// --- AUTH HELPERS ---
+
+app.post("/api/auth/verify-invite", (req, res) => {
+    const { code } = req.body;
+    // Prefer INVITE_CODE (server secret), fall back to VITE_INVITE_CODE for backward compatibility/dev
+    const validCode = process.env.INVITE_CODE || process.env.VITE_INVITE_CODE;
+
+    if (!validCode) {
+        // If no code is configured on server, assume open registration or fail secure?
+        // Usually if feature is enabled in Client, server must have it.
+        // If server has no code, deny to be safe if client sent one.
+        console.warn("[Auth] Verify Invite: No INVITE_CODE configured on server.");
+        return res.status(500).json({ error: "Server misconfiguration" });
+    }
+
+    if (!code || code !== validCode) {
+        return res.status(401).json({ error: "Codice invito non valido" });
+    }
+
+    return res.json({ success: true });
 });
 
 // --- AI AGENT PROXY (ASYNC WITH POLLING) ---

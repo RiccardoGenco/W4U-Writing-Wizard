@@ -65,6 +65,36 @@ const RegisterPage: React.FC = () => {
             return;
         }
 
+        // Server-side Invite Code Validation
+        if (import.meta.env.VITE_INVITE_CODE) {
+            if (!inviteCode) {
+                setError('Inserisci il codice invito');
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const verifyRes = await fetch('/api/auth/verify-invite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: inviteCode })
+                });
+
+                if (!verifyRes.ok) {
+                    const errData = await verifyRes.json();
+                    console.warn('[RegisterPage] Invite code validation failed:', errData);
+                    setError(errData.error || 'Codice invito non valido');
+                    setLoading(false);
+                    return;
+                }
+            } catch (err) {
+                console.error('[RegisterPage] Invite verification error:', err);
+                setError('Errore durante la verifica del codice. Riprova.');
+                setLoading(false);
+                return;
+            }
+        }
+
         const startTime = performance.now();
         const { error: signUpError, needsConfirmation } = await signUp(email, password, authorName);
         const duration = Math.round(performance.now() - startTime);
@@ -319,7 +349,7 @@ const RegisterPage: React.FC = () => {
 
                     </div>
 
-                    {/* Invite Code Field */}
+                    {/* Invite Code Field - Enabled if VITE_INVITE_CODE is present (e.g. "true") */}
                     {import.meta.env.VITE_INVITE_CODE && (
                         <div>
                             <label style={{
