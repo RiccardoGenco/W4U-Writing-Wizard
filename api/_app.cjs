@@ -764,12 +764,63 @@ async function forwardToN8n(requestId, userId, payload, token) {
             body: JSON.stringify(n8nPayload)
         });
 
-        const responseText = await n8nResponse.text();
+        const contentType = n8nResponse.headers.get('content-type') || '';
         let responseData = null;
-        if (responseText) {
+
+        if (contentType.includes('application/json')) {
+            const responseText = await n8nResponse.text();
             try {
                 responseData = JSON.parse(responseText);
+                // Check if n8n returned a JSON with a base64 string (some n8n setups do this)
+                // e.g., [{"data": "base64..."}] or {"data": "base64..."}
+                let base64Match = null;
+                if (Array.isArray(responseData) && responseData[0]?.data && typeof responseData[0].data === 'string' && responseData[0].data.length > 500) {
+                    base64Match = responseData[0].data;
+                } else if (responseData?.data && typeof responseData.data === 'string' && responseData.data.length > 500) {
+                    base64Match = responseData.data;
+                }
+
+                if (base64Match && payload.action === 'GENERATE_COVER') {
+                    // Upload base64 to Supabase
+                    const buffer = Buffer.from(base64Match, 'base64');
+                    const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
+                    const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                    if (!uploadError) {
+                        const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                        responseData = { cover_url: publicUrlData.publicUrl };
+                    }
+                }
             } catch (e) {
+                responseData = { text: responseText };
+            }
+        } else if (contentType.includes('image/') || contentType.includes('application/octet-stream')) {
+            // It's binary data
+            const arrayBuffer = await n8nResponse.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            if (payload.action === 'GENERATE_COVER') {
+                const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
+                const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: contentType || 'image/png', upsert: true });
+                if (uploadError) throw new Error("Failed to upload binary cover image: " + uploadError.message);
+
+                const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                responseData = { cover_url: publicUrlData.publicUrl };
+            } else {
+                responseData = { message: "Received binary data." };
+            }
+        } else {
+            // Might be raw base64 text or plain text
+            const responseText = await n8nResponse.text();
+            if (payload.action === 'GENERATE_COVER' && responseText.length > 500 && !responseText.includes(' ')) {
+                // Assume it's raw base64
+                const buffer = Buffer.from(responseText, 'base64');
+                const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
+                const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                if (uploadError) throw new Error("Failed to upload base64 string cover image: " + uploadError.message);
+
+                const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                responseData = { cover_url: publicUrlData.publicUrl };
+            } else {
                 responseData = { text: responseText };
             }
         }
