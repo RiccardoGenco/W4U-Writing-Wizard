@@ -25,6 +25,13 @@ app.use(cors({
 app.options("*", cors()); // Handle preflight requests
 app.use(express.json());
 
+// DEBUG LOGGER
+app.use((req, res, next) => {
+    console.log(`[DEBUG] Incoming Request: ${req.method} ${req.url}`);
+    console.log(`[DEBUG] Headers:`, JSON.stringify(req.headers));
+    next();
+});
+
 // Start-up Health Check
 app.get("/api/health", (req, res) => {
     res.json({
