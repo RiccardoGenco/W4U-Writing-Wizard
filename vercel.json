@@ -2,15 +2,19 @@
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "/server/index.cjs"
+            "destination": "/api/index"
         },
         {
             "source": "/export/(.*)",
-            "destination": "/server/index.cjs"
+            "destination": "/api/index"
         },
         {
             "source": "/(.*)",
             "destination": "/index.html"
+        },
+        {
+            "source": "/webhook/(.*)",
+            "destination": "https://auto.mamadev.org/webhook/$1"
         }
     ]
 }

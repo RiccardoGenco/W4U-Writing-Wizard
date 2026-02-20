@@ -16,7 +16,13 @@ try {
 }
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+    origin: process.env.VITE_APP_URL || "*", // Allow all or specific origin
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
+app.options("*", cors()); // Handle preflight requests
 app.use(express.json());
 
 // Start-up Health Check
