@@ -7,9 +7,12 @@ const { createClient } = require("@supabase/supabase-js");
 // Puppeteer logic moved to /export/pdf
 
 
+const path = require("path");
+
 // Load .env
 try {
     const dotenv = require("dotenv");
+    // Try loading from parent directory (if running from server/) or current (if from root)
     dotenv.config({ path: path.join(__dirname, "../.env") });
 } catch (e) {
     console.log("Dotenv not found or already loaded");
@@ -22,8 +25,16 @@ app.use(cors({
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
-app.options("*", cors()); // Handle preflight requests
+// app.options removed as per Express 5 best practices with app.use(cors())
+
 app.use(express.json());
+
+// DEBUG LOGGER
+app.use((req, res, next) => {
+    console.log(`[DEBUG] Incoming Request: ${req.method} ${req.url}`);
+    console.log(`[DEBUG] Headers:`, JSON.stringify(req.headers));
+    next();
+});
 
 // Start-up Health Check
 app.get("/api/health", (req, res) => {
