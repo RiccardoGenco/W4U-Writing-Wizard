@@ -770,8 +770,11 @@ async function forwardToN8n(requestId, userId, payload, token) {
         const contentType = n8nResponse.headers.get('content-type') || '';
         let responseData = null;
 
+        const responseText = await n8nResponse.text();
+        console.log(`[AI Proxy Debug] n8n Response Content-Type: ${contentType}`);
+        console.log(`[AI Proxy Debug] n8n Response Text Preview: ${responseText.substring(0, 500)}... (length: ${responseText.length})`);
+
         if (contentType.includes('application/json')) {
-            const responseText = await n8nResponse.text();
             try {
                 responseData = JSON.parse(responseText);
                 // Check if n8n returned a JSON with a base64 string (some n8n setups do this)
