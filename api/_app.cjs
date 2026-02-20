@@ -764,10 +764,18 @@ async function forwardToN8n(requestId, userId, payload, token) {
             body: JSON.stringify(n8nPayload)
         });
 
-        const responseData = await n8nResponse.json();
+        const responseText = await n8nResponse.text();
+        let responseData = null;
+        if (responseText) {
+            try {
+                responseData = JSON.parse(responseText);
+            } catch (e) {
+                responseData = { text: responseText };
+            }
+        }
 
         if (!n8nResponse.ok) {
-            throw new Error(`n8n error ${n8nResponse.status}: ${JSON.stringify(responseData)}`);
+            throw new Error(`n8n error ${n8nResponse.status}: ${responseText}`);
         }
 
         console.log(`[AI Proxy] Request ${requestId} completed successfully`);
