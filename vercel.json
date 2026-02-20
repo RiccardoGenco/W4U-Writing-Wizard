@@ -1,8 +1,12 @@
 {
     "rewrites": [
         {
+            "source": "/api/check",
+            "destination": "/api/check.js"
+        },
+        {
             "source": "/api/(.*)",
-            "destination": "/api/index"
+            "destination": "/api/index.cjs"
         },
         {
             "source": "/export/(.*)",
