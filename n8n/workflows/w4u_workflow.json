@@ -13,7 +13,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -3792,
+        -4016,
         -272
       ]
     },
@@ -46,7 +46,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -4016,
+        -4240,
         -368
       ]
     },
@@ -76,8 +76,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -1776,
-        144
+        -2000,
+        112
       ],
       "credentials": {
         "postgres": {
@@ -97,8 +97,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2448,
-        144
+        -2672,
+        112
       ],
       "credentials": {
         "postgres": {
@@ -119,8 +119,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2672,
-        -64
+        -2896,
+        -80
       ],
       "credentials": {
         "postgres": {
@@ -141,7 +141,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2448,
+        -2672,
         -464
       ],
       "credentials": {
@@ -163,7 +163,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2224,
+        -2448,
         -656
       ],
       "credentials": {
@@ -185,7 +185,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -1552,
+        -1776,
         -464
       ],
       "credentials": {
@@ -207,7 +207,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2672,
+        -2896,
         -1040
       ],
       "credentials": {
@@ -229,7 +229,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -2672,
+        -2896,
         -848
       ],
       "credentials": {
@@ -251,8 +251,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        -656,
-        144
+        -880,
+        112
       ]
     },
     {
@@ -268,8 +268,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -880,
-        144
+        -1104,
+        112
       ],
       "credentials": {
         "postgres": {
@@ -313,8 +313,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        -1104,
-        144
+        -1328,
+        112
       ]
     },
     {
@@ -333,8 +333,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        -1328,
-        144
+        -1552,
+        112
       ]
     },
     {
@@ -346,8 +346,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1552,
-        144
+        -1776,
+        112
       ]
     },
     {
@@ -370,8 +370,8 @@
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
       "position": [
-        -2000,
-        144
+        -2224,
+        112
       ],
       "credentials": {
         "openAiApi": {
@@ -389,8 +389,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2224,
-        144
+        -2448,
+        112
       ]
     },
     {
@@ -418,8 +418,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2672,
-        144
+        -2896,
+        112
       ],
       "credentials": {
         "openAiApi": {
@@ -437,8 +437,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2896,
-        144
+        -3120,
+        112
       ]
     },
     {
@@ -454,8 +454,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -3120,
-        144
+        -3344,
+        112
       ],
       "credentials": {
         "postgres": {
@@ -473,7 +473,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1328,
+        -1552,
         -464
       ]
     },
@@ -486,7 +486,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2448,
+        -2672,
         -848
       ]
     },
@@ -503,7 +503,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -2224,
+        -2448,
         -848
       ],
       "credentials": {
@@ -524,7 +524,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -2000,
+        -2224,
         -848
       ]
     },
@@ -538,7 +538,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -2672,
+        -2896,
         -272
       ]
     },
@@ -553,8 +553,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -2448,
-        -64
+        -2672,
+        -80
       ]
     },
     {
@@ -582,8 +582,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        -2896,
-        -64
+        -3120,
+        -80
       ],
       "credentials": {
         "openAiApi": {
@@ -605,8 +605,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -3120,
-        -64
+        -3344,
+        -80
       ],
       "credentials": {
         "postgres": {
@@ -624,7 +624,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2896,
+        -3120,
         -272
       ]
     },
@@ -639,7 +639,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -3120,
+        -3344,
         -272
       ],
       "id": "1563d8f9-f943-46c1-b4d5-33bcce61aeca",
@@ -664,7 +664,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -2448,
+        -2672,
         -1040
       ],
       "credentials": {
@@ -687,7 +687,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -1776,
+        -2000,
         -656
       ],
       "credentials": {
@@ -706,7 +706,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2000,
+        -2224,
         -656
       ]
     },
@@ -719,7 +719,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2224,
+        -2448,
         -464
       ]
     },
@@ -736,7 +736,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -2000,
+        -2224,
         -464
       ],
       "credentials": {
@@ -760,7 +760,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2672,
+        -2896,
         -464
       ],
       "id": "efa2c219-9a81-4666-aae0-bf611cc78ced",
@@ -785,7 +785,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -2672,
+        -2896,
         -656
       ],
       "credentials": {
@@ -808,7 +808,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -3120,
+        -3344,
         -464
       ],
       "credentials": {
@@ -831,7 +831,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -3568,
+        -3792,
         -464
       ],
       "credentials": {
@@ -883,7 +883,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -3792,
+        -4016,
         -464
       ],
       "credentials": {
@@ -904,7 +904,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -1552,
+        -1776,
         -656
       ]
     },
@@ -933,7 +933,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        -2448,
+        -2672,
         -656
       ],
       "credentials": {
@@ -956,7 +956,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -2896,
+        -3120,
         -656
       ],
       "credentials": {
@@ -979,7 +979,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -3120,
+        -3344,
         -656
       ],
       "credentials": {
@@ -1000,7 +1000,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -1104,
+        -1328,
         -464
       ]
     },
@@ -1029,7 +1029,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        -1776,
+        -2000,
         -464
       ],
       "credentials": {
@@ -1048,7 +1048,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2896,
+        -3120,
         -464
       ]
     },
@@ -1063,7 +1063,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -2224,
+        -2448,
         -1040
       ]
     },
@@ -1092,7 +1092,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        -2896,
+        -3120,
         -1040
       ],
       "credentials": {
@@ -1270,7 +1270,7 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        -3344,
+        -3568,
         -544
       ]
     },
@@ -1278,6 +1278,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "book-agent-f5ryrr6ut656f",
+        "authentication": "headerAuth",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -1289,7 +1290,13 @@
         -4464,
         -368
       ],
-      "webhookId": "book-agent-webhook-v2"
+      "webhookId": "book-agent-webhook-v2",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "72YOfDzDhT2VfwYf",
+          "name": "Header Auth account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1316,7 +1323,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        -2896,
+        -3120,
         -848
       ],
       "credentials": {
@@ -1339,7 +1346,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -3120,
+        -3344,
         -848
       ],
       "credentials": {
@@ -1362,7 +1369,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
-        -3120,
+        -3344,
         -1040
       ],
       "credentials": {
