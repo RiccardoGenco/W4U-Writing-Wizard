@@ -117,7 +117,7 @@ app.post("/export/epub", async (req, res) => {
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
-        const Epub = require("epub-gen"); // Lazy load
+        const Epub = require("epub-gen-memory").default || require("epub-gen-memory"); // Lazy load
 
         const { marked } = await import("marked");
 
@@ -177,22 +177,16 @@ app.post("/export/epub", async (req, res) => {
 
             return {
                 title: fullTitle,
-                data: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
+                content: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
             };
         });
-
-        const exportUuid = uuidv4();
-        const outputPath = getTempPath(`export_${bookId}_${exportUuid}.epub`);
 
         const options = {
             title: cleanBookTitle,
             author: cleanAuthor,
             publisher: "W4U",
-            content: content,
             appendChapterTitles: false,
             lang: "it",
-            uuid: exportUuid,
-            output: outputPath,
             css: `
         body { font-family: serif; line-height: 1.5; text-align: justify; }
         h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: bold; font-size: 1.5em; page-break-before: always; }
@@ -205,22 +199,15 @@ app.post("/export/epub", async (req, res) => {
         };
 
         // Generate EPUB
-        new Epub(options).promise.then(
-            async () => {
-                res.download(outputPath, `libro_${bookId}.epub`, (err) => {
-                    if (err) console.error("Download error:", err);
-                    try {
-                        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-                    } catch (unlinkErr) {
-                        console.error("Cleanup error:", unlinkErr);
-                    }
-                });
-            },
-            (err) => {
-                console.error("EPUB Generation Error:", err);
-                res.status(500).json({ error: "Failed to generate EPUB" });
-            }
-        );
+        try {
+            const buffer = await Epub(options, content);
+            res.setHeader('Content-Disposition', `attachment; filename="libro_${bookId}.epub"`);
+            res.setHeader('Content-Type', 'application/epub+zip');
+            res.send(buffer);
+        } catch (err) {
+            console.error("EPUB Generation Error:", err);
+            res.status(500).json({ error: "Failed to generate EPUB" });
+        }
     } catch (error) {
         console.error("Export error:", error);
         res.status(500).json({ error: error.message });

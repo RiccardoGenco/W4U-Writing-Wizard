@@ -340,7 +340,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const json = item.json;\n  // Try different paths\n  const url = json.url || (json.data && json.data[0] && json.data[0].url);\n  \n  if (!url) {\n     return { json: { error: \"No URL found\", raw: json } };\n  }\n  \n  return { json: { url } };\n});"
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const json = item.json;\n  // N8N OpenAI node (DALL-E) returns the URL in different paths depending on version/settings\n  let url = json.url;\n  \n  if (!url && json.data && Array.isArray(json.data) && json.data.length > 0) {\n    url = json.data[0].url;\n  }\n  \n  if (!url) {\n     // Pass the error explicitly to stop execution smoothly or let the HTTP Request fail differently\n     throw new Error('No Cover URL found in DALL-E response. Raw response: ' + JSON.stringify(json));\n  }\n  \n  return { json: { url: url } };\n});"
       },
       "id": "3db5bcc8-c5ec-40d4-9848-d0ba0da7f571",
       "name": "Normalize Cover URL",
@@ -432,7 +432,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Estrai i dati del libro\nconst book = $input.first().json;\nconst context = book.context_data || {};\nconst blueprint = context.blueprint || {};\nconst selectedConcept = context.selected_concept || {};\n\n// Helper per troncare il testo\nconst truncate = (str, n) => (str && str.length > n) ? str.substring(0, n-1) + '...' : str;\n\n// Costruisci un prompt dettagliato per la cover\nconst genreStyles = {\n  'fantasy': 'epic fantasy art, magical atmosphere, mystical elements',\n  'thriller': 'dark moody lighting, suspenseful composition, cinematic',\n  'romance': 'soft romantic lighting, dreamy atmosphere, elegant composition',\n  'sci-fi': 'futuristic, sci-fi concept art, technological elements',\n  'mystery': 'noir atmosphere, mysterious shadows, intriguing composition',\n  'horror': 'dark horror aesthetic, eerie atmosphere, unsettling mood'\n};\n\nconst baseStyle = genreStyles[book.genre?.toLowerCase()] || 'professional book cover art';\nconst rawSpecificStyle = selectedConcept.style || blueprint.plot_vibes || baseStyle;\nconst specificStyle = truncate(rawSpecificStyle, 200);\n\nconst rawThemes = blueprint.themes || 'Adventure and discovery';\nconst themes = truncate(rawThemes, 200);\n\nconst rawMood = blueprint.plot_vibes || 'Captivating and immersive';\nconst mood = truncate(rawMood, 200);\n\nconst targetAudience = context.target_audience || 'general readers';\n\n// Crea il prompt ottimizzato\nconst coverPrompt = `Professional book cover design for \"${book.title || 'Untitled Book'}\" by ${book.author || 'Unknown Author'}\n\nStyle: ${baseStyle}. ${specificStyle}\nGenre: ${book.genre || 'Fiction'}\nThemes: ${themes}\nMood: ${mood}\n\nVisual elements:\n- High-quality, professional book cover aesthetic\n- Cinematic composition with strong focal point\n- Rich colors and atmospheric lighting\n- Commercial appeal for ${targetAudience}\n- Include the book title \"${book.title || 'Untitled'}\" in prominent, professional typography\n- Include the author name \"${book.author || ''}\" in elegant, clear typography\n- Modern publishing standards\n\nArt style: Digital illustration, professional book cover art, trending on ArtStation`;\n\nreturn {\n  json: {\n    bookId: book.id,\n    title: book.title,\n    author: book.author,\n    prompt: coverPrompt.trim(),\n    promptLength: coverPrompt.length\n  }\n};\n"
+        "jsCode": "// Estrai i dati del libro\nconst book = $input.first().json;\nconst context = book.context_data || {};\nconst blueprint = context.blueprint || {};\nconst selectedConcept = context.selected_concept || {};\n\n// Helper per troncare il testo\nconst truncate = (str, n) => (str && str.length > n) ? str.substring(0, n-1) + '...' : str;\n\n// Costruisci un prompt dettagliato per la cover\nconst genreStyles = {\n  'fantasy': 'epic fantasy art, magical atmosphere, mystical elements',\n  'thriller': 'dark moody lighting, suspenseful composition, cinematic',\n  'romance': 'soft romantic lighting, dreamy atmosphere, elegant composition',\n  'sci-fi': 'futuristic, sci-fi concept art, technological elements',\n  'mystery': 'noir atmosphere, mysterious shadows, intriguing composition',\n  'horror': 'dark horror aesthetic, eerie atmosphere, unsettling mood'\n};\n\nconst baseStyle = genreStyles[book.genre?.toLowerCase()] || 'professional book cover art';\nconst rawSpecificStyle = selectedConcept.style || blueprint.plot_vibes || baseStyle;\nconst specificStyle = truncate(rawSpecificStyle, 200);\n\nconst rawThemes = blueprint.themes || 'Adventure and discovery';\nconst themes = truncate(rawThemes, 200);\n\nconst rawMood = blueprint.plot_vibes || 'Captivating and immersive';\nconst mood = truncate(rawMood, 200);\n\nconst targetAudience = context.target_audience || 'general readers';\n\n// Crea il prompt ottimizzato - Aggiunte istruzioni RIGOROSE per evitare mockups 3D\nconst coverPrompt = `FLAT 2D ARTWORK ONLY. DO NOT draw a physical book object. DO NOT include pages, spine, hands, or a background table. This must be the straight-on front cover illustration only.\n\nProfessional book cover design for \"${book.title || 'Untitled Book'}\" by ${book.author || 'Unknown Author'}\n\nStyle: ${baseStyle}. ${specificStyle}\nGenre: ${book.genre || 'Fiction'}\nThemes: ${themes}\nMood: ${mood}\n\nVisual elements:\n- High-quality, professional book cover aesthetic\n- Cinematic composition with strong focal point\n- Rich colors and atmospheric lighting\n- Commercial appeal for ${targetAudience}\n- Include the book title \"${book.title || 'Untitled'}\" in prominent, professional typography\n- Include the author name \"${book.author || ''}\" in elegant, clear typography\n- Modern publishing standards\n\nArt style: Digital illustration, professional book cover art, trending on ArtStation`;\n\nreturn {\n  json: {\n    bookId: book.id,\n    title: book.title,\n    author: book.author,\n    prompt: coverPrompt.trim(),\n    promptLength: coverPrompt.length\n  }\n};"
       },
       "id": "33c96b5f-29f0-4f26-88a3-2c2054cd47dd",
       "name": "Prepare Cover Prompt",
@@ -1409,6 +1409,19 @@
       ],
       "id": "65aedbe6-4a77-4cc5-8c4b-ada5167f9800",
       "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { data: [{ url: 'https://oaidalleapiprodscus.blob.core.windows.net/private/org-guvp42unz9Uckn41psuF1OB2/user-j4Fd1WW2LHh4dU5qy601skHr/img-7PeO5bzHuRGvjkka5jYi5Dsp.png?st=2026-02-20T10%3A05%3A49Z&se=2026-02-20T12%3A05%3A49Z&sp=r&sv=2026-02-06&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-02-19T11%3A09%3A02Z&ske=2026-02-20T11%3A09%3A02Z&sks=b&skv=2026-02-06&sig=K6yM53EqB6e9wskrdOLNZg%2BrrNGec1wt5vL2wi1arV8%3D' }] } }];"
+      },
+      "id": "mock-dalle-node-1771602496667",
+      "name": "Mock Generate Cover",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        300
+      ]
     }
   ],
   "pinData": {},
@@ -1573,6 +1586,11 @@
         [
           {
             "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mock Generate Cover",
             "type": "main",
             "index": 0
           }
@@ -1967,6 +1985,17 @@
         [
           {
             "node": "Log AI Usage: Generate Cover (DALL-E 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mock Generate Cover": {
+      "main": [
+        [
+          {
+            "node": "Normalize Cover URL",
             "type": "main",
             "index": 0
           }

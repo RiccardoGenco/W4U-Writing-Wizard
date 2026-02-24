@@ -15,7 +15,7 @@
     "@supabase/supabase-js": "^2.90.1",
     "cors": "^2.8.6",
     "docx": "^9.5.1",
-    "epub-gen": "^0.0.8",
+    "epub-gen-memory": "^1.1.2",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.26.2",

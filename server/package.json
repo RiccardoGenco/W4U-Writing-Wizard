@@ -11,7 +11,7 @@
         "cors": "^2.8.6",
         "docx": "^9.1.1",
         "dotenv": "^17.2.3",
-        "epub-gen": "^0.1.0",
+        "epub-gen-memory": "^1.1.2",
         "express": "^5.2.1",
         "fs": "^0.0.1-security",
         "marked": "^17.0.1",
