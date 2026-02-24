@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
+const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 // const Epub = require("epub-gen");
 // const docx = require("docx");
