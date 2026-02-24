@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
-// Imports moved to specific routes for Lazy Loading to improve cold start and stability
+const { v4: uuidv4 } = require("uuid");
 // const Epub = require("epub-gen");
 // const docx = require("docx");
 // Puppeteer logic moved to /export/pdf

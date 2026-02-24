@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
 const path = require("path");
+const { v4: uuidv4 } = require("uuid");
 
 // Load .env
 try {
