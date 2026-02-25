@@ -9,11 +9,13 @@ import Dashboard from './pages/Dashboard';
 import ConceptPage from './pages/wizard/ConceptPage';
 import ConfigurationPage from './pages/wizard/ConfigurationPage';
 import BlueprintPage from './pages/wizard/BlueprintPage';
+import ScaffoldRevisionPage from './pages/wizard/ScaffoldRevisionPage';
 import ProductionPage from './pages/wizard/ProductionPage';
 import CoverPage from './pages/wizard/CoverPage';
 import ExportPage from './pages/wizard/ExportPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import MockBookPage from './pages/wizard/MockBookPage';
 
 // Styles
 import './index.css';
@@ -42,10 +44,14 @@ const App: React.FC = () => {
                   <Route path="concept" element={<ConceptPage />} />
                   <Route path="configuration" element={<ConfigurationPage />} />
                   <Route path="blueprint" element={<BlueprintPage />} />
+                  <Route path="scaffold" element={<ScaffoldRevisionPage />} />
                   <Route path="production" element={<ProductionPage />} />
                   <Route path="cover" element={<CoverPage />} />
                   <Route path="export" element={<ExportPage />} />
                 </Route>
+
+                {/* Secret Utility Route */}
+                <Route path="mock-book" element={<MockBookPage />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />

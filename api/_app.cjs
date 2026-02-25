@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
 const path = require("path");
+const fs = require("fs");
+const { v4: uuidv4 } = require("uuid");
 
 // Load .env
 try {
@@ -24,7 +26,8 @@ app.use(cors({
 
 // app.options removed as per Express 5 best practices with app.use(cors())
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // DEBUG LOGGER
 app.use((req, res, next) => {
@@ -117,7 +120,7 @@ app.post("/export/epub", async (req, res) => {
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
-        const Epub = require("epub-gen"); // Lazy load
+        const Epub = require("epub-gen-memory").default || require("epub-gen-memory"); // Lazy load
 
         const { marked } = await import("marked");
 
@@ -177,22 +180,43 @@ app.post("/export/epub", async (req, res) => {
 
             return {
                 title: fullTitle,
-                data: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
+                content: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
             };
         });
 
-        const exportUuid = uuidv4();
-        const outputPath = getTempPath(`export_${bookId}_${exportUuid}.epub`);
+        const epubDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+        const epubDisclaimer = "Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.";
+
+        // Titolo
+        content.unshift({
+            title: "Titolo",
+            content: `<div lang="it" style="text-align: center; margin-top: 30%;">
+                     <h2>${cleanAuthor}</h2>
+                     <h1 style="font-size: 2.5em; margin: 0.5em 0;">${cleanBookTitle}</h1>
+                     <p><em>${epubDesc}</em></p>
+                   </div>`
+        });
+
+        // Copyright
+        content.splice(1, 0, {
+            title: "Copyright",
+            content: `<div lang="it" style="text-align: center; margin-top: 10%;">
+                     <h2>${cleanBookTitle}</h2>
+                     <p>${cleanBookTitle} - ${epubDesc.substring(0, 50)}...</p>
+                     <h3>${cleanAuthor}</h3>
+                     <br/><br/>
+                     <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
+                     <br/><br/>
+                     <p style="text-align: justify; font-size: 0.9em;">${epubDisclaimer}</p>
+                   </div>`
+        });
 
         const options = {
             title: cleanBookTitle,
             author: cleanAuthor,
             publisher: "W4U",
-            content: content,
             appendChapterTitles: false,
             lang: "it",
-            uuid: exportUuid,
-            output: outputPath,
             css: `
         body { font-family: serif; line-height: 1.5; text-align: justify; }
         h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: bold; font-size: 1.5em; page-break-before: always; }
@@ -205,22 +229,15 @@ app.post("/export/epub", async (req, res) => {
         };
 
         // Generate EPUB
-        new Epub(options).promise.then(
-            async () => {
-                res.download(outputPath, `libro_${bookId}.epub`, (err) => {
-                    if (err) console.error("Download error:", err);
-                    try {
-                        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-                    } catch (unlinkErr) {
-                        console.error("Cleanup error:", unlinkErr);
-                    }
-                });
-            },
-            (err) => {
-                console.error("EPUB Generation Error:", err);
-                res.status(500).json({ error: "Failed to generate EPUB" });
-            }
-        );
+        try {
+            const buffer = await Epub(options, content);
+            res.setHeader('Content-Disposition', `attachment; filename="libro_${bookId}.epub"`);
+            res.setHeader('Content-Type', 'application/epub+zip');
+            res.send(buffer);
+        } catch (err) {
+            console.error("EPUB Generation Error:", err);
+            res.status(500).json({ error: "Failed to generate EPUB" });
+        }
     } catch (error) {
         console.error("Export error:", error);
         res.status(500).json({ error: error.message });
@@ -304,6 +321,10 @@ app.post("/export/docx", async (req, res) => {
 
         const children = [];
 
+        // --- CONSTANTS ---
+        const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+        const docxDisclaimer = "Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.";
+
         // --- TITLE PAGE ---
         children.push(
             new Paragraph({ text: "", spacing: { after: 2400 } }),
@@ -323,11 +344,58 @@ app.post("/export/docx", async (req, res) => {
             }),
             new Paragraph({ text: "", spacing: { after: 1600 } }),
             new Paragraph({
+                text: docxDesc,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 20 },
+                italics: true
+            }),
+            new Paragraph({ text: "", pageBreakBefore: true }) // End of Title Page
+        );
+
+        // --- COPYRIGHT PAGE ---
+        children.push(
+            new Paragraph({ text: "", spacing: { after: 1200 } }),
+            new Paragraph({
+                text: cleanBookTitle,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 36, bold: true },
+                spacing: { after: 200 }
+            }),
+            new Paragraph({
+                text: `${cleanBookTitle} - ${docxDesc.substring(0, 50)}...`,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 24 },
+                spacing: { after: 400 }
+            }),
+            new Paragraph({
+                text: cleanAuthor,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 32 },
+                spacing: { after: 1200 }
+            }),
+            new Paragraph({
+                text: "Editore:",
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 24, bold: true }
+            }),
+            new Paragraph({
                 text: publisher,
                 alignment: AlignmentType.CENTER,
                 font: { name: "Georgia", size: 24 }
             }),
-            new Paragraph({ text: "", pageBreakBefore: true })
+            new Paragraph({
+                text: "mail@write4you.com",
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 24 },
+                spacing: { after: 1200 }
+            }),
+            new Paragraph({
+                text: docxDisclaimer,
+                alignment: AlignmentType.BOTH,
+                font: { name: "Georgia", size: 20 },
+                spacing: { line: 360 }
+            }),
+            new Paragraph({ text: "", pageBreakBefore: true }) // End of Copyright Page
         );
 
         // --- TABLE OF CONTENTS ---
@@ -585,7 +653,18 @@ app.post("/export/pdf", async (req, res) => {
             <div class="title-page">
                 <h1 class="book-title">${cleanBookTitle}</h1>
                 <h2 class="author">di ${cleanAuthor}</h2>
-                <div style="margin-top: 4em;">W4U Edition</div>
+                <p style="margin-top: 2em; font-style: italic; font-size: 1.2em;">${book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U"}</p>
+            </div>
+            <div class="title-page" style="margin-top: 10%;">
+                <h2 style="font-size: 2em; margin-bottom: 0.5em; font-weight: normal;">${cleanBookTitle}</h2>
+                <p style="font-size: 1.2em;">${cleanBookTitle} - ${book.plot_summary ? (book.plot_summary.substring(0, 50) + "...") : ""}</p>
+                <h3 style="margin-top: 1em; font-size: 1.5em; font-weight: normal;">${cleanAuthor}</h3>
+                <div style="margin-top: 4em;">
+                    <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
+                </div>
+                <div style="margin-top: 5em; text-align: justify; font-size: 0.9em; line-height: 1.8; padding: 0 3em;">
+                    <p>Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.</p>
+                </div>
             </div>
 
             <div class="toc">
@@ -764,10 +843,72 @@ async function forwardToN8n(requestId, userId, payload, token) {
             body: JSON.stringify(n8nPayload)
         });
 
-        const responseData = await n8nResponse.json();
+        const contentType = n8nResponse.headers.get('content-type') || '';
+        let responseData = null;
+
+        const responseText = await n8nResponse.text();
+        console.log(`[AI Proxy Debug] n8n Response Content-Type: ${contentType}`);
+        console.log(`[AI Proxy Debug] n8n Response Text Preview: ${responseText.substring(0, 500)}... (length: ${responseText.length})`);
+
+        if (contentType.includes('application/json')) {
+            try {
+                responseData = JSON.parse(responseText);
+                // Check if n8n returned a JSON with a base64 string (some n8n setups do this)
+                // e.g., [{"data": "base64..."}] or {"data": "base64..."}
+                let base64Match = null;
+                if (Array.isArray(responseData) && responseData[0]?.data && typeof responseData[0].data === 'string' && responseData[0].data.length > 500) {
+                    base64Match = responseData[0].data;
+                } else if (responseData?.data && typeof responseData.data === 'string' && responseData.data.length > 500) {
+                    base64Match = responseData.data;
+                }
+
+                if (base64Match && payload.action === 'GENERATE_COVER') {
+                    // Upload base64 to Supabase
+                    const buffer = Buffer.from(base64Match, 'base64');
+                    const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
+                    const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                    if (!uploadError) {
+                        const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                        responseData = { cover_url: publicUrlData.publicUrl };
+                    }
+                }
+            } catch (e) {
+                responseData = { text: responseText };
+            }
+        } else if (contentType.includes('image/') || contentType.includes('application/octet-stream')) {
+            // It's binary data
+            const arrayBuffer = await n8nResponse.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+
+            if (payload.action === 'GENERATE_COVER') {
+                const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
+                const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: contentType || 'image/png', upsert: true });
+                if (uploadError) throw new Error("Failed to upload binary cover image: " + uploadError.message);
+
+                const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                responseData = { cover_url: publicUrlData.publicUrl };
+            } else {
+                responseData = { message: "Received binary data." };
+            }
+        } else {
+            // Might be raw base64 text or plain text
+            const responseText = await n8nResponse.text();
+            if (payload.action === 'GENERATE_COVER' && responseText.length > 500 && !responseText.includes(' ')) {
+                // Assume it's raw base64
+                const buffer = Buffer.from(responseText, 'base64');
+                const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
+                const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                if (uploadError) throw new Error("Failed to upload base64 string cover image: " + uploadError.message);
+
+                const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                responseData = { cover_url: publicUrlData.publicUrl };
+            } else {
+                responseData = { text: responseText };
+            }
+        }
 
         if (!n8nResponse.ok) {
-            throw new Error(`n8n error ${n8nResponse.status}: ${JSON.stringify(responseData)}`);
+            throw new Error(`n8n error ${n8nResponse.status}: ${responseText}`);
         }
 
         console.log(`[AI Proxy] Request ${requestId} completed successfully`);

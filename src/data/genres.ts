@@ -1,5 +1,5 @@
 
-export type GenreCategory = 'Non-Fiction e Manualistica' | 'Altri Generi Chiave' | 'Fiction (Narrativa di Genere)';
+export type GenreCategory = 'Fictional' | 'Non-Fictional';
 
 export interface GenreDefinition {
     label: string;
@@ -9,10 +9,10 @@ export interface GenreDefinition {
 }
 
 export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
-    // GRUPPO 1: Non-Fiction e Manualistica
+    // GRUPPO: Non-Fictional
     'Business & Self-Help': {
         label: 'Business & Self-Help',
-        category: 'Non-Fiction e Manualistica',
+        category: 'Non-Fictional',
         questions: [
             'Qual è il problema principale che vuoi aiutare il lettore a risolvere?',
             'Quale "promessa" o risultato misurabile otterrà il lettore a fine libro?',
@@ -26,7 +26,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Salute, Dieta e Benessere': {
         label: 'Salute, Dieta e Benessere',
-        category: 'Non-Fiction e Manualistica',
+        category: 'Non-Fictional',
         questions: [
             'Qual è il regime alimentare o lo stile di vita specifico trattato (es. Keto, Mindfulness)?',
             'Il libro è per principianti assoluti o per esperti della materia?',
@@ -40,7 +40,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Finanza Personale e Investimenti': {
         label: 'Finanza Personale e Investimenti',
-        category: 'Non-Fiction e Manualistica',
+        category: 'Non-Fictional',
         questions: [
             'Qual è l\'obiettivo finanziario trattato (es. risparmio, trading, immobiliare)?',
             'A quale fascia di reddito o età si rivolge il libro?',
@@ -54,7 +54,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Hobby e Passioni': {
         label: 'Hobby e Passioni',
-        category: 'Non-Fiction e Manualistica',
+        category: 'Non-Fictional',
         questions: [
             'Qual è l\'attività specifica descritta (es. coltivare bonsai, restauro mobili)?',
             'Quali attrezzi o ingredienti base deve possedere il lettore?',
@@ -68,7 +68,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Spiritualità e New Age': {
         label: 'Spiritualità e New Age',
-        category: 'Non-Fiction e Manualistica',
+        category: 'Non-Fictional',
         questions: [
             'Qual è il tema centrale (es. astrologia, meditazione, manifestazioni)?',
             'Il lettore cerca conforto emotivo o una guida pratica?',
@@ -80,11 +80,9 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
             'Qual è la trasformazione interiore finale che prometti al lettore?'
         ]
     },
-
-    // GRUPPO 2: Altri Generi Chiave
     'Relazioni e Parenting': {
         label: 'Relazioni e Parenting',
-        category: 'Altri Generi Chiave',
+        category: 'Non-Fictional',
         questions: [
             'Qual è la dinamica relazionale principale che vuoi affrontare?',
             'Qual è la fascia d\'età o il target specifico (es. genitori di adolescenti, coppie in crisi)?',
@@ -98,7 +96,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Tecnologia e AI': {
         label: 'Tecnologia e AI',
-        category: 'Altri Generi Chiave',
+        category: 'Non-Fictional',
         questions: [
             'Quale tecnologia o software specifico stai trattando?',
             'Il lettore ha bisogno di un background tecnico o è per principianti?',
@@ -112,7 +110,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Viaggi e Guide di Nicchia': {
         label: 'Viaggi e Guide di Nicchia',
-        category: 'Altri Generi Chiave',
+        category: 'Non-Fictional',
         questions: [
             'Qual è la destinazione o il tema del viaggio (es. Giappone low cost, trekking alpino)?',
             'Ti rivolgi a viaggiatori solitari, famiglie o coppie?',
@@ -126,7 +124,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Biografie e Memorie': {
         label: 'Biografie e Memorie',
-        category: 'Altri Generi Chiave',
+        category: 'Non-Fictional',
         questions: [
             'Chi è il soggetto della biografia e perché la sua storia è importante?',
             'Qual è l\'evento trasformativo o il punto di svolta della vita?',
@@ -140,7 +138,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Saggistica Scientifica o Storica': {
         label: 'Saggistica Scientifica o Storica',
-        category: 'Altri Generi Chiave',
+        category: 'Non-Fictional',
         questions: [
             'Quale periodo storico, evento o teoria scientifica tratti?',
             'Qual è la tesi principale o la nuova prospettiva che offri?',
@@ -153,10 +151,10 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
         ]
     },
 
-    // GRUPPO 3: Fiction (Narrativa di Genere)
+    // GRUPPO: Fictional
     'Giallo e Thriller': {
         label: 'Giallo e Thriller',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è il crimine o il mistero centrale da risolvere?',
             'Chi è il protagonista (detective, civile, vittima)?',
@@ -170,7 +168,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Romance': {
         label: 'Romance',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è il sottogenere (es. contemporaneo, storico, enemies-to-lovers)?',
             'Chi sono i due protagonisti e cosa li divide inizialmente?',
@@ -184,7 +182,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Fantasy': {
         label: 'Fantasy',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è il sistema di magia o l\'elemento sovrannaturale principale?',
             'In quale mondo o epoca è ambientata la storia?',
@@ -198,7 +196,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Sci-Fi': {
         label: 'Sci-Fi (Fantascienza)',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è l\'avanzamento tecnologico o il cambiamento sociale cardine?',
             'Si svolge sulla Terra, su un pianeta alieno o nello spazio?',
@@ -212,7 +210,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Horror': {
         label: 'Horror',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è l\'entità o la forza maligna principale?',
             'Qual è l\'ambientazione isolata o claustrofobica?',
@@ -226,7 +224,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Storico': {
         label: 'Storico',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'In quale epoca e luogo preciso è ambientata la storia?',
             'Quali eventi storici reali fanno da sfondo alla trama?',
@@ -240,7 +238,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Young Adult': {
         label: 'Young Adult',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è il rito di passaggio o la sfida di crescita principale?',
             'Chi è il protagonista e qual è il suo desiderio di ribellione?',
@@ -252,10 +250,9 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
             'Qual è la consapevolezza finale acquisita dal protagonista?'
         ]
     },
-
     'Distopico': {
         label: 'Distopico',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è la regola oppressione che governa la società?',
             'Chi detiene il potere e come lo mantiene?',
@@ -269,7 +266,7 @@ export const GENRE_DEFINITIONS: Record<string, GenreDefinition> = {
     },
     'Avventura': {
         label: 'Avventura',
-        category: 'Fiction (Narrativa di Genere)',
+        category: 'Fictional',
         questions: [
             'Qual è l\'obiettivo del viaggio o della missione?',
             'Quali sono i pericoli fisici o naturali da affrontare?',
