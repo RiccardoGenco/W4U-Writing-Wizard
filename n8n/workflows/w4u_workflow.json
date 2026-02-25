@@ -446,7 +446,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id, title, author, genre, plot_summary, context_data FROM books WHERE id = $1::uuid",
+        "query": "SELECT id, title, author, genre, plot_summary, context_data, target_chapters FROM books WHERE id = $1::uuid",
         "options": {
           "queryReplacement": "={{ $node[\"Webhook Router\"].json.body.bookId }}"
         }
@@ -679,13 +679,13 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE chapters SET content = $1, status = 'COMPLETED' WHERE id = $2::uuid",
+        "query": "UPDATE paragraphs SET content = $1, status = 'COMPLETED', updated_at = NOW() WHERE id = $2::uuid",
         "options": {
-          "queryReplacement": "={{ $node[\"Sanitize Writer\"].json.content }}, {{ $node[\"Get Chapter\"].json.id }}"
+          "queryReplacement": "={{ $node[\"Sanitize Writer\"].json.content }}, {{ $node[\"Get Paragraph\"].json.id }}"
         }
       },
       "id": "0e756e7b-19f7-4540-b323-e7a20cef5030",
-      "name": "Update Chapter",
+      "name": "Update Paragraph",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
@@ -777,13 +777,13 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT summary FROM chapters WHERE book_id = $1::uuid AND chapter_number = (SELECT chapter_number - 1 FROM chapters WHERE id = $2::uuid) LIMIT 1",
+        "query": "SELECT string_agg(content, '\\n\\n' ORDER BY paragraph_number ASC) as combined_content FROM paragraphs WHERE chapter_id = $1::uuid AND paragraph_number < $2::integer AND status = 'COMPLETED'",
         "options": {
-          "queryReplacement": "={{ $node[\"Get Book\"].json.id }},{{ $node[\"Get Chapter\"].json.id }}"
+          "queryReplacement": "={{ $node[\"Get Paragraph\"].json.chapter_id }},{{ $node[\"Get Paragraph\"].json.paragraph_number }}"
         }
       },
       "id": "7fbc28f5-7643-438d-9e13-95d8da12d24c",
-      "name": "Get Previous Chapter",
+      "name": "Get Previous Paragraphs Context",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
@@ -927,7 +927,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei uno scrittore professionista. Scrivi il capitolo indicato, NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\" + \n        \"BLUEPRINT (CONTESTO MACRO):\\n\" + \n        JSON.stringify($node[\"Get Book\"].json.context_data?.blueprint || {}) + \"\\n\\n\" +\n        \"TRAMA GENERALE:\\n\" + \n        ($node[\"Get Book\"].json.plot_summary || \"Usa il blueprint come riferimento.\") + \"\\n\\n\" +\n        \"DETTAGLI CAPITOLO:\\n\" + \n        \"- Titolo: \" + ($node[\"Get Chapter\"].json.title || \"Capitolo Senza Titolo\") + \"\\n\" +\n        \"- Sommario: \" + ($node[\"Get Chapter\"].json.summary || \"Nessun sommario\") + \"\\n\" +\n        ($node[\"Get Previous Chapter\"].json.summary ? \"- COSA È SUCCESSO PRIMA: \" + $node[\"Get Previous Chapter\"].json.summary : \"\") + \"\\n\\n\" +\n        \"ISTRUZIONI DI SCRITTURA:\\n\" +\n        \"- Scrivi in modo dettagliato, evita i riassunti, mostra l'azione.\\n\" +\n        \"- Mantieni coerenza con il BLUEPRINT e la trama.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Scrivi ora il capitolo: \" + $node[\"Get Chapter\"].json.title\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei uno scrittore professionista. Stai scrivendo il PARAGRAFO \" + $('Get Paragraph').first().json.paragraph_number + \". NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\" + \n        \"BLUEPRINT (CONTESTO MACRO):\\n\" + \n        JSON.stringify($('Get Book').first().json.context_data?.blueprint || {}) + \"\\n\\n\" +\n        \"DETTAGLI CAPITOLO:\\n\" + \n        \"- Titolo: \" + ($('Get Paragraph').first().json.chapter_title || \"Senza Titolo\") + \"\\n\" +\n        \"- Sommario: \" + ($('Get Paragraph').first().json.chapter_summary || \"Nessun sommario\") + \"\\n\\n\" +\n        \"DETTAGLI QUESTO PARAGRAFO:\\n\" +\n        \"- Argomento: \" + ($('Get Paragraph').first().json.title || \"\") + \"\\n\" +\n        \"- Cosa deve succedere qui: \" + ($('Get Paragraph').first().json.description || \"Scrivi il contenuto adatto.\") + \"\\n\\n\" +\n        \"CONTESTO PARAGRAFI PRECEDENTI:\\n\" +\n        ($('Get Previous Paragraphs Context').first().json.combined_content ? $('Get Previous Paragraphs Context').first().json.combined_content : \"Ogni inizio porta con se una genesi. Nessun paragrafo precedente ancora.\") + \"\\n\\n\" +\n        \"ISTRUZIONI DI SCRITTURA:\\n\" +\n        \"- Scrivi ESCLUSIVAMENTE questo paragrafo in modo dettagliato, espandi la scena narrando l'azione e i dialoghi. Produci un testo definitivo di circa 1000 caratteri (spazi inclusi) per questo specifico paragrafo (che funge da sottocapitolo o pagina). Non concludere forzatamente il capitolo ammenoché non sia espressamente richiesto.\\n\" +\n        \"- Assicurati che il collegamento con i paragrafi precedenti sia fluido e logico.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Scrivi il contenuto per il Paragrafo: \" + $('Get Paragraph').first().json.title\n    }\n  ]\n} }}",
         "options": {}
       },
       "id": "b1001e7f-4252-4e6b-a9fb-625aad4028e3",
@@ -950,7 +950,7 @@
         "operation": "executeQuery",
         "query": "SELECT * FROM books WHERE id = $1::uuid",
         "options": {
-          "queryReplacement": "={{ $node[\"Get Chapter\"].json.book_id }}"
+          "queryReplacement": "={{ $node[\"Get Paragraph\"].json.book_id }}"
         }
       },
       "id": "1af8556b-0062-4668-9a60-bb516b4e4e8a",
@@ -971,13 +971,13 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT * FROM chapters WHERE id = $1::uuid",
+        "query": "SELECT p.*, c.title AS chapter_title, c.summary AS chapter_summary, c.book_id FROM paragraphs p JOIN chapters c ON p.chapter_id = c.id WHERE p.id = $1::uuid",
         "options": {
-          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId] }}"
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.paragraphId || $node[\"Webhook Router\"].json.body.chapterId] }}"
         }
       },
       "id": "946a2c9b-2648-4b7b-b15a-8755a18463f8",
-      "name": "Get Chapter",
+      "name": "Get Paragraph",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
@@ -1262,6 +1262,50 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "write-paragraph-cond-001",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "WRITE_PARAGRAPH",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "SCAFFOLD_CHAPTER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "dcc951e2-99e3-4141-8280-ee87bea9891f"
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -1421,6 +1465,56 @@
       "position": [
         1248,
         300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei l'Architetto Letterario W4U. Il tuo compito è spezzettare un Capitolo in 10-20 Sottocapitoli (chiamati Paragrafi).\\n\\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\\n\\nTITOLO CAPITOLO: \" + $node[\"Webhook Router\"].json.body.chapter.title + \"\\nSOMMARIO CAPITOLO: \" + $node[\"Webhook Router\"].json.body.chapter.summary + \"\\n\\nFEEDBACK UTENTE (se presente): \" + ($node[\"Webhook Router\"].json.body.feedback || \"Nessun feedback. Genera da zero.\") + \"\\n\\nISTRUZIONI:\\n- Moltiplica il summary in 10-20 scene specifiche che compongono questo capitolo.\\n- Ogni scena (paragrafo) dovrà poi essere usata per generare testo di lunghezza moderata.\\n- Se c'è un Feedback Utente, rispetta fedelmente le sue richieste di modifica della scaletta.\\n- Restituisci un array JSON di queste scene.\\n\\nOutput JSON: { \\\"paragraphs\\\": [ { \\\"paragraph_number\\\": 1, \\\"title\\\": \\\"Titolo Scena...\\\", \\\"description\\\": \\\"Descrizione super dettagliata di cosa l'autore dovrà scrivere in questa specifica scena/pagina...\\\" } ] }\"\n    }\n  ]\n} }}",
+        "options": {}
+      },
+      "id": "49610eee-bce0-4b80-951d-0e8232dd3c88",
+      "name": "Agent: Scaffolder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        800,
+        -200
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "lIvnrEKrZKxdIRLJ",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $node[\"Agent: Scaffolder\"].json.choices[0].message.content }}",
+        "options": {}
+      },
+      "id": "f789e25d-44be-42df-841b-1179fcde4b04",
+      "name": "Response Scaffold",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -200
       ]
     }
   ],
@@ -1718,22 +1812,11 @@
         ]
       ]
     },
-    "Update Chapter": {
-      "main": [
-        [
-          {
-            "node": "Response Write",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Sanitize Writer": {
       "main": [
         [
           {
-            "node": "Update Chapter",
+            "node": "Update Paragraph",
             "type": "main",
             "index": 0
           }
@@ -1767,17 +1850,6 @@
         [
           {
             "node": "Log AI Usage: Plotter",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Previous Chapter": {
-      "main": [
-        [
-          {
-            "node": "Agent: Writer",
             "type": "main",
             "index": 0
           }
@@ -1832,18 +1904,7 @@
       "main": [
         [
           {
-            "node": "Get Previous Chapter",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Chapter": {
-      "main": [
-        [
-          {
-            "node": "Get Book",
+            "node": "Get Previous Paragraphs Context",
             "type": "main",
             "index": 0
           }
@@ -1908,7 +1969,7 @@
         ],
         [
           {
-            "node": "Get Chapter",
+            "node": "Get Paragraph",
             "type": "main",
             "index": 0
           }
@@ -1930,6 +1991,20 @@
         [
           {
             "node": "Get Book Context Cover",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Paragraph",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agent: Scaffolder",
             "type": "main",
             "index": 0
           }
@@ -1996,6 +2071,50 @@
         [
           {
             "node": "Normalize Cover URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Paragraph": {
+      "main": [
+        [
+          {
+            "node": "Get Book",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Previous Paragraphs Context": {
+      "main": [
+        [
+          {
+            "node": "Agent: Writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Paragraph": {
+      "main": [
+        [
+          {
+            "node": "Response Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Scaffolder": {
+      "main": [
+        [
+          {
+            "node": "Response Scaffold",
             "type": "main",
             "index": 0
           }

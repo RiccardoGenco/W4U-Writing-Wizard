@@ -38,3 +38,11 @@ dist-ssr
 *.sw?
 *TODO.md
 *w4u_workflow.json
+
+# Text and Documentation files
+todo.md
+progress_and_roadmap.md
+README*
+*.txt
+*.cjs
+*.json.bak

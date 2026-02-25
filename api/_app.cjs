@@ -26,7 +26,8 @@ app.use(cors({
 
 // app.options removed as per Express 5 best practices with app.use(cors())
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // DEBUG LOGGER
 app.use((req, res, next) => {
@@ -183,6 +184,33 @@ app.post("/export/epub", async (req, res) => {
             };
         });
 
+        const epubDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+        const epubDisclaimer = "Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.";
+
+        // Titolo
+        content.unshift({
+            title: "Titolo",
+            content: `<div lang="it" style="text-align: center; margin-top: 30%;">
+                     <h2>${cleanAuthor}</h2>
+                     <h1 style="font-size: 2.5em; margin: 0.5em 0;">${cleanBookTitle}</h1>
+                     <p><em>${epubDesc}</em></p>
+                   </div>`
+        });
+
+        // Copyright
+        content.splice(1, 0, {
+            title: "Copyright",
+            content: `<div lang="it" style="text-align: center; margin-top: 10%;">
+                     <h2>${cleanBookTitle}</h2>
+                     <p>${cleanBookTitle} - ${epubDesc.substring(0, 50)}...</p>
+                     <h3>${cleanAuthor}</h3>
+                     <br/><br/>
+                     <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
+                     <br/><br/>
+                     <p style="text-align: justify; font-size: 0.9em;">${epubDisclaimer}</p>
+                   </div>`
+        });
+
         const options = {
             title: cleanBookTitle,
             author: cleanAuthor,
@@ -293,6 +321,10 @@ app.post("/export/docx", async (req, res) => {
 
         const children = [];
 
+        // --- CONSTANTS ---
+        const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+        const docxDisclaimer = "Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.";
+
         // --- TITLE PAGE ---
         children.push(
             new Paragraph({ text: "", spacing: { after: 2400 } }),
@@ -312,11 +344,58 @@ app.post("/export/docx", async (req, res) => {
             }),
             new Paragraph({ text: "", spacing: { after: 1600 } }),
             new Paragraph({
+                text: docxDesc,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 20 },
+                italics: true
+            }),
+            new Paragraph({ text: "", pageBreakBefore: true }) // End of Title Page
+        );
+
+        // --- COPYRIGHT PAGE ---
+        children.push(
+            new Paragraph({ text: "", spacing: { after: 1200 } }),
+            new Paragraph({
+                text: cleanBookTitle,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 36, bold: true },
+                spacing: { after: 200 }
+            }),
+            new Paragraph({
+                text: `${cleanBookTitle} - ${docxDesc.substring(0, 50)}...`,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 24 },
+                spacing: { after: 400 }
+            }),
+            new Paragraph({
+                text: cleanAuthor,
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 32 },
+                spacing: { after: 1200 }
+            }),
+            new Paragraph({
+                text: "Editore:",
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 24, bold: true }
+            }),
+            new Paragraph({
                 text: publisher,
                 alignment: AlignmentType.CENTER,
                 font: { name: "Georgia", size: 24 }
             }),
-            new Paragraph({ text: "", pageBreakBefore: true })
+            new Paragraph({
+                text: "mail@write4you.com",
+                alignment: AlignmentType.CENTER,
+                font: { name: "Georgia", size: 24 },
+                spacing: { after: 1200 }
+            }),
+            new Paragraph({
+                text: docxDisclaimer,
+                alignment: AlignmentType.BOTH,
+                font: { name: "Georgia", size: 20 },
+                spacing: { line: 360 }
+            }),
+            new Paragraph({ text: "", pageBreakBefore: true }) // End of Copyright Page
         );
 
         // --- TABLE OF CONTENTS ---
@@ -574,7 +653,18 @@ app.post("/export/pdf", async (req, res) => {
             <div class="title-page">
                 <h1 class="book-title">${cleanBookTitle}</h1>
                 <h2 class="author">di ${cleanAuthor}</h2>
-                <div style="margin-top: 4em;">W4U Edition</div>
+                <p style="margin-top: 2em; font-style: italic; font-size: 1.2em;">${book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U"}</p>
+            </div>
+            <div class="title-page" style="margin-top: 10%;">
+                <h2 style="font-size: 2em; margin-bottom: 0.5em; font-weight: normal;">${cleanBookTitle}</h2>
+                <p style="font-size: 1.2em;">${cleanBookTitle} - ${book.plot_summary ? (book.plot_summary.substring(0, 50) + "...") : ""}</p>
+                <h3 style="margin-top: 1em; font-size: 1.5em; font-weight: normal;">${cleanAuthor}</h3>
+                <div style="margin-top: 4em;">
+                    <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
+                </div>
+                <div style="margin-top: 5em; text-align: justify; font-size: 0.9em; line-height: 1.8; padding: 0 3em;">
+                    <p>Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.</p>
+                </div>
             </div>
 
             <div class="toc">

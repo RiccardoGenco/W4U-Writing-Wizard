@@ -17,6 +17,7 @@ const BlueprintPage: React.FC = () => {
     const [chapterFeedbacks, setChapterFeedbacks] = useState<Record<string, string>>({});
     const [modifiedChapters, setModifiedChapters] = useState<Set<string>>(new Set());
     const [refreshing, setRefreshing] = useState<string | null>(null);
+    const [scaffoldProgress, setScaffoldProgress] = useState<string | null>(null);
 
     useEffect(() => {
         const loadChapters = async () => {
@@ -71,32 +72,86 @@ const BlueprintPage: React.FC = () => {
                 status: 'PENDING'
             }));
 
-            const { error } = await supabase
+            const { data: insertedChapters, error } = await supabase
                 .from('chapters')
-                .insert(dbChapters);
+                .insert(dbChapters)
+                .select('id, chapter_number, title'); // Need IDs and titles to link paragraphs
 
             if (error) throw error;
 
+            // Dynamic Scaffolding: Loop through each inserted chapter and call N8N to get paragraphs
+            const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string }> = [];
+
+            for (let i = 0; i < insertedChapters.length; i++) {
+                const chapter = insertedChapters[i];
+                const originalChapter = chapters.find(c => c.title === chapter.title);
+                setScaffoldProgress(`Scomposizione Capitolo ${i + 1} di ${insertedChapters.length}...`);
+
+                try {
+                    const scaffoldData: any = await callBookAgent('SCAFFOLD_CHAPTER', {
+                        chapter: {
+                            id: chapter.id,
+                            title: chapter.title,
+                            summary: originalChapter?.summary || ''
+                        }
+                    }, bookId);
+
+                    const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
+
+                    if (Array.isArray(aiParagraphs) && aiParagraphs.length > 0) {
+                        aiParagraphs.forEach((p: any, pIndex: number) => {
+                            dbParagraphs.push({
+                                chapter_id: chapter.id,
+                                paragraph_number: pIndex + 1,
+                                title: p.title || `Sottocapitolo ${pIndex + 1}`,
+                                description: p.description || '',
+                                status: 'PENDING'
+                            });
+                        });
+                    } else {
+                        throw new Error("Formato paragrafi non valido dall'IA");
+                    }
+                } catch (scaffoldError) {
+                    console.error("Scaffold error for chapter", chapter.title, scaffoldError);
+                    // Fallback to prevent complete failure
+                    dbParagraphs.push({
+                        chapter_id: chapter.id,
+                        paragraph_number: 1,
+                        title: `Sottocapitolo Generico`,
+                        description: `L'AI non ha risposto per questo capitolo. Modifica manuale necessaria.`,
+                        status: 'PENDING'
+                    });
+                }
+            }
+
+            const { error: pError } = await supabase
+                .from('paragraphs')
+                .insert(dbParagraphs);
+
+            if (pError) throw pError;
+
             await supabase
                 .from('books')
-                .update({ status: 'PRODUCTION' })
+                .update({ status: 'SCAFFOLD_REVISION' })
                 .eq('id', bookId);
 
-            await logDebug('frontend', 'blueprint_confirm_success', {
+            await logDebug('frontend', 'blueprint_scaffold_success', {
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
 
-            navigate('/create/production');
+            navigate('/create/scaffold');
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error saving blueprint:", err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
             await logDebug('frontend', 'blueprint_confirm_error', {
-                error: err.message,
+                error: errorMessage,
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
             alert("Errore salvataggio struttura.");
         } finally {
             setSaving(false);
+            setScaffoldProgress(null);
         }
     };
 
@@ -141,7 +196,7 @@ const BlueprintPage: React.FC = () => {
                         };
                     } else {
                         // Fallback: Use the new list but preserve IDs where possible
-                        const fallback = resData.chapters.map((c: any, i: number) => ({
+                        const fallback = resData.chapters.map((c: { title: string; summary?: string; scene_description?: string }, i: number) => ({
                             id: prev[i]?.id || `chap-${i}-${Date.now()}`,
                             title: c.title,
                             summary: c.summary || c.scene_description
@@ -169,11 +224,12 @@ const BlueprintPage: React.FC = () => {
                     duration_ms: Math.round(performance.now() - startTime)
                 }, bookId);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
+            const errorMessage = err instanceof Error ? err.message : String(err);
             await logDebug('frontend', 'chapter_modification_error', {
                 chapterId,
-                error: err.message,
+                error: errorMessage,
                 duration_ms: Math.round(performance.now() - startTime)
             }, bookId);
             alert("Errore durante l'aggiornamento. Riprova.");
@@ -303,9 +359,14 @@ const BlueprintPage: React.FC = () => {
             </div>
 
 
-            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
+                {scaffoldProgress && (
+                    <span style={{ color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 600 }}>
+                        {scaffoldProgress}
+                    </span>
+                )}
                 <button onClick={handleConfirm} className="btn-primary" disabled={saving} style={{ padding: '0.8rem 2rem' }}>
-                    {saving ? <Loader2 className="animate-spin" /> : <><CheckCircle size={18} /> Conferma Struttura Finale</>}
+                    {saving ? <Loader2 className="animate-spin" /> : <><CheckCircle size={18} /> Approva e Crea Sottocapitoli</>}
                 </button>
             </div>
         </div>
