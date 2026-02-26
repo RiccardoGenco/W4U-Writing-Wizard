@@ -178,6 +178,7 @@ app.post("/export/epub", async (req, res) => {
             chapters.forEach(ch => {
                 const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
                 ch.content = chParagraphs.map(p => p.content || "").join('\n\n');
+                ch.paragraphs = chParagraphs;
             });
         }
 
@@ -192,9 +193,11 @@ app.post("/export/epub", async (req, res) => {
             const cleanMarkdown = normalizeText(removeEmojis(ch.content || ""));
             const semanticHtml = marked.parse(cleanMarkdown);
 
+            const paragraphHeadersHtml = (ch.paragraphs || []).map((p, pIndex) => `<h2 style="font-size: 1.25em; margin-top: 1.5em; margin-bottom: 0.5em; color: #333;">${index + 1}.${pIndex + 1} ${p.title || "Paragrafo"}</h2>`).join('');
+
             return {
                 title: fullTitle,
-                content: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
+                content: `<div lang="it"><h1>${fullTitle}</h1>${paragraphHeadersHtml}<div>${semanticHtml}</div></div>`,
             };
         });
 
@@ -322,6 +325,7 @@ app.post("/export/docx", async (req, res) => {
             chapters.forEach(ch => {
                 const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
                 ch.content = chParagraphs.map(p => p.content || "").join('\n\n');
+                ch.paragraphs = chParagraphs;
             });
         }
 
@@ -437,7 +441,8 @@ app.post("/export/docx", async (req, res) => {
             })
         );
 
-        processedChapters.forEach((ch) => {
+        chapters.forEach((rawCh, idx) => {
+            const ch = processedChapters[idx];
             children.push(
                 new Paragraph({
                     children: [
@@ -445,7 +450,7 @@ app.post("/export/docx", async (req, res) => {
                             children: [
                                 new TextRun({
                                     text: ch.title,
-                                    font: { name: "Georgia", size: 24 }
+                                    font: { name: "Georgia", size: 24, bold: true }
                                 })
                             ],
                             anchor: ch.bookmarkId
@@ -455,6 +460,24 @@ app.post("/export/docx", async (req, res) => {
                     alignment: AlignmentType.LEFT
                 })
             );
+
+            if (rawCh.paragraphs && rawCh.paragraphs.length > 0) {
+                rawCh.paragraphs.forEach((p, pIndex) => {
+                    children.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: "    " + (idx + 1) + "." + (pIndex + 1) + " " + (p.title || "Paragrafo"),
+                                    font: { name: "Georgia", size: 20, color: "444444" }
+                                })
+                            ],
+                            spacing: { after: 80 },
+                            alignment: AlignmentType.LEFT,
+                            indent: { left: 720 }
+                        })
+                    );
+                });
+            }
         });
 
         children.push(new Paragraph({ text: "", pageBreakBefore: true }));
@@ -658,6 +681,7 @@ app.post("/export/pdf", async (req, res) => {
             chapters.forEach(ch => {
                 const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
                 ch.content = chParagraphs.map(p => p.content || "").join('\n\n');
+                ch.paragraphs = chParagraphs;
             });
         }
 
@@ -715,7 +739,10 @@ app.post("/export/pdf", async (req, res) => {
                 <h1>Indice</h1>
                 ${chapters.map((ch, i) => `
                     <div class="toc-item">
-                        <a href="#ch${i + 1}">${formatChapterTitle(i, ch.title || "Senza titolo")}</a>
+                        <a href="#ch${i + 1}" style="font-weight: bold; font-size: 1.1em;">${formatChapterTitle(i, ch.title || "Senza titolo")}</a>
+                        ${ch.paragraphs ? `<div style="margin-left: 20px; font-size: 0.9em; margin-top: 0.5em; margin-bottom: 0.8em;">
+                            ${ch.paragraphs.map((p, pIndex) => `<div style="margin-bottom: 0.3em; color: #444;">${i + 1}.${pIndex + 1} ${p.title || 'Paragrafo'}</div>`).join('')}
+                        </div>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -744,6 +771,9 @@ app.post("/export/pdf", async (req, res) => {
         } else {
             browser = await puppeteer.launch({ headless: 'new' });
         }
+
+        const fs = require('fs');
+        fs.writeFileSync('debug_pdf.html', htmlContent);
 
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
