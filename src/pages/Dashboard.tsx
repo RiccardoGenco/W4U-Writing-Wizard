@@ -39,7 +39,7 @@ const Dashboard: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            const chapterCount = Math.max(5, Math.min(30, Math.ceil(parseInt(pages || '100') / 20)));
+            const chapterCount = Math.max(2, Math.min(30, Math.ceil(parseInt(pages || '100') / 20)));
             const { data, error } = await supabase
                 .from('books')
                 .insert([{

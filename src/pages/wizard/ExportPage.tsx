@@ -40,19 +40,22 @@ const ExportPage: React.FC = () => {
             if (selectedFormat === 'PDF') {
                 setProgress("Il server sta impaginando il tuo libro (Richiede circa 10-30 secondi)...");
 
-                // Use the standard Supabase invoke with logging
-                const { data, error } = await supabase.functions.invoke('generate-pdf', {
-                    body: { bookId }
-                });
+                const NODE_BACKEND_URL = '';
+                const response = await fetch(
+                    `${NODE_BACKEND_URL}/export/pdf`,
+                    {
+                        method: 'POST',
+                        headers: authHeaders,
+                        body: JSON.stringify({ bookId })
+                    }
+                );
 
-                if (error) {
-                    await logDebug('frontend', 'export_pdf_error', { error }, bookId);
-                    throw new Error(error.message || "Errore durante la generazione del PDF professional");
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
+                    throw new Error(error.error || "Errore durante la generazione del PDF");
                 }
 
-                // Supabase functions.invoke with blobs can sometimes be tricky depending on headers
-                // If it returns a blob, handle it:
-                const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' });
+                const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;

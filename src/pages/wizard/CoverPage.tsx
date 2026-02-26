@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Image, ChevronRight, Loader2, Wand2, Download, CheckCircle } from 'lucide-react';
 import { supabase, logDebug, callBookAgent } from '../../lib/api';
 import { motion } from 'framer-motion';
+import html2canvas from 'html2canvas';
 
 const CoverPage: React.FC = () => {
     const navigate = useNavigate();
@@ -160,6 +161,25 @@ const CoverPage: React.FC = () => {
         }
     };
 
+    const downloadCombinedCover = async () => {
+        const coverElement = document.getElementById('cover-export-node');
+        if (!coverElement) return;
+
+        try {
+            const canvas = await html2canvas(coverElement, {
+                useCORS: true,
+                scale: 2 // High resolution for download
+            });
+            const link = document.createElement('a');
+            link.download = `${bookTitle.replace(/\\s+/g, '_')}_Cover.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (err) {
+            console.error('Error generating cover image:', err);
+            alert('Errore durante il salvataggio della copertina completata.');
+        }
+    };
+
     const proceedToExport = async () => {
         if (bookId) {
             await supabase.from('books').update({ status: 'EXPORT' }).eq('id', bookId);
@@ -189,6 +209,7 @@ const CoverPage: React.FC = () => {
 
                     {coverUrl ? (
                         <motion.div
+                            id="cover-export-node"
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             style={{
@@ -197,14 +218,35 @@ const CoverPage: React.FC = () => {
                                 borderRadius: '8px',
                                 overflow: 'hidden',
                                 boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-                                border: '1px solid rgba(255,255,255,0.2)'
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                position: 'relative'
                             }}
                         >
                             <img
                                 src={coverUrl}
+                                crossOrigin="anonymous"
                                 alt="Copertina del libro"
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
+                            {/* Text Mask Overlay */}
+                            <div style={{
+                                position: 'absolute',
+                                top: 0, left: 0, right: 0, bottom: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                padding: '2rem 1.5rem',
+                                background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.8) 100%)',
+                                color: 'white',
+                                textAlign: 'center'
+                            }}>
+                                <h1 style={{ fontSize: '1.8rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', textShadow: '2px 2px 4px rgba(0,0,0,0.8)', margin: 0 }}>
+                                    {bookTitle}
+                                </h1>
+                                <p style={{ fontSize: '1rem', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '2px', textShadow: '1px 1px 3px rgba(0,0,0,0.8)', margin: 0 }}>
+                                    {bookAuthor}
+                                </p>
+                            </div>
                         </motion.div>
                     ) : (
                         <div style={{
@@ -299,7 +341,7 @@ const CoverPage: React.FC = () => {
 
                         {coverUrl && (
                             <button
-                                onClick={() => window.open(coverUrl, '_blank')}
+                                onClick={downloadCombinedCover}
                                 className="btn-secondary"
                                 style={{ width: '100%' }}
                             >
