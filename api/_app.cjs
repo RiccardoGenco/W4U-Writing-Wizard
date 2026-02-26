@@ -162,10 +162,24 @@ app.post("/export/epub", async (req, res) => {
             .from("chapters")
             .select("*")
             .eq("book_id", bookId)
-            .eq("status", "COMPLETED")
             .order("chapter_number", { ascending: true });
 
         if (chaptersError || !chapters) throw new Error("Chapters not found");
+
+        const chapterIds = chapters.map(ch => ch.id);
+        const { data: paragraphs, error: paragraphsError } = await scopedSupabase
+            .from("paragraphs")
+            .select("*")
+            .in("chapter_id", chapterIds)
+            .eq("status", "COMPLETED")
+            .order("paragraph_number", { ascending: true });
+
+        if (!paragraphsError && paragraphs) {
+            chapters.forEach(ch => {
+                const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
+                ch.content = chParagraphs.map(p => p.content || "").join('\n\n');
+            });
+        }
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
@@ -292,10 +306,24 @@ app.post("/export/docx", async (req, res) => {
             .from("chapters")
             .select("*")
             .eq("book_id", bookId)
-            .eq("status", "COMPLETED")
             .order("chapter_number", { ascending: true });
 
         if (chaptersError || !chapters) throw new Error("Chapters not found");
+
+        const chapterIds = chapters.map(ch => ch.id);
+        const { data: paragraphs, error: paragraphsError } = await scopedSupabase
+            .from("paragraphs")
+            .select("*")
+            .in("chapter_id", chapterIds)
+            .eq("status", "COMPLETED")
+            .order("paragraph_number", { ascending: true });
+
+        if (!paragraphsError && paragraphs) {
+            chapters.forEach(ch => {
+                const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
+                ch.content = chParagraphs.map(p => p.content || "").join('\n\n');
+            });
+        }
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "W4U Writing Wizard";
@@ -615,12 +643,28 @@ app.post("/export/pdf", async (req, res) => {
             .from("chapters")
             .select("*")
             .eq("book_id", bookId)
-            .eq("status", "COMPLETED")
             .order("chapter_number", { ascending: true });
         if (chaptersError || !chapters) throw new Error("Chapters not found");
 
+        const chapterIds = chapters.map(ch => ch.id);
+        const { data: paragraphs, error: paragraphsError } = await scopedSupabase
+            .from("paragraphs")
+            .select("*")
+            .in("chapter_id", chapterIds)
+            .eq("status", "COMPLETED")
+            .order("paragraph_number", { ascending: true });
+
+        if (!paragraphsError && paragraphs) {
+            chapters.forEach(ch => {
+                const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
+                ch.content = chParagraphs.map(p => p.content || "").join('\n\n');
+            });
+        }
+
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
+
+        const { marked } = await import("marked");
 
         // Build HTML for PDF
         let htmlContent = `
