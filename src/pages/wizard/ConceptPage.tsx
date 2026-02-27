@@ -184,14 +184,42 @@ const ConceptPage: React.FC = () => {
         if (pseudonym) fullContext += `\nPSEUDONIMO: ${pseudonym}`;
 
         if (uploadedFileContent) {
-            fullContext += `\n\n=== MATERIALE AGGIUNTIVO CARICATO DALL'UTENTE (BOZZE/APPUNTI) ===\n${uploadedFileContent}\n=== FINE MATERIALE AGGIUNTIVO ===\n\nISTRUZIONI: Dai MOLTO peso al materiale caricato. Usalo come base fondamentale per lo stile e i contenuti.`;
-        }
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token || '';
 
-        await logDebug('frontend', 'concept_generation_start', {
-            genre,
-            inputs_length: fullContext.length,
-            has_file: !!uploadedFileContent
-        }, bookId);
+                const uploadRes = await fetch(import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/upload-draft` : '/api/upload-draft', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        bookId: bookId,
+                        textContent: uploadedFileContent
+                    })
+                });
+
+                if (!uploadRes.ok) {
+                    throw new Error(await uploadRes.text());
+                }
+
+                fullContext += `\n\n[NOTA: L'utente ha caricato una bozza molto estesa che è stata salvata nel database vettoriale RAG. Fornisci concept adatti a essere espansi su una struttura esistente.]`;
+
+                await logDebug('frontend', 'rag_upload_started', { length: uploadedFileContent.length }, bookId);
+            } catch (err: any) {
+                console.error("Draft RAG upload failed", err);
+                toastError("Impossibile analizzare il file. Riprova senza file o alleggeriscilo.");
+                setLoading(false);
+                return;
+            }
+        } else {
+            await logDebug('frontend', 'concept_generation_start', {
+                genre,
+                inputs_length: fullContext.length,
+                has_file: false
+            }, bookId);
+        }
 
         const startTime = performance.now();
 

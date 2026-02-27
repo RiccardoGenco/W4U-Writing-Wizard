@@ -926,7 +926,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei uno scrittore professionista. Stai scrivendo il PARAGRAFO \" + $('Get Paragraph').first().json.paragraph_number + \". NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\" + \n        \"BLUEPRINT (CONTESTO MACRO):\\n\" + \n        JSON.stringify($('Get Book').first().json.context_data?.blueprint || {}) + \"\\n\\n\" +\n        \"DETTAGLI CAPITOLO:\\n\" + \n        \"- Titolo: \" + ($('Get Paragraph').first().json.chapter_title || \"Senza Titolo\") + \"\\n\" +\n        \"- Sommario: \" + ($('Get Paragraph').first().json.chapter_summary || \"Nessun sommario\") + \"\\n\\n\" +\n        \"DETTAGLI QUESTO PARAGRAFO:\\n\" +\n        \"- Argomento: \" + ($('Get Paragraph').first().json.title || \"\") + \"\\n\" +\n        \"- Cosa deve succedere qui: \" + ($('Get Paragraph').first().json.description || \"Scrivi il contenuto adatto.\") + \"\\n\\n\" +\n        \"CONTESTO PARAGRAFI PRECEDENTI:\\n\" +\n        ($('Get Previous Paragraphs Context').first().json.combined_content ? $('Get Previous Paragraphs Context').first().json.combined_content : \"Ogni inizio porta con se una genesi. Nessun paragrafo precedente ancora.\") + \"\\n\\n\" +\n        \"ISTRUZIONI DI SCRITTURA:\\n\" +\n        \"REGOLE DI SCRITTURA (ADATTATI ALLA CATEGORIA DEL LIBRO CON CURA MANIACALE):\\n\\n1. NON-FICTION / Saggistica / Manuali / Guide: STILE INFORMATIVO RIGOROSO E AUTOREVOLE. CRITICAL RULE: È ASSOLUTAMENTE VIETATA ogni forma di narrazione romanzata, storytelling, \\\"show, don't tell\\\", intro poetiche, aneddoti romanzati e personaggi d'invenzione fittizi. NON INIZIARE MAI i paragrafi raccontando una storiella. Usa un tono freddo, oggettivo, consulenziale, tecnico. Concentrati sull'accuratezza tecnica: spiega i concetti, elenca step procedurali, usa elenchi puntati se utile.\\n\\n2. CUCINA E RICETTARI: STILE PROCEDURALE CRITICAL LOGIC.\\n\\n3. FICTION (Romanzi, Gialli, Sci-Fi, Romance, Fantasy): STILE NARRATIVO IMMERSIVO. Applica 'show, don\\'t tell'. Focus assoluto sulle descrizioni sensoriali, interiorità, archi drammatici e passioni.\\n\\nIstruzione finale: Scrivi SOLO il testo per questa sezione ed espandilo riccamente in modo definitivo (minimo 1500 caratteri o più).\\n\" +\n        \"- Assicurati che il collegamento con i paragrafi precedenti sia fluido e logico.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Scrivi il contenuto per il Paragrafo: \" + $('Get Paragraph').first().json.title\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei uno scrittore professionista. Stai scrivendo il PARAGRAFO \" + $('Get Paragraph').first().json.paragraph_number + \". NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\" + \n        \"BLUEPRINT (CONTESTO MACRO):\\n\" + \n        JSON.stringify($('Get Book').first().json.context_data?.blueprint || {}) + \"\\n\\n\" +\n        \"DETTAGLI CAPITOLO:\\n\" + \n        \"- Titolo: \" + ($('Get Paragraph').first().json.chapter_title || \"Senza Titolo\") + \"\\n\" +\n        \"- Sommario: \" + ($('Get Paragraph').first().json.chapter_summary || \"Nessun sommario\") + \"\\n\\n\" +\n        \"DETTAGLI QUESTO PARAGRAFO:\\n\" +\n        \"- Argomento: \" + ($('Get Paragraph').first().json.title || \"\") + \"\\n\" +\n        \"- Cosa deve succedere qui: \" + ($('Get Paragraph').first().json.description || \"Scrivi il contenuto adatto.\") + \"\\n\\n\" +\n        \"CONTESTO PARAGRAFI PRECEDENTI:\\n\" +\n        ($('Get Previous Paragraphs Context').first().json.combined_content ? $('Get Previous Paragraphs Context').first().json.combined_content : \"Ogni inizio porta con se una genesi. Nessun paragrafo precedente ancora.\") + \"\\n\\n\" +\n        \"MATERIALE BOZZA ESTRAPOLATO:\\n\" + ($('RAG: Query Draft Chunks').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"\\n\\n\") || \"Nessun materiale.\") + \"\\n\\n\" +\\n        \"ISTRUZIONI DI SCRITTURA:\\n\" +\n        \"REGOLE DI SCRITTURA (ADATTATI ALLA CATEGORIA DEL LIBRO CON CURA MANIACALE):\\n\\n1. NON-FICTION / Saggistica / Manuali / Guide: STILE INFORMATIVO RIGOROSO E AUTOREVOLE. CRITICAL RULE: È ASSOLUTAMENTE VIETATA ogni forma di narrazione romanzata, storytelling, \\\"show, don't tell\\\", intro poetiche, aneddoti romanzati e personaggi d'invenzione fittizi. NON INIZIARE MAI i paragrafi raccontando una storiella. Usa un tono freddo, oggettivo, consulenziale, tecnico. Concentrati sull'accuratezza tecnica: spiega i concetti, elenca step procedurali, usa elenchi puntati se utile.\\n\\n2. CUCINA E RICETTARI: STILE PROCEDURALE CRITICAL LOGIC.\\n\\n3. FICTION (Romanzi, Gialli, Sci-Fi, Romance, Fantasy): STILE NARRATIVO IMMERSIVO. Applica 'show, don\\'t tell'. Focus assoluto sulle descrizioni sensoriali, interiorità, archi drammatici e passioni.\\n\\nIstruzione finale: Scrivi SOLO il testo per questa sezione ed espandilo riccamente in modo definitivo (minimo 1500 caratteri o più).\\n\" +\n        \"- Assicurati che il collegamento con i paragrafi precedenti sia fluido e logico.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Scrivi il contenuto per il Paragrafo: \" + $('Get Paragraph').first().json.title\n    }\n  ]\n} }}",
         "options": {}
       },
       "id": "e028ed72-56c6-417e-90ed-efcb8ab58aa1",
@@ -1517,6 +1517,65 @@
         560,
         736
       ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": \"text-embedding-3-small\", \"input\": $(\"Get Paragraph\").first().json.title + \" \" + $(\"Get Paragraph\").first().json.description } }}",
+        "options": {}
+      },
+      "id": "rag-embedding-89012",
+      "name": "RAG: Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        450,
+        200
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "lIvnrEKrZKxdIRLJ",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM match_draft_chunks($1::uuid, $2::vector(1536), 0.2, 3);",
+        "options": {
+          "queryReplacement": "={{ $('Webhook Router').first().json.body.bookId }},{{ \"[\" + $json.data[0].embedding.join(\",\") + \"]\" }}"
+        }
+      },
+      "id": "rag-query-89012",
+      "name": "RAG: Query Draft Chunks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        600,
+        200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "pinData": {},
@@ -2083,7 +2142,7 @@
       "main": [
         [
           {
-            "node": "Agent: Writer",
+            "node": "RAG: Generate Embedding",
             "type": "main",
             "index": 0
           }
@@ -2122,6 +2181,28 @@
           },
           {
             "node": "Log AI Usage: Generate Cover (DALL-E 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG: Generate Embedding": {
+      "main": [
+        [
+          {
+            "node": "RAG: Query Draft Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG: Query Draft Chunks": {
+      "main": [
+        [
+          {
+            "node": "Agent: Writer",
             "type": "main",
             "index": 0
           }
