@@ -1558,7 +1558,7 @@
         "operation": "executeQuery",
         "query": "SELECT * FROM match_draft_chunks($1::uuid, $2::vector(1536), 0.2, 3);",
         "options": {
-          "queryReplacement": "={{ [$(\"Webhook Router\").json.body.bookId, \"[\" + $json.data[0].embedding.join(\",\") + \"]\"] }}"
+          "queryReplacement": "={{ $('Webhook Router').first().json.body.bookId }},{{ \"[\" + $json.data[0].embedding.join(\",\") + \"]\" }}"
         }
       },
       "id": "rag-query-89012",
