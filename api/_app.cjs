@@ -1139,18 +1139,40 @@ app.post("/api/ai-agent", async (req, res) => {
 
         console.log(`[AI Proxy] Created async request ${aiRequest.id} for user ${user.id}`);
 
-        // Return immediately with requestId
-        res.json({
-            status: 'pending',
-            requestId: aiRequest.id,
-            message: 'Request queued for processing'
-        });
+        // Decide whether to await the background task or return immediately
+        // Vercel serverless functions freeze background tasks when res.json() is called.
+        // For fast operations (< 30s), we should await them so they reliably complete.
+        // For slow operations (minutes), we MUST return immediately to avoid Vercel's absolute timeout (10s/60s).
+        const fastActions = ['GENERATE_CONCEPTS', 'OUTLINE', 'CHAT'];
 
-        // Forward to n8n asynchronously (don't await)
-        // Pass the token so `forwardToN8n` can also create a scoped client to update the record
-        forwardToN8n(aiRequest.id, user.id, req.body, token).catch(err => {
-            console.error('[AI Proxy] Background n8n forward error:', err);
-        });
+        if (fastActions.includes(action)) {
+            console.log(`[AI Proxy] Awaiting fast action ${action} for request ${aiRequest.id}`);
+            await forwardToN8n(aiRequest.id, user.id, req.body, token);
+
+            const { data: updatedRequest } = await scopedSupabase
+                .from('ai_requests')
+                .select('*')
+                .eq('id', aiRequest.id)
+                .single();
+
+            res.json({
+                status: updatedRequest?.status || 'completed',
+                requestId: aiRequest.id,
+                data: updatedRequest?.response_data || null,
+                message: 'Request processed'
+            });
+        } else {
+            console.log(`[AI Proxy] Backgrounding slow action ${action} for request ${aiRequest.id}`);
+            res.json({
+                status: 'pending',
+                requestId: aiRequest.id,
+                message: 'Request queued for processing'
+            });
+
+            forwardToN8n(aiRequest.id, user.id, req.body, token).catch(err => {
+                console.error('[AI Proxy] Background n8n forward error:', err);
+            });
+        }
 
     } catch (err) {
         console.error("[AI Proxy] Error:", err);
