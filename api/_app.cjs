@@ -1181,6 +1181,150 @@ app.post("/api/sanitize", (req, res) => {
     }
 });
 
+// --- RAG DRAFT UPLOAD ENDPOINT ---
+
+app.post("/api/upload-draft", async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+        const token = authHeader.substring(7);
+
+        const scopedSupabase = createClient(
+            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+            process.env.VITE_SUPABASE_ANON_KEY || "",
+            { global: { headers: { Authorization: `Bearer ${token}` } } }
+        );
+
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
+        if (authError || !user) {
+            return res.status(401).json({ error: "Invalid token or user not found" });
+        }
+
+        const { bookId, textContent } = req.body;
+        if (!bookId || !textContent) {
+            return res.status(400).json({ error: "bookId and textContent are required" });
+        }
+
+        // Verify book ownership
+        const { data: book, error: bookError } = await scopedSupabase
+            .from("books")
+            .select("id, context_data")
+            .eq("id", bookId)
+            .single();
+
+        if (bookError || !book) {
+            return res.status(403).json({ error: "Book not found or access denied" });
+        }
+
+        // Return early to front-end to prevent timeout
+        res.json({ message: "Draft upload started", status: "processing" });
+
+        // Process in background
+        (async () => {
+            try {
+                console.log(`[RAG] Processing draft for book ${bookId}, length: ${textContent.length}`);
+
+                // 1. Clear existing chunks for this book to avoid duplicates
+                await scopedSupabase.from("draft_chunks").delete().eq("book_id", bookId);
+
+                // 2. Text Splitting (Simple chunking by paragraphs/length)
+                // We split by double newlines, then merge until a chunk is ~1500 chars (approx 300-400 tokens)
+                const rawParagraphs = textContent.split(/\n\s*\n/);
+                const chunks = [];
+                let currentChunk = "";
+
+                for (const p of rawParagraphs) {
+                    const trimmed = p.trim();
+                    if (!trimmed) continue;
+
+                    if (currentChunk.length + trimmed.length > 2000) {
+                        if (currentChunk) chunks.push(currentChunk);
+                        currentChunk = trimmed;
+                    } else {
+                        currentChunk += (currentChunk ? "\n\n" : "") + trimmed;
+                    }
+                }
+                if (currentChunk) chunks.push(currentChunk);
+
+                console.log(`[RAG] Created ${chunks.length} chunks. Generating embeddings...`);
+
+                const openaiApiKey = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+                if (!openaiApiKey) {
+                    throw new Error("OPENAI_API_KEY is not set");
+                }
+
+                // 3. Generate Embeddings & Save to Supabase (in batches of 20)
+                const batchSize = 20;
+                for (let i = 0; i < chunks.length; i += batchSize) {
+                    const batchChunks = chunks.slice(i, i + batchSize);
+
+                    // Call OpenAI API via fetch
+                    const response = await fetch("https://api.openai.com/v1/embeddings", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${openaiApiKey}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            model: "text-embedding-3-small",
+                            input: batchChunks
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+                    }
+
+                    const result = await response.json();
+
+                    // Prepare inserts
+                    const inserts = result.data.map((item, idx) => ({
+                        book_id: bookId,
+                        chunk_index: i + idx,
+                        content: batchChunks[idx],
+                        embedding: item.embedding
+                    }));
+
+                    const { error: insertError } = await scopedSupabase
+                        .from("draft_chunks")
+                        .insert(inserts);
+
+                    if (insertError) {
+                        throw new Error(`Supabase insert error: ${insertError.message}`);
+                    }
+                }
+
+                console.log(`[RAG] Successfully processed all chunks for book ${bookId}`);
+
+                // Update book status/context_data
+                const newContext = { ...book.context_data, draft_rag_status: "COMPLETED" };
+                await scopedSupabase
+                    .from("books")
+                    .update({ context_data: newContext })
+                    .eq("id", bookId);
+
+            } catch (bgError) {
+                console.error(`[RAG] Background processing error:`, bgError);
+                // Try to update book status with error
+                try {
+                    const newContext = { ...book.context_data, draft_rag_status: "FAILED", draft_rag_error: bgError.message };
+                    await scopedSupabase
+                        .from("books")
+                        .update({ context_data: newContext })
+                        .eq("id", bookId);
+                } catch (e) { }
+            }
+        })();
+
+    } catch (error) {
+        console.error("[RAG] Upload Draft error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Export app for Vercel
 module.exports = app;
 
