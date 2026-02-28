@@ -1180,6 +1180,52 @@ app.post("/api/ai-agent", async (req, res) => {
     }
 });
 
+/**
+ * POST /api/webhook/n8n/complete
+ * Webhook called by n8n when a BACKGROUND slow workflow finishes.
+ * It updates the ai_requests table so the frontend polling loop gets the "completed" status.
+ */
+app.post("/api/webhook/n8n/complete", async (req, res) => {
+    try {
+        const secret = req.headers['x-webhook-secret'];
+        if (process.env.N8N_WEBHOOK_SECRET && secret !== process.env.N8N_WEBHOOK_SECRET) {
+            console.error("[Webhook n8n] Invalid secret");
+            return res.status(401).json({ error: "Unauthorized webhook" });
+        }
+
+        const { requestId, status = 'completed', data, error_message } = req.body;
+
+        if (!requestId) {
+            return res.status(400).json({ error: "Missing requestId" });
+        }
+
+        console.log(`[Webhook n8n] Received completion for request ${requestId} with status ${status}`);
+
+        const updatePayload = {
+            status: status,
+            updated_at: new Date().toISOString()
+        };
+
+        if (data) updatePayload.response_data = data;
+        if (error_message) updatePayload.error_message = error_message;
+
+        const { error: dbError } = await supabase
+            .from('ai_requests')
+            .update(updatePayload)
+            .eq('id', requestId);
+
+        if (dbError) {
+            console.error("[Webhook n8n] Failed to update ai_requests:", dbError.message);
+            return res.status(500).json({ error: "Database update failed" });
+        }
+
+        res.json({ success: true, message: `Request ${requestId} marked as ${status}` });
+    } catch (err) {
+        console.error("[Webhook n8n] Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- SHARED SANITIZATION ENDPOINT ---
 
 app.post("/api/sanitize", (req, res) => {
