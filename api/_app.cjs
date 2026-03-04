@@ -62,7 +62,7 @@ app.post("/api/webhook/stripe", express.raw({ type: "application/json" }), async
 
         if (session.payment_status === "paid") {
             const userId = session.metadata.user_id;
-            const targetPages = parseInt(session.metadata.target_pages, 10);
+            const isTopup = session.metadata.type === 'TOPUP';
 
             try {
                 const adminSupabase = createClient(
@@ -70,32 +70,47 @@ app.post("/api/webhook/stripe", express.raw({ type: "application/json" }), async
                     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
                 );
 
-                // Grant Token
-                const { error: tokenError } = await adminSupabase
-                    .from("user_book_tokens")
-                    .insert({
-                        user_id: userId,
-                        pages_limit: targetPages,
-                        is_used: false
-                    });
+                if (isTopup) {
+                    const amountEur = session.amount_total / 100;
 
-                if (tokenError) throw tokenError;
+                    // Add funds to wallet
+                    const { data: walletData, error: fetchWalletError } = await adminSupabase
+                        .from('user_wallets')
+                        .select('balance')
+                        .eq('user_id', userId)
+                        .single();
 
-                // Log Transaction
-                const { error: logError } = await adminSupabase
-                    .from("transactions_log")
-                    .insert({
-                        user_id: userId,
-                        stripe_session_id: session.id,
-                        stripe_invoice_id: session.invoice,
-                        pages_purchased: targetPages,
-                        amount_paid_eur: session.amount_total / 100,
-                        status: "COMPLETED"
-                    });
+                    let newBalance = amountEur;
+                    if (!fetchWalletError && walletData) {
+                        newBalance += parseFloat(walletData.balance);
+                    }
 
-                if (logError) throw logError;
+                    const { error: walletError } = await adminSupabase
+                        .from("user_wallets")
+                        .upsert({
+                            user_id: userId,
+                            balance: newBalance,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'user_id' });
 
-                console.log(`[Stripe Webhook Success] Processed payment for user ${userId}, ${targetPages} pages.`);
+                    if (walletError) throw walletError;
+
+                    // Log Transaction
+                    const { error: logError } = await adminSupabase
+                        .from("transactions_log")
+                        .insert({
+                            user_id: userId,
+                            stripe_session_id: session.id,
+                            transaction_type: 'TOPUP',
+                            amount_eur: amountEur,
+                            description: 'Ricarica Credito W4U',
+                            status: "COMPLETED"
+                        });
+
+                    if (logError) throw logError;
+
+                    console.log(`[Stripe Webhook Success] Added €${amountEur} to wallet for user ${userId}. New balance: €${newBalance}`);
+                }
             } catch (dbError) {
                 console.error("[Stripe Webhook] Database processing error:", dbError);
                 return res.status(500).json({ error: "Internal Database Error" });
@@ -112,10 +127,10 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // --- STRIPE CHECKOUT API ---
 app.post("/api/checkout/create-session", async (req, res) => {
     try {
-        const { targetPages } = req.body;
+        const { amount } = req.body;
 
-        if (!targetPages || isNaN(targetPages) || targetPages > 250) {
-            return res.status(400).json({ error: "Invalid target pages request" });
+        if (!amount || isNaN(amount) || amount < 5) {
+            return res.status(400).json({ error: "Invalid recharge amount." });
         }
 
         const authHeader = req.headers.authorization;
@@ -129,21 +144,6 @@ app.post("/api/checkout/create-session", async (req, res) => {
             return res.status(401).json({ error: "Invalid local token" });
         }
 
-        const { data: config, error: configError } = await supabase
-            .from("pricing_config")
-            .select("*")
-            .limit(1)
-            .single();
-
-        if (configError || !config) {
-            return res.status(500).json({ error: "Pricing config missing from database." });
-        }
-
-        // Calculate dynamic price (e.g. 50 pages = 30€, +5€ every extra 10 pages)
-        const extraPages = Math.max(0, targetPages - config.base_pages);
-        const increments = Math.ceil(extraPages / config.extra_pages_increment);
-        const totalPriceEur = parseFloat(config.base_price_eur) + (increments * parseFloat(config.extra_price_eur));
-
         const appUrl = process.env.VITE_APP_URL || req.headers.origin || 'http://localhost:5173';
 
         const session = await stripe.checkout.sessions.create({
@@ -154,10 +154,10 @@ app.post("/api/checkout/create-session", async (req, res) => {
                     price_data: {
                         currency: 'eur',
                         product_data: {
-                            name: `W4U Libro Generato AI (${targetPages} Pagine)`,
-                            description: 'Token di generazione completa del libro gestito da Intelligenza Artificiale.',
+                            name: `Ricarica Credito W4U`,
+                            description: `Ricarica di €${amount} sul portafoglio virtuale per la generazione di libri.`,
                         },
-                        unit_amount: Math.round(totalPriceEur * 100), // into cents
+                        unit_amount: Math.round(amount * 100), // into cents
                     },
                     quantity: 1,
                 },
@@ -168,7 +168,8 @@ app.post("/api/checkout/create-session", async (req, res) => {
             cancel_url: `${appUrl}/payment/cancel`,
             metadata: {
                 user_id: user.id,
-                target_pages: targetPages.toString()
+                type: 'TOPUP',
+                amount: amount.toString()
             }
         });
 
@@ -1294,6 +1295,64 @@ app.post("/api/ai-agent", async (req, res) => {
         // For fast operations (< 30s), we should await them so they reliably complete.
         // For slow operations (minutes), we MUST return immediately to avoid Vercel's absolute timeout (10s/60s).
         const fastActions = ['GENERATE_CONCEPTS', 'OUTLINE', 'CHAT'];
+
+        // --- WALLET GATEKEEPING ---
+        // Only consume credit when starting a real GENERATE_CONCEPTS action
+        if (action === 'GENERATE_CONCEPTS') {
+            // Fetch pricing config
+            const { data: config, error: configError } = await scopedSupabase
+                .from("pricing_config")
+                .select("*")
+                .limit(1)
+                .single();
+
+            // Fetch book
+            const { data: book, error: bookError } = await scopedSupabase
+                .from("books")
+                .select("context_data")
+                .eq("id", bookId)
+                .single();
+
+            if (configError || !config || bookError || !book) {
+                return res.status(500).json({ error: "Errore durante il recupero dei dati di prezzo o del libro." });
+            }
+
+            const targetPages = parseInt(book.context_data?.target_pages || '50', 10);
+            const extraPages = Math.max(0, targetPages - config.base_pages);
+            const increments = Math.ceil(extraPages / config.extra_pages_increment);
+            const cost = parseFloat(config.base_price_eur) + (increments * parseFloat(config.extra_price_eur));
+
+            const { data: wallet, error: walletError } = await scopedSupabase
+                .from('user_wallets')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+            if (walletError || !wallet || wallet.balance < cost) {
+                return res.status(403).json({ error: "Credito insufficiente per generare questo libro. Clicca su 'Ricarica Credito' nella Sidebar." });
+            }
+
+            // Deduct the cost
+            const newBalance = parseFloat(wallet.balance) - cost;
+            await scopedSupabase
+                .from('user_wallets')
+                .update({ balance: newBalance, updated_at: new Date().toISOString() })
+                .eq('id', wallet.id);
+
+            // Log transaction
+            await scopedSupabase
+                .from("transactions_log")
+                .insert({
+                    user_id: user.id,
+                    transaction_type: 'PURCHASE',
+                    amount_eur: cost,
+                    description: `Generazione libro (ID: ${bookId}) - ${targetPages} Pagine`,
+                    status: "COMPLETED"
+                });
+
+            console.log(`[AI Proxy] Deducted €${cost} from user ${user.id} for book ${bookId}. New balance: €${newBalance}`);
+        }
+        // -----------------------
 
         if (fastActions.includes(action)) {
             console.log(`[AI Proxy] Awaiting fast action ${action} for request ${aiRequest.id}`);

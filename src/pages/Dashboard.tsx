@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import { supabase } from '../lib/api';
 import { getGenresByCategory } from '../data/genres';
+import { useWallet } from '../lib/useWallet';
+import { usePricing } from '../lib/usePricing';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -14,8 +16,20 @@ const Dashboard: React.FC = () => {
     const [theme, setTheme] = useState('Giallo e Thriller');
     const [showForm, setShowForm] = useState(false);
 
+    // --- Gatekeeping Logic ---
+    const { loading: walletLoading, getBalance } = useWallet();
+    const { config, calculateTotal } = usePricing();
+    const [showTokenAlert, setShowTokenAlert] = useState(false);
 
-    const PAGE_OPTIONS = ['50', '100', '150', '200', '250', '300'];
+    const PAGE_OPTIONS = config
+        ? Array.from(
+            { length: Math.floor((config.max_pages - config.base_pages) / config.extra_pages_increment) + 1 },
+            (_, i) => (config.base_pages + i * config.extra_pages_increment).toString()
+        )
+        : ['50', '100', '150', '200', '250', '300'];
+
+    const currentCost = calculateTotal(parseInt(pages));
+    const hasEnoughCredit = getBalance() >= currentCost;
     const categorizedGenres = getGenresByCategory();
 
     // Interactive Background Logic
@@ -145,16 +159,55 @@ const Dashboard: React.FC = () => {
                                     Dallo schema alla bozza finale.
                                 </p>
 
-                                <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '4rem' }}>
+                                <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '4rem', flexDirection: 'column', alignItems: 'center' }}>
                                     <motion.button
-                                        whileHover={{ scale: 1.05, y: -5 }}
-                                        whileTap={{ scale: 0.95 }}
+                                        whileHover={!walletLoading ? { scale: 1.05, y: -5 } : {}}
+                                        whileTap={!walletLoading ? { scale: 0.95 } : {}}
                                         className="btn-primary"
                                         style={{ fontSize: '1.2rem', padding: '1.4rem 3rem' }}
-                                        onClick={() => setShowForm(true)}
+                                        onClick={() => {
+                                            if (walletLoading) return;
+                                            if (hasEnoughCredit) {
+                                                setShowForm(true);
+                                                setShowTokenAlert(false);
+                                            } else {
+                                                setShowTokenAlert(true);
+                                            }
+                                        }}
+                                        disabled={walletLoading}
                                     >
-                                        <Plus size={24} /> Inizia Ora
+                                        {walletLoading ? <Loader2 className="animate-spin" /> : <><Plus size={24} /> Inizia Ora</>}
                                     </motion.button>
+
+                                    {/* Gatekeeping Alert */}
+                                    {showTokenAlert && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            style={{
+                                                background: 'rgba(251, 113, 133, 0.1)',
+                                                border: '1px solid rgba(251, 113, 133, 0.3)',
+                                                padding: '1.5rem',
+                                                borderRadius: '16px',
+                                                maxWidth: '500px',
+                                                textAlign: 'center'
+                                            }}
+                                        >
+                                            <p style={{ color: 'var(--text-main)', marginBottom: '1rem', fontWeight: 600 }}>
+                                                Credito Insufficiente.
+                                            </p>
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                                                Il libro richiede u costo stimato di {currentCost}€, ma il tuo saldo attuale è di {getBalance()}€. Ricarica il tuo Wallet per iniziare.
+                                            </p>
+                                            <button
+                                                onClick={() => navigate('/pricing')}
+                                                className="btn-primary"
+                                                style={{ padding: '0.8rem 2rem', fontSize: '1rem' }}
+                                            >
+                                                Ricarica Credito
+                                            </button>
+                                        </motion.div>
+                                    )}
                                 </div>
 
 
@@ -200,11 +253,17 @@ const Dashboard: React.FC = () => {
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2.5rem' }}>
                                     <div>
-                                        <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Pagine</label>
+                                        <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                            <span>Pagine Libro</span>
+                                            <span style={{ color: hasEnoughCredit ? 'var(--primary)' : 'var(--error)' }}>Costo: €{currentCost}</span>
+                                        </label>
                                         <select
                                             value={pages}
-                                            onChange={e => setPages(e.target.value)}
-                                            style={{ width: '100%' }}
+                                            onChange={e => {
+                                                setPages(e.target.value);
+                                                setShowTokenAlert(false);
+                                            }}
+                                            style={{ width: '100%', borderColor: !hasEnoughCredit ? 'var(--error)' : undefined }}
                                         >
                                             {PAGE_OPTIONS.map(opt => (
                                                 <option key={opt} value={opt}>{opt} pagine</option>

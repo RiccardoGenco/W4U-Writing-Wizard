@@ -17,6 +17,9 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import MockBookPage from './pages/wizard/MockBookPage';
 import AdminDashboard from './pages/AdminDashboard';
+import { Pricing } from './pages/Pricing';
+import { PaymentSuccess } from './pages/payment/Success';
+import { PaymentCancel } from './pages/payment/Cancel';
 
 // Styles
 import './index.css';
@@ -50,6 +53,11 @@ const App: React.FC = () => {
                   <Route path="cover" element={<CoverPage />} />
                   <Route path="export" element={<ExportPage />} />
                 </Route>
+
+                {/* Payment & Pricing Routes */}
+                <Route path="pricing" element={<Pricing />} />
+                <Route path="payment/success" element={<PaymentSuccess />} />
+                <Route path="payment/cancel" element={<PaymentCancel />} />
 
                 {/* Secret Utility Route */}
                 <Route path="mock-book" element={<MockBookPage />} />
