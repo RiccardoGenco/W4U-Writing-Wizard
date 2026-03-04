@@ -12,7 +12,7 @@ const Dashboard: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
     const [author, setAuthor] = useState('');
-    const [pages, setPages] = useState('150');
+    const [pages, setPages] = useState('50');
     const [theme, setTheme] = useState('Giallo e Thriller');
     const [showForm, setShowForm] = useState(false);
 
@@ -29,6 +29,8 @@ const Dashboard: React.FC = () => {
         : ['50', '100', '150', '200', '250', '300'];
 
     const currentCost = calculateTotal(parseInt(pages));
+    const baseCost = config?.base_price_eur || 30;
+    const canStartForm = getBalance() >= baseCost;
     const hasEnoughCredit = getBalance() >= currentCost;
     const categorizedGenres = getGenresByCategory();
 
@@ -167,7 +169,7 @@ const Dashboard: React.FC = () => {
                                         style={{ fontSize: '1.2rem', padding: '1.4rem 3rem' }}
                                         onClick={() => {
                                             if (walletLoading) return;
-                                            if (hasEnoughCredit) {
+                                            if (canStartForm) {
                                                 setShowForm(true);
                                                 setShowTokenAlert(false);
                                             } else {
@@ -197,7 +199,7 @@ const Dashboard: React.FC = () => {
                                                 Credito Insufficiente.
                                             </p>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                                                Il libro richiede u costo stimato di {currentCost}€, ma il tuo saldo attuale è di {getBalance()}€. Ricarica il tuo Wallet per iniziare.
+                                                Il costo minimo per generare un libro è di {baseCost}€, ma il tuo saldo attuale è di {getBalance()}€. Ricarica il tuo Wallet per iniziare.
                                             </p>
                                             <button
                                                 onClick={() => navigate('/pricing')}
@@ -291,11 +293,16 @@ const Dashboard: React.FC = () => {
                                 <button
                                     type="submit"
                                     className="btn-primary"
-                                    style={{ width: '100%', padding: '1.2rem' }}
-                                    disabled={loading || !title || !theme}
+                                    style={{ width: '100%', padding: '1.2rem', opacity: hasEnoughCredit ? 1 : 0.5 }}
+                                    disabled={loading || !title || !theme || !hasEnoughCredit}
                                 >
                                     {loading ? <Loader2 className="animate-spin" /> : 'Crea il tuo Libro'}
                                 </button>
+                                {!hasEnoughCredit && (
+                                    <p style={{ color: 'var(--error)', textAlign: 'center', marginTop: '1rem', fontWeight: 500, fontSize: '0.9rem' }}>
+                                        Credito insufficiente per generare {pages} pagine. Riduci le pagine o ricarica il wallet.
+                                    </p>
+                                )}
                             </motion.form>
                         )}
                     </motion.div>

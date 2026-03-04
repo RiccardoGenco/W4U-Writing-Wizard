@@ -146,6 +146,61 @@ app.post("/api/checkout/create-session", async (req, res) => {
 
         const appUrl = process.env.VITE_APP_URL || req.headers.origin || 'http://localhost:5173';
 
+        // --- MOCK PAYMENT BYPASS ---
+        // If MOCK_PAYMENTS is explicitly true, skip Stripe and process the wallet recharge instantly directly here.
+        if (process.env.MOCK_PAYMENTS === 'true' || process.env.VITE_MOCK_PAYMENTS === 'true') {
+            console.log(`[Mock Payment] Processing mock recharge of €${amount} for user ${user.id}`);
+
+            // We MUST use the explicit service_role key to bypass RLS for payment top-ups.
+            // If it's missing, it will throw an RLS violation because users are not allowed to mint themselves free credits.
+            const adminSupabase = createClient(
+                process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+                process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+            );
+
+            // Fetch current balance
+            const { data: walletData, error: fetchWalletError } = await adminSupabase
+                .from('user_wallets')
+                .select('balance')
+                .eq('user_id', user.id)
+                .single();
+
+            let newBalance = amount;
+            if (!fetchWalletError && walletData) {
+                newBalance += parseFloat(walletData.balance);
+            }
+
+            // Upsert new balance
+            const { error: walletError } = await adminSupabase
+                .from("user_wallets")
+                .upsert({
+                    user_id: user.id,
+                    balance: newBalance,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id' });
+
+            if (walletError) throw walletError;
+
+            // Log Transaction
+            const mockSessionId = 'mock_session_' + Date.now();
+            const { error: logError } = await adminSupabase
+                .from("transactions_log")
+                .insert({
+                    user_id: user.id,
+                    stripe_session_id: mockSessionId,
+                    transaction_type: 'TOPUP',
+                    amount_eur: amount,
+                    description: 'Ricarica Credito W4U (MOCK)',
+                    status: "COMPLETED"
+                });
+
+            if (logError) throw logError;
+
+            // Immediately redirect to success page
+            return res.json({ id: mockSessionId, url: `${appUrl}/payment/success?session_id=${mockSessionId}&mock=true` });
+        }
+        // ---------------------------
+
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card', 'paypal'],
             customer_email: user.email,

@@ -5,7 +5,8 @@ import { CheckCircle, ArrowRight, Loader2, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../lib/useWallet';
 
-const API_BASE_URL = import.meta.env.VITE_APP_URL || 'http://localhost:3000';
+// VITE_APP_URL is not used for local proxy calls. Use relative path so Vite proxy kicks in.
+const API_BASE_URL = import.meta.env.VITE_APP_URL || '';
 
 const PRESET_AMOUNTS = [30, 50, 100, 250];
 
@@ -45,13 +46,21 @@ export const Pricing: React.FC = () => {
                 body: JSON.stringify({ amount })
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Errore durante la creazione della sessione di pagamento.');
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonErr) {
+                if (!response.ok) {
+                    throw new Error(`Errore di connessione al server (${response.status})`);
+                }
+                throw new Error('Errore nella lettura della risposta dal server.');
             }
 
-            if (data.url) {
+            if (!response.ok) {
+                throw new Error(data?.error || 'Errore durante la creazione della sessione di pagamento.');
+            }
+
+            if (data?.url) {
                 window.location.href = data.url;
             } else {
                 throw new Error('URL di checkout non valido.');
