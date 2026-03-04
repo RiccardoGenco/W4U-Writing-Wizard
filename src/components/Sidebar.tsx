@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, Plus, History, Layout, Settings, LogOut, User, AlertCircle, Sun, Moon } from 'lucide-react';
+import { Book, Plus, History, Layout, Settings, LogOut, User, AlertCircle, Sun, Moon, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/auth';
@@ -115,6 +115,9 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
             <div style={{ marginTop: 'auto', borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', gap: '0.2rem', display: 'flex', flexDirection: 'column' }}>
                 <div className="sidebar-item" onClick={() => navigate('/')}>
                     <Layout size={18} /> <span>Dashboard</span>
+                </div>
+                <div className="sidebar-item" onClick={() => navigate('/admin')}>
+                    <Shield size={18} /> <span>Amministrazione</span>
                 </div>
                 <div className="sidebar-item">
                     <Settings size={18} /> <span>Impostazioni</span>
