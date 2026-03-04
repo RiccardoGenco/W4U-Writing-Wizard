@@ -6,6 +6,19 @@ const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
 
 // Load .env
+let endpointSecret = "";
+try {
+    const dotenv = require("dotenv");
+    const parsed = dotenv.config({ path: path.join(__dirname, "../.env") }).parsed;
+    if (parsed && parsed.STRIPE_WEBHOOK_SECRET) endpointSecret = parsed.STRIPE_WEBHOOK_SECRET;
+} catch (e) {
+    if (process.env.STRIPE_WEBHOOK_SECRET) endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+}
+
+const stripeKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder";
+const stripe = require("stripe")(stripeKey);
+
+// Load .env
 try {
     const dotenv = require("dotenv");
     // Try loading from parent directory (if running from api/) or current (if from root)
@@ -26,8 +39,145 @@ app.use(cors({
 
 // app.options removed as per Express 5 best practices with app.use(cors())
 
+// STRIPE WEBHOOK MUST BE BEFORE express.json()
+app.post("/api/webhook/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    let event;
+
+    try {
+        if (!endpointSecret) {
+            console.warn("[WARN] No STRIPE_WEBHOOK_SECRET found, parsing JSON normally without signature check (Local mode).");
+            event = JSON.parse(req.body.toString());
+        } else {
+            event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+        }
+    } catch (err) {
+        console.error(`[Stripe Webhook Error]: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    // Handle the checkout.session.completed event
+    if (event.type === "checkout.session.completed") {
+        const session = event.data.object;
+
+        if (session.payment_status === "paid") {
+            const userId = session.metadata.user_id;
+            const targetPages = parseInt(session.metadata.target_pages, 10);
+
+            try {
+                const adminSupabase = createClient(
+                    process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+                    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+                );
+
+                // Grant Token
+                const { error: tokenError } = await adminSupabase
+                    .from("user_book_tokens")
+                    .insert({
+                        user_id: userId,
+                        pages_limit: targetPages,
+                        is_used: false
+                    });
+
+                if (tokenError) throw tokenError;
+
+                // Log Transaction
+                const { error: logError } = await adminSupabase
+                    .from("transactions_log")
+                    .insert({
+                        user_id: userId,
+                        stripe_session_id: session.id,
+                        stripe_invoice_id: session.invoice,
+                        pages_purchased: targetPages,
+                        amount_paid_eur: session.amount_total / 100,
+                        status: "COMPLETED"
+                    });
+
+                if (logError) throw logError;
+
+                console.log(`[Stripe Webhook Success] Processed payment for user ${userId}, ${targetPages} pages.`);
+            } catch (dbError) {
+                console.error("[Stripe Webhook] Database processing error:", dbError);
+                return res.status(500).json({ error: "Internal Database Error" });
+            }
+        }
+    }
+
+    res.json({ received: true });
+});
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// --- STRIPE CHECKOUT API ---
+app.post("/api/checkout/create-session", async (req, res) => {
+    try {
+        const { targetPages } = req.body;
+
+        if (!targetPages || isNaN(targetPages) || targetPages > 250) {
+            return res.status(400).json({ error: "Invalid target pages request" });
+        }
+
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+        const token = authHeader.split('Bearer ')[1];
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+            return res.status(401).json({ error: "Invalid local token" });
+        }
+
+        const { data: config, error: configError } = await supabase
+            .from("pricing_config")
+            .select("*")
+            .limit(1)
+            .single();
+
+        if (configError || !config) {
+            return res.status(500).json({ error: "Pricing config missing from database." });
+        }
+
+        // Calculate dynamic price (e.g. 50 pages = 30€, +5€ every extra 10 pages)
+        const extraPages = Math.max(0, targetPages - config.base_pages);
+        const increments = Math.ceil(extraPages / config.extra_pages_increment);
+        const totalPriceEur = parseFloat(config.base_price_eur) + (increments * parseFloat(config.extra_price_eur));
+
+        const appUrl = process.env.VITE_APP_URL || req.headers.origin || 'http://localhost:5173';
+
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card', 'paypal'],
+            customer_email: user.email,
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: `W4U Libro Generato AI (${targetPages} Pagine)`,
+                            description: 'Token di generazione completa del libro gestito da Intelligenza Artificiale.',
+                        },
+                        unit_amount: Math.round(totalPriceEur * 100), // into cents
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            allow_promotion_codes: true, // Native stripe promo codes
+            success_url: `${appUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${appUrl}/payment/cancel`,
+            metadata: {
+                user_id: user.id,
+                target_pages: targetPages.toString()
+            }
+        });
+
+        res.json({ id: session.id, url: session.url });
+    } catch (error) {
+        console.error("[Stripe Session Error]:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // DEBUG LOGGER
 app.use((req, res, next) => {
