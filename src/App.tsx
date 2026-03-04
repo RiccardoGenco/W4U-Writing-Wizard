@@ -16,6 +16,7 @@ import ExportPage from './pages/wizard/ExportPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import MockBookPage from './pages/wizard/MockBookPage';
+import AdminDashboard from './pages/AdminDashboard';
 
 // Styles
 import './index.css';
@@ -52,6 +53,9 @@ const App: React.FC = () => {
 
                 {/* Secret Utility Route */}
                 <Route path="mock-book" element={<MockBookPage />} />
+
+                {/* Admin Route */}
+                <Route path="admin" element={<AdminDashboard />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
