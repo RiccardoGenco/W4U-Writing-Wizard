@@ -253,6 +253,14 @@ const LoginPage: React.FC = () => {
                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                         </div>
+                        <div style={{ textAlign: 'right', marginTop: '0.4rem' }}>
+                            <Link to="/forgot-password" style={{
+                                color: 'var(--text-muted)', textDecoration: 'none',
+                                fontSize: '0.8rem', transition: 'color 0.2s'
+                            }} className="hover-primary">
+                                Password dimenticata?
+                            </Link>
+                        </div>
                     </div>
 
                     <button

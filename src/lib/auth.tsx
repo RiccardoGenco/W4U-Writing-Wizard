@@ -52,6 +52,8 @@ interface AuthContextType {
     signUp: (email: string, password: string, authorName?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
     signOut: () => Promise<void>;
     resendConfirmationEmail: (email: string) => Promise<{ error: string | null }>;
+    resetPasswordForEmail: (email: string) => Promise<{ error: string | null }>;
+    updatePassword: (password: string) => Promise<{ error: string | null }>;
     clearAuthError: () => void;
 }
 
@@ -307,6 +309,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // ─── Resend Confirmation ──────────────────────────────────────────────────
 
+    // ─── Resend Confirmation ──────────────────────────────────────────────────
+
     const resendConfirmationEmail = async (email: string) => {
         console.log('[Auth] resendConfirmationEmail attempt for:', email);
         const startTime = performance.now();
@@ -351,10 +355,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    // ─── Reset Password ───────────────────────────────────────────────────────
+
+    const resetPasswordForEmail = async (email: string) => {
+        console.log('[Auth] resetPasswordForEmail attempt for:', email);
+        const startTime = performance.now();
+
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`
+            });
+
+            const duration = Math.round(performance.now() - startTime);
+
+            if (error) {
+                const translated = translateError(error);
+                console.warn(`[Auth] resetPasswordForEmail failed (${duration}ms):`, error.message, '→', translated);
+                logDebug('auth', 'reset_password_request_failed', {
+                    email,
+                    error: error.message,
+                    translated,
+                    duration_ms: duration
+                });
+                return { error: translated };
+            }
+
+            console.log(`[Auth] resetPasswordForEmail SUCCESS (${duration}ms) for:`, email);
+            logDebug('auth', 'reset_password_request_success', { email, duration_ms: duration });
+            return { error: null };
+
+        } catch (err: any) {
+            const duration = Math.round(performance.now() - startTime);
+            const translated = translateError(err);
+            console.error(`[Auth] resetPasswordForEmail CRASH (${duration}ms):`, err);
+            logDebug('auth', 'reset_password_request_crash', {
+                email,
+                error: err.message,
+                duration_ms: duration
+            });
+            return { error: translated };
+        }
+    };
+
+    // ─── Update Password ──────────────────────────────────────────────────────
+
+    const updatePassword = async (password: string) => {
+        console.log('[Auth] updatePassword attempt');
+        const startTime = performance.now();
+
+        try {
+            const { error } = await supabase.auth.updateUser({ password });
+            const duration = Math.round(performance.now() - startTime);
+
+            if (error) {
+                const translated = translateError(error);
+                console.warn(`[Auth] updatePassword failed (${duration}ms):`, error.message, '→', translated);
+                logDebug('auth', 'update_password_failed', {
+                    error: error.message,
+                    translated,
+                    duration_ms: duration
+                });
+                return { error: translated };
+            }
+
+            console.log(`[Auth] updatePassword SUCCESS (${duration}ms)`);
+            logDebug('auth', 'update_password_success', { duration_ms: duration });
+            return { error: null };
+
+        } catch (err: any) {
+            const duration = Math.round(performance.now() - startTime);
+            const translated = translateError(err);
+            console.error(`[Auth] updatePassword CRASH (${duration}ms):`, err);
+            logDebug('auth', 'update_password_crash', {
+                error: err.message,
+                duration_ms: duration
+            });
+            return { error: translated };
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
             user, session, loading, authError,
-            signIn, signUp, signOut, resendConfirmationEmail, clearAuthError
+            signIn, signUp, signOut, resendConfirmationEmail,
+            resetPasswordForEmail, updatePassword, clearAuthError
         }}>
             {children}
         </AuthContext.Provider>
