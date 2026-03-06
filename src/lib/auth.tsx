@@ -47,6 +47,7 @@ interface AuthContextType {
     user: User | null;
     session: Session | null;
     loading: boolean;
+    isAdmin: boolean;
     authError: string | null;
     signIn: (email: string, password: string) => Promise<{ error: string | null }>;
     signUp: (email: string, password: string, authorName?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
@@ -65,98 +66,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [authError, setAuthError] = useState<string | null>(null);
 
     const clearAuthError = useCallback(() => setAuthError(null), []);
 
-    useEffect(() => {
-        console.log('[Auth] Initializing AuthProvider — fetching session...');
-        const startTime = performance.now();
+    const fetchAdminStatus = async (userId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('is_admin')
+                .eq('id', userId)
+                .single();
 
-        // Get initial session with error handling
-        supabase.auth.getSession()
-            .then(({ data: { session }, error }) => {
-                const duration = Math.round(performance.now() - startTime);
-
-                if (error) {
-                    console.error(`[Auth] getSession failed (${duration}ms):`, error.message);
-                    logDebug('auth', 'session_init_error', {
-                        error: error.message,
-                        duration_ms: duration
-                    });
-                    // Don't block the app — just let the user see login
-                    setLoading(false);
-                    return;
-                }
-
-                if (session) {
-                    console.log(`[Auth] Session restored (${duration}ms) — user:`, session.user.email);
-                    logDebug('auth', 'session_restored', {
-                        email: session.user.email,
-                        expires_at: session.expires_at,
-                        duration_ms: duration
-                    });
-                } else {
-                    console.log(`[Auth] No active session found (${duration}ms)`);
-                    logDebug('auth', 'session_none', { duration_ms: duration });
-                }
-
-                setSession(session);
-                setUser(session?.user ?? null);
-                setLoading(false);
-            })
-            .catch((err) => {
-                // Network error or Supabase unreachable
-                const duration = Math.round(performance.now() - startTime);
-                console.error(`[Auth] getSession CRASHED (${duration}ms):`, err);
-                logDebug('auth', 'session_init_crash', {
-                    error: err.message,
-                    duration_ms: duration
-                });
-                setLoading(false); // Fallback: don't block the app forever
-            });
-
-        // Listen for auth changes (PKCE flow handles token refresh automatically)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (event, session) => {
-                console.log(`[Auth] Auth state changed: event=${event}, user=${session?.user?.email ?? 'none'}`);
-                logDebug('auth', 'state_change', {
-                    event,
-                    email: session?.user?.email,
-                    has_session: !!session
-                });
-
-                setSession(session);
-                setUser(session?.user ?? null);
-                setLoading(false);
-
-                // Handle specific events
-                if (event === 'SIGNED_OUT') {
-                    console.log('[Auth] User signed out — clearing local state');
-                    setAuthError(null);
-                } else if (event === 'SIGNED_IN') {
-                    console.log('[Auth] User signed in — claiming legacy books...');
-                    // Claim any unclaimed legacy books (user_id = NULL)
-                    supabase.rpc('claim_legacy_books').then(({ data, error }) => {
-                        if (error) {
-                            console.warn('[Auth] claim_legacy_books failed:', error.message);
-                        } else if (data && data > 0) {
-                            console.log(`[Auth] Claimed ${data} legacy book(s)`);
-                            logDebug('auth', 'legacy_books_claimed', {
-                                claimed_count: data,
-                                email: session?.user?.email
-                            });
-                        } else {
-                            console.log('[Auth] No legacy books to claim');
-                        }
-                    });
-                } else if (event === 'TOKEN_REFRESHED') {
-                    console.log('[Auth] Token refreshed successfully');
-                } else if (event === 'USER_UPDATED') {
-                    console.log('[Auth] User profile updated');
-                }
+            if (error) {
+                console.warn('[Auth] Error fetching admin status:', error.message);
+                setIsAdmin(false);
+                return;
             }
-        );
+
+            console.log('[Auth] Admin status for user:', data?.is_admin ? 'ADMIN' : 'USER');
+            setIsAdmin(data?.is_admin ?? false);
+        } catch (err) {
+            console.error('[Auth] Crash fetching admin status:', err);
+            setIsAdmin(false);
+        }
+    };
+
+    useEffect(() => {
+        console.log('[Auth] Initializing AuthProvider...');
+
+        // 1. Initial manual check
+        const initializeAuth = async () => {
+            try {
+                const { data: { session: initialSession } } = await supabase.auth.getSession();
+                console.log('[Auth] Initial session check:', initialSession ? 'Found' : 'None');
+
+                setSession(initialSession);
+                setUser(initialSession?.user ?? null);
+
+                if (initialSession?.user) {
+                    await fetchAdminStatus(initialSession.user.id);
+                } else {
+                    setIsAdmin(false);
+                }
+            } catch (err) {
+                console.error('[Auth] Fatal initialization error:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        initializeAuth();
+
+        // 2. Subscription for changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+            console.log(`[Auth] Auth state changed: event=${event}, user=${newSession?.user?.email ?? 'none'}`);
+
+            setSession(newSession);
+            setUser(newSession?.user ?? null);
+
+            if (newSession?.user) {
+                await fetchAdminStatus(newSession.user.id);
+            } else {
+                setIsAdmin(false);
+            }
+
+            setLoading(false);
+
+            // Handle specific events
+            if (event === 'SIGNED_OUT') {
+                console.log('[Auth] User signed out — clearing local state');
+                setAuthError(null);
+                localStorage.removeItem('active_book_id');
+            } else if (event === 'SIGNED_IN') {
+                console.log('[Auth] User signed in — claiming legacy books...');
+                supabase.rpc('claim_legacy_books').then(({ data, error }) => {
+                    if (error) console.warn('[Auth] claim_legacy_books failed:', error.message);
+                    else if (data && data > 0) console.log(`[Auth] Claimed ${data} legacy book(s)`);
+                });
+            }
+        });
 
         return () => {
             console.log('[Auth] Cleaning up auth listener');
@@ -164,279 +154,105 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []);
 
-    // ─── Sign In ───────────────────────────────────────────────────────────────
+    // ─── Authentication Methods ───────────────────────────────────────────────
 
     const signIn = async (email: string, password: string) => {
         console.log('[Auth] signIn attempt for:', email);
         const startTime = performance.now();
-
         try {
             const { error } = await supabase.auth.signInWithPassword({ email, password });
             const duration = Math.round(performance.now() - startTime);
-
             if (error) {
                 const translated = translateError(error);
-                console.warn(`[Auth] signIn failed (${duration}ms):`, error.message, '→', translated);
-                logDebug('auth', 'signin_failed', {
-                    email,
-                    error: error.message,
-                    translated,
-                    duration_ms: duration
-                });
                 setAuthError(translated);
                 return { error: translated };
             }
-
-            console.log(`[Auth] signIn SUCCESS (${duration}ms) for:`, email);
-            logDebug('auth', 'signin_success', { email, duration_ms: duration });
             setAuthError(null);
             return { error: null };
-
         } catch (err: any) {
-            const duration = Math.round(performance.now() - startTime);
             const translated = translateError(err);
-            console.error(`[Auth] signIn CRASH (${duration}ms):`, err);
-            logDebug('auth', 'signin_crash', {
-                email,
-                error: err.message,
-                duration_ms: duration
-            });
             setAuthError(translated);
             return { error: translated };
         }
     };
 
-    // ─── Sign Up ───────────────────────────────────────────────────────────────
-
     const signUp = async (email: string, password: string, authorName?: string) => {
-        console.log('[Auth] signUp attempt for:', email, 'author:', authorName || '(none)');
-        const startTime = performance.now();
-
+        console.log('[Auth] signUp attempt for:', email);
         try {
             const { data, error } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
-                    data: {
-                        author_name: authorName || ''
-                    },
-                    emailRedirectTo: window.location.origin || import.meta.env.VITE_APP_URL || 'http://localhost:5173'
+                    data: { author_name: authorName || '' },
+                    emailRedirectTo: window.location.origin
                 }
             });
-
-            const duration = Math.round(performance.now() - startTime);
-
             if (error) {
                 const translated = translateError(error);
-                console.warn(`[Auth] signUp failed (${duration}ms):`, error.message, '→', translated);
-                logDebug('auth', 'signup_failed', {
-                    email,
-                    error: error.message,
-                    translated,
-                    duration_ms: duration
-                });
                 setAuthError(translated);
                 return { error: translated, needsConfirmation: false };
             }
-
-            // If user is returned but no session, email confirmation is required
             const needsConfirmation = !!data.user && !data.session;
-            console.log(`[Auth] signUp SUCCESS (${duration}ms) — needsConfirmation:`, needsConfirmation);
-            logDebug('auth', 'signup_success', {
-                email,
-                needs_confirmation: needsConfirmation,
-                duration_ms: duration
-            });
             setAuthError(null);
             return { error: null, needsConfirmation };
-
         } catch (err: any) {
-            const duration = Math.round(performance.now() - startTime);
             const translated = translateError(err);
-            console.error(`[Auth] signUp CRASH (${duration}ms):`, err);
-            logDebug('auth', 'signup_crash', {
-                email,
-                error: err.message,
-                duration_ms: duration
-            });
             setAuthError(translated);
             return { error: translated, needsConfirmation: false };
         }
     };
 
-    // ─── Sign Out ──────────────────────────────────────────────────────────────
-
     const signOut = async () => {
-        console.log('[Auth] signOut initiated for:', user?.email);
-        const startTime = performance.now();
-
+        console.log('[Auth] signOut initiated');
         try {
-            const { error } = await supabase.auth.signOut();
-            const duration = Math.round(performance.now() - startTime);
-
-            if (error) {
-                console.error(`[Auth] signOut error (${duration}ms):`, error.message);
-                logDebug('auth', 'signout_error', {
-                    email: user?.email,
-                    error: error.message,
-                    duration_ms: duration
-                });
-                // Still clear local state even if Supabase errors
-            }
-
-            console.log(`[Auth] signOut completed (${duration}ms)`);
-            logDebug('auth', 'signout_success', {
-                email: user?.email,
-                duration_ms: duration
-            });
-
-            // Clear all app-specific local state
+            await supabase.auth.signOut();
             localStorage.removeItem('active_book_id');
             setAuthError(null);
-
         } catch (err: any) {
-            const duration = Math.round(performance.now() - startTime);
-            console.error(`[Auth] signOut CRASH (${duration}ms):`, err);
-            logDebug('auth', 'signout_crash', {
-                email: user?.email,
-                error: err.message,
-                duration_ms: duration
-            });
-            // Force clean local state anyway — user expects to be logged out
+            console.error('[Auth] signOut CRASH:', err);
             localStorage.removeItem('active_book_id');
         }
     };
 
-    // ─── Resend Confirmation ──────────────────────────────────────────────────
-
-    // ─── Resend Confirmation ──────────────────────────────────────────────────
-
     const resendConfirmationEmail = async (email: string) => {
-        console.log('[Auth] resendConfirmationEmail attempt for:', email);
-        const startTime = performance.now();
-
         try {
             const { error } = await supabase.auth.resend({
                 type: 'signup',
                 email,
-                options: {
-                    emailRedirectTo: window.location.origin || import.meta.env.VITE_APP_URL || 'http://localhost:5173'
-                }
+                options: { emailRedirectTo: window.location.origin }
             });
-
-            const duration = Math.round(performance.now() - startTime);
-
-            if (error) {
-                const translated = translateError(error);
-                console.warn(`[Auth] resendConfirmationEmail failed (${duration}ms):`, error.message, '→', translated);
-                logDebug('auth', 'resend_failed', {
-                    email,
-                    error: error.message,
-                    translated,
-                    duration_ms: duration
-                });
-                return { error: translated };
-            }
-
-            console.log(`[Auth] resendConfirmationEmail SUCCESS (${duration}ms) for:`, email);
-            logDebug('auth', 'resend_success', { email, duration_ms: duration });
+            if (error) return { error: translateError(error) };
             return { error: null };
-
         } catch (err: any) {
-            const duration = Math.round(performance.now() - startTime);
-            const translated = translateError(err);
-            console.error(`[Auth] resendConfirmationEmail CRASH (${duration}ms):`, err);
-            logDebug('auth', 'resend_crash', {
-                email,
-                error: err.message,
-                duration_ms: duration
-            });
-            return { error: translated };
+            return { error: translateError(err) };
         }
     };
 
-    // ─── Reset Password ───────────────────────────────────────────────────────
-
     const resetPasswordForEmail = async (email: string) => {
-        console.log('[Auth] resetPasswordForEmail attempt for:', email);
-        const startTime = performance.now();
-
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${window.location.origin}/reset-password`
             });
-
-            const duration = Math.round(performance.now() - startTime);
-
-            if (error) {
-                const translated = translateError(error);
-                console.warn(`[Auth] resetPasswordForEmail failed (${duration}ms):`, error.message, '→', translated);
-                logDebug('auth', 'reset_password_request_failed', {
-                    email,
-                    error: error.message,
-                    translated,
-                    duration_ms: duration
-                });
-                return { error: translated };
-            }
-
-            console.log(`[Auth] resetPasswordForEmail SUCCESS (${duration}ms) for:`, email);
-            logDebug('auth', 'reset_password_request_success', { email, duration_ms: duration });
+            if (error) return { error: translateError(error) };
             return { error: null };
-
         } catch (err: any) {
-            const duration = Math.round(performance.now() - startTime);
-            const translated = translateError(err);
-            console.error(`[Auth] resetPasswordForEmail CRASH (${duration}ms):`, err);
-            logDebug('auth', 'reset_password_request_crash', {
-                email,
-                error: err.message,
-                duration_ms: duration
-            });
-            return { error: translated };
+            return { error: translateError(err) };
         }
     };
 
-    // ─── Update Password ──────────────────────────────────────────────────────
-
     const updatePassword = async (password: string) => {
-        console.log('[Auth] updatePassword attempt');
-        const startTime = performance.now();
-
         try {
             const { error } = await supabase.auth.updateUser({ password });
-            const duration = Math.round(performance.now() - startTime);
-
-            if (error) {
-                const translated = translateError(error);
-                console.warn(`[Auth] updatePassword failed (${duration}ms):`, error.message, '→', translated);
-                logDebug('auth', 'update_password_failed', {
-                    error: error.message,
-                    translated,
-                    duration_ms: duration
-                });
-                return { error: translated };
-            }
-
-            console.log(`[Auth] updatePassword SUCCESS (${duration}ms)`);
-            logDebug('auth', 'update_password_success', { duration_ms: duration });
+            if (error) return { error: translateError(error) };
             return { error: null };
-
         } catch (err: any) {
-            const duration = Math.round(performance.now() - startTime);
-            const translated = translateError(err);
-            console.error(`[Auth] updatePassword CRASH (${duration}ms):`, err);
-            logDebug('auth', 'update_password_crash', {
-                error: err.message,
-                duration_ms: duration
-            });
-            return { error: translated };
+            return { error: translateError(err) };
         }
     };
 
     return (
         <AuthContext.Provider value={{
-            user, session, loading, authError,
+            user, session, loading, isAdmin, authError,
             signIn, signUp, signOut, resendConfirmationEmail,
             resetPasswordForEmail, updatePassword, clearAuthError
         }}>
