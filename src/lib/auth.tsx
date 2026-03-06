@@ -71,12 +71,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const clearAuthError = useCallback(() => setAuthError(null), []);
 
-    // Read is_admin directly from JWT app_metadata — no DB query, no RLS
-    const readAdminFromSession = (s: Session | null): boolean => {
-        const adminClaim = s?.user?.app_metadata?.is_admin;
-        const result = adminClaim === true;
-        console.log('[Auth] Admin status from JWT:', result ? 'ADMIN' : 'USER');
-        return result;
+    // DUAL STRATEGY: JWT claim first (instant), DB fallback if hook not active
+    const resolveAdminStatus = async (s: Session | null): Promise<boolean> => {
+        if (!s?.user) return false;
+
+        // Strategy 1: Read from JWT app_metadata (works when hook is active)
+        const jwtClaim = s.user.app_metadata?.is_admin;
+        if (jwtClaim === true || jwtClaim === false) {
+            console.log('[Auth] Admin from JWT claim:', jwtClaim);
+            return jwtClaim;
+        }
+
+        // Strategy 2: Fallback — query profiles directly (works when hook is inactive)
+        console.log('[Auth] JWT claim absent, querying DB...');
+        try {
+            const queryPromise = supabase
+                .from('profiles')
+                .select('is_admin')
+                .eq('id', s.user.id)
+                .single();
+
+            const timeoutPromise = new Promise<null>(resolve =>
+                setTimeout(() => resolve(null), 6000)
+            );
+
+            const result = await Promise.race([queryPromise, timeoutPromise]);
+            if (!result) { console.warn('[Auth] DB admin check timed out'); return false; }
+            const { data, error } = result as any;
+            if (error) { console.warn('[Auth] DB admin check error:', error.message); return false; }
+            console.log('[Auth] Admin from DB:', data?.is_admin);
+            return data?.is_admin === true;
+        } catch (err) {
+            console.error('[Auth] DB admin check crashed:', err);
+            return false;
+        }
     };
 
     useEffect(() => {
@@ -89,7 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 console.log('[Auth] Initial session check:', initialSession ? 'Found' : 'None');
                 setSession(initialSession);
                 setUser(initialSession?.user ?? null);
-                setIsAdmin(readAdminFromSession(initialSession));
+                setIsAdmin(await resolveAdminStatus(initialSession));
             } catch (err) {
                 console.error('[Auth] Fatal initialization error:', err);
             } finally {
@@ -105,7 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             setSession(newSession);
             setUser(newSession?.user ?? null);
-            setIsAdmin(readAdminFromSession(newSession));
+            const adminStatus = await resolveAdminStatus(newSession);
+            setIsAdmin(adminStatus);
             setLoading(false);
 
             if (event === 'SIGNED_OUT') {
