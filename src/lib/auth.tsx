@@ -73,19 +73,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const fetchAdminStatus = async (userId: string) => {
         try {
-            const { data, error } = await supabase
+            const timeoutPromise = new Promise<null>((resolve) =>
+                setTimeout(() => resolve(null), 5000)
+            );
+            const queryPromise = supabase
                 .from('profiles')
                 .select('is_admin')
                 .eq('id', userId)
-                .single();
+                .single()
+                .then(res => res);
 
-            if (error) {
-                console.warn('[Auth] Error fetching admin status:', error.message);
+            const result = await Promise.race([queryPromise, timeoutPromise]);
+
+            if (!result || 'error' in result && result.error) {
+                console.warn('[Auth] fetchAdminStatus failed or timed out');
                 setIsAdmin(false);
                 return;
             }
 
-            console.log('[Auth] Admin status for user:', data?.is_admin ? 'ADMIN' : 'USER');
+            const data = (result as any).data;
+            console.log('[Auth] Admin status:', data?.is_admin ? 'ADMIN' : 'USER');
             setIsAdmin(data?.is_admin ?? false);
         } catch (err) {
             console.error('[Auth] Crash fetching admin status:', err);

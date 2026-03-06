@@ -1,7 +1,18 @@
 -- ============================================================
--- ADMIN AUTHORIZATION SYSTEM MIGRATION
--- Run this in Supabase SQL Editor if the MCP auto-apply fails
+-- ADMIN AUTHORIZATION SYSTEM MIGRATION (v2 - with RLS recursion fix)
+-- Run this in Supabase SQL Editor
 -- ============================================================
+
+-- FIX: Create a SECURITY DEFINER helper function that bypasses RLS
+-- when checking if the current user is an admin.
+-- Without this, the admin-check inside a SELECT policy on `profiles`
+-- would recursively query `profiles` → infinite loop → timeout.
+CREATE OR REPLACE FUNCTION public.is_admin_user()
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = TRUE
+  );
+$$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
 -- STEP 1: Reset all admins, promote only the 2 authorized accounts
 UPDATE public.profiles SET is_admin = false;
@@ -26,13 +37,13 @@ BEFORE INSERT ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION enforce_new_user_not_admin();
 
--- STEP 3: TRIGGER — Only admins (or Editor SQL with null auth.uid()) can change is_admin
+-- STEP 3: TRIGGER — Only admins (or Editor SQL) can change is_admin
 CREATE OR REPLACE FUNCTION protect_is_admin_column()
 RETURNS TRIGGER AS $$
 BEGIN
     IF (OLD.is_admin IS DISTINCT FROM NEW.is_admin) AND
        (auth.uid() IS NOT NULL) AND
-       NOT (EXISTS (SELECT 1 FROM public.profiles p2 WHERE p2.id = auth.uid() AND p2.is_admin = TRUE)) THEN
+       NOT (public.is_admin_user()) THEN
         RAISE EXCEPTION 'Non-autorizzato: solo gli amministratori possono modificare il campo is_admin.';
     END IF;
     RETURN NEW;
@@ -45,32 +56,26 @@ BEFORE UPDATE OF is_admin ON public.profiles
 FOR EACH ROW
 EXECUTE FUNCTION protect_is_admin_column();
 
--- STEP 4: RLS — Users can see own profile
+-- STEP 4: RLS — Users can see own profile (no recursion risk)
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile" ON public.profiles
     FOR SELECT TO authenticated
     USING (auth.uid() = id);
 
--- STEP 5: RLS — Admins can see ALL profiles (for user management UI)
+-- STEP 5: RLS — Admins can see ALL profiles (uses safe SECURITY DEFINER function)
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles" ON public.profiles
     FOR SELECT TO authenticated
-    USING (
-        EXISTS (SELECT 1 FROM public.profiles p2 WHERE p2.id = auth.uid() AND p2.is_admin = TRUE)
-    );
+    USING (public.is_admin_user());
 
--- STEP 6: RLS — Admins can UPDATE any profile
+-- STEP 6: RLS — Admins can UPDATE any profile (uses safe SECURITY DEFINER function)
 DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
 CREATE POLICY "Admins can update any profile" ON public.profiles
     FOR UPDATE TO authenticated
-    USING (
-        EXISTS (SELECT 1 FROM public.profiles p2 WHERE p2.id = auth.uid() AND p2.is_admin = TRUE)
-    )
-    WITH CHECK (
-        EXISTS (SELECT 1 FROM public.profiles p2 WHERE p2.id = auth.uid() AND p2.is_admin = TRUE)
-    );
+    USING (public.is_admin_user())
+    WITH CHECK (public.is_admin_user());
 
--- VERIFY: Check current admin status
+-- VERIFY
 SELECT au.email, p.is_admin
 FROM public.profiles p
 JOIN auth.users au ON p.id = au.id
