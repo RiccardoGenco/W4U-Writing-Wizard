@@ -5,6 +5,10 @@
             "destination": "/api/check.js"
         },
         {
+            "source": "/api/checkout/create-session",
+            "destination": "/api/checkout/create-session"
+        },
+        {
             "source": "/api/(.*)",
             "destination": "/api/index"
         },
