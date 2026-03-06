@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, BookOpen, Coins, Loader2, ChevronDown, ChevronUp, FileText, Save, RefreshCw, AlertCircle, Tag, Sparkles } from 'lucide-react';
+import { Shield, Users, BookOpen, Coins, Loader2, ChevronDown, ChevronUp, FileText, Save, RefreshCw, AlertCircle, Tag, Sparkles, UserCheck, UserX } from 'lucide-react';
 import { supabase } from '../lib/api';
 import PromoCodesAdmin from '../components/PromoCodesAdmin';
 
@@ -46,25 +46,37 @@ interface AIPrompt {
     created_at: string;
 }
 
+interface UserProfile {
+    id: string;
+    email: string;
+    author_name: string;
+    is_admin: boolean;
+    created_at: string;
+}
+
 const AdminDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [userStats, setUserStats] = useState<UserCostStat[]>([]);
     const [bookStats, setBookStats] = useState<BookCostStat[]>([]);
     const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([]);
     const [aiPrompts, setAiPrompts] = useState<AIPrompt[]>([]);
+    const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
     const [isUserTableOpen, setIsUserTableOpen] = useState(true);
     const [isBookTableOpen, setIsBookTableOpen] = useState(true);
     const [isCourtesyPagesOpen, setIsCourtesyPagesOpen] = useState(false);
     const [isAIPromptsOpen, setIsAIPromptsOpen] = useState(false);
     const [isPricingOpen, setIsPricingOpen] = useState(false);
     const [isPromoCodesOpen, setIsPromoCodesOpen] = useState(false);
+    const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false);
     const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
     const [savingAIPrompt, setSavingAIPrompt] = useState<string | null>(null);
+    const [togglingAdmin, setTogglingAdmin] = useState<string | null>(null);
     const [pricingConfig, setPricingConfig] = useState<any>(null);
     const [savingPricing, setSavingPricing] = useState(false);
 
     useEffect(() => {
         fetchAdminData();
+        fetchAllProfiles();
     }, []);
 
     const fetchAdminData = async () => {
@@ -91,10 +103,62 @@ const AdminDashboard: React.FC = () => {
             setAiPrompts(aiPromptRes.data || []);
         } catch (err) {
             console.error("Error fetching admin stats:", err);
-            // In a real app, use the Toast component here
             alert("Errore nel caricamento dei dati di amministrazione.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchAllProfiles = async () => {
+        try {
+            // Get is_admin status from profiles
+            const { data: profilesData, error: profilesError } = await supabase
+                .from('profiles')
+                .select('id, is_admin, created_at')
+                .order('created_at', { ascending: false });
+            if (profilesError) {
+                console.error('Error fetching profiles:', profilesError.message);
+                return;
+            }
+            // Get email/author_name from the cost view (already joins auth.users)
+            const { data: usersData } = await supabase
+                .from('vw_cost_per_user')
+                .select('user_id, user_email, author_name');
+
+            const usersMap: Record<string, { email: string; author_name: string }> = {};
+            (usersData || []).forEach((u: any) => {
+                usersMap[u.user_id] = { email: u.user_email || '', author_name: u.author_name || '' };
+            });
+
+            const merged: UserProfile[] = (profilesData || []).map((p: any) => ({
+                id: p.id,
+                is_admin: p.is_admin,
+                created_at: p.created_at,
+                email: usersMap[p.id]?.email || '',
+                author_name: usersMap[p.id]?.author_name || '',
+            }));
+            setUserProfiles(merged);
+        } catch (err) {
+            console.error('Error fetching profiles:', err);
+        }
+    };
+
+    const handleToggleAdmin = async (userId: string, currentStatus: boolean) => {
+        setTogglingAdmin(userId);
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ is_admin: !currentStatus })
+                .eq('id', userId);
+            if (error) throw error;
+            setUserProfiles(prev =>
+                prev.map(p => p.id === userId ? { ...p, is_admin: !currentStatus } : p)
+            );
+        } catch (err: any) {
+            console.error('Error toggling admin:', err);
+            alert(`Errore nell'aggiornamento dei permessi: ${err.message}`);
+        } finally {
+            setTogglingAdmin(null);
         }
     };
 
@@ -194,8 +258,100 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div>
                     <h1 style={{ fontSize: '2.5rem', marginBottom: '0.2rem' }}>Pannello Amministratore</h1>
-                    <p style={{ color: 'var(--text-muted)' }}>Monitoraggio Costi AI e Utilizzo Sistema</p>
+                    <p style={{ color: 'var(--text-muted)' }}>Monitoraggio Costi AI, Utilizzo Sistema e Gestione Utenti</p>
                 </div>
+            </div>
+
+            {/* User Management Section */}
+            <div className="glass-panel" style={{ padding: '2rem', marginBottom: '3rem', transition: 'all 0.3s ease' }}>
+                <h2
+                    style={{ marginBottom: isUserMgmtOpen ? '1.5rem' : '0', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setIsUserMgmtOpen(!isUserMgmtOpen)}
+                >
+                    <Shield size={20} color="var(--error)" /> Gestione Utenti & Permessi
+                    {isUserMgmtOpen ? <ChevronUp size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} /> : <ChevronDown size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
+                </h2>
+
+                {isUserMgmtOpen && (
+                    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ marginBottom: '1.5rem', padding: '0.8rem 1rem', background: 'rgba(251, 113, 133, 0.05)', borderRadius: '8px', border: '1px solid rgba(251, 113, 133, 0.15)', display: 'flex', gap: '0.8rem', alignItems: 'flex-start' }}>
+                            <AlertCircle size={18} color="var(--error)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                Gli <strong>admin</strong> hanno accesso completo a questo pannello. I nuovi utenti sono sempre creati come <strong>utenti normali</strong>.
+                            </p>
+                        </div>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                    <th style={{ padding: '0.8rem 0.5rem' }}>Utente</th>
+                                    <th style={{ padding: '0.8rem 0.5rem' }}>Email</th>
+                                    <th style={{ padding: '0.8rem 0.5rem' }}>Ruolo</th>
+                                    <th style={{ padding: '0.8rem 0.5rem', textAlign: 'right' }}>Azione</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {userProfiles.length > 0 ? userProfiles.map((profile, i) => (
+                                    <tr key={profile.id} style={{ borderBottom: '1px solid var(--glass-border)', background: i % 2 === 0 ? 'rgba(0,0,0,0.2)' : 'transparent' }}>
+                                        <td style={{ padding: '0.9rem 0.5rem' }}>
+                                            <strong>{profile.author_name || '—'}</strong>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{profile.id.substring(0, 8)}...</div>
+                                        </td>
+                                        <td style={{ padding: '0.9rem 0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>{profile.email || '—'}</td>
+                                        <td style={{ padding: '0.9rem 0.5rem' }}>
+                                            <span style={{
+                                                background: profile.is_admin ? 'rgba(251, 113, 133, 0.15)' : 'rgba(255,255,255,0.05)',
+                                                border: profile.is_admin ? '1px solid rgba(251,113,133,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                                                color: profile.is_admin ? '#fb7185' : 'var(--text-muted)',
+                                                padding: '0.2rem 0.7rem',
+                                                borderRadius: '20px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 700
+                                            }}>
+                                                {profile.is_admin ? 'Admin' : 'Utente'}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '0.9rem 0.5rem', textAlign: 'right' }}>
+                                            <button
+                                                onClick={() => handleToggleAdmin(profile.id, profile.is_admin)}
+                                                disabled={togglingAdmin === profile.id}
+                                                title={profile.is_admin ? 'Rimuovi Admin' : 'Rendi Admin'}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.4rem',
+                                                    padding: '0.4rem 0.9rem',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 600,
+                                                    cursor: togglingAdmin === profile.id ? 'wait' : 'pointer',
+                                                    border: profile.is_admin ? '1px solid rgba(251,113,133,0.4)' : '1px solid rgba(0,242,255,0.3)',
+                                                    background: profile.is_admin ? 'rgba(251,113,133,0.1)' : 'rgba(0,242,255,0.08)',
+                                                    color: profile.is_admin ? '#fb7185' : 'var(--primary)',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                {togglingAdmin === profile.id ? (
+                                                    <RefreshCw size={13} className="animate-spin" />
+                                                ) : profile.is_admin ? (
+                                                    <><UserX size={13} /> Rimuovi Admin</>
+                                                ) : (
+                                                    <><UserCheck size={13} /> Rendi Admin</>
+                                                )}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )) : (
+                                    <tr><td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nessun utente trovato</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                            <button onClick={fetchAllProfiles} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                                <RefreshCw size={14} /> Aggiorna Lista
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* KPI Cards */}
