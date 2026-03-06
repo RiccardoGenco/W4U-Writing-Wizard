@@ -8,13 +8,15 @@ import { Book, LogIn, Eye, EyeOff, AlertCircle, WifiOff } from 'lucide-react';
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { signIn, user, clearAuthError } = useAuth();
+    const { signIn, resendConfirmationEmail, user, clearAuthError } = useAuth();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [resending, setResending] = useState(false);
+    const [resendSuccess, setResendSuccess] = useState(false);
 
     const from = (location.state as any)?.from?.pathname || '/';
 
@@ -151,12 +153,48 @@ const LoginPage: React.FC = () => {
                             color: error.includes('connessione') ? '#fbbf24' : 'var(--error)'
                         }}
                     >
-                        {error.includes('connessione') ? (
-                            <WifiOff size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                        ) : (
-                            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-                        )}
-                        <span>{error}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                                {error.includes('connessione') ? (
+                                    <WifiOff size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                ) : (
+                                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                )}
+                                <span>{error}</span>
+                            </div>
+
+                            {/* "Email not confirmed" specific action */}
+                            {error.includes('non ancora confermata') && !resendSuccess && (
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setResending(true);
+                                        const { error: resendError } = await resendConfirmationEmail(email);
+                                        if (resendError) setError(resendError);
+                                        else setResendSuccess(true);
+                                        setResending(false);
+                                    }}
+                                    disabled={resending}
+                                    style={{
+                                        background: 'none', border: 'none', color: 'var(--primary)',
+                                        fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline',
+                                        textAlign: 'left', marginLeft: '1.6rem', marginTop: '0.2rem',
+                                        opacity: resending ? 0.5 : 1
+                                    }}
+                                >
+                                    {resending ? 'Invio in corso...' : 'Reinvia email di conferma'}
+                                </button>
+                            )}
+
+                            {resendSuccess && (
+                                <p style={{
+                                    color: 'var(--success)', fontSize: '0.8rem',
+                                    marginLeft: '1.6rem', marginTop: '0.2rem', fontWeight: 600
+                                }}>
+                                    Email inviata! Controlla la tua posta.
+                                </p>
+                            )}
+                        </div>
                     </motion.div>
                 )}
 

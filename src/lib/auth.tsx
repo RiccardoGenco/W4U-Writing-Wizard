@@ -51,6 +51,7 @@ interface AuthContextType {
     signIn: (email: string, password: string) => Promise<{ error: string | null }>;
     signUp: (email: string, password: string, authorName?: string) => Promise<{ error: string | null; needsConfirmation: boolean }>;
     signOut: () => Promise<void>;
+    resendConfirmationEmail: (email: string) => Promise<{ error: string | null }>;
     clearAuthError: () => void;
 }
 
@@ -303,10 +304,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    // ─── Resend Confirmation ──────────────────────────────────────────────────
+
+    const resendConfirmationEmail = async (email: string) => {
+        console.log('[Auth] resendConfirmationEmail attempt for:', email);
+        const startTime = performance.now();
+
+        try {
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email
+            });
+
+            const duration = Math.round(performance.now() - startTime);
+
+            if (error) {
+                const translated = translateError(error);
+                console.warn(`[Auth] resendConfirmationEmail failed (${duration}ms):`, error.message, '→', translated);
+                logDebug('auth', 'resend_failed', {
+                    email,
+                    error: error.message,
+                    translated,
+                    duration_ms: duration
+                });
+                return { error: translated };
+            }
+
+            console.log(`[Auth] resendConfirmationEmail SUCCESS (${duration}ms) for:`, email);
+            logDebug('auth', 'resend_success', { email, duration_ms: duration });
+            return { error: null };
+
+        } catch (err: any) {
+            const duration = Math.round(performance.now() - startTime);
+            const translated = translateError(err);
+            console.error(`[Auth] resendConfirmationEmail CRASH (${duration}ms):`, err);
+            logDebug('auth', 'resend_crash', {
+                email,
+                error: err.message,
+                duration_ms: duration
+            });
+            return { error: translated };
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
             user, session, loading, authError,
-            signIn, signUp, signOut, clearAuthError
+            signIn, signUp, signOut, resendConfirmationEmail, clearAuthError
         }}>
             {children}
         </AuthContext.Provider>
