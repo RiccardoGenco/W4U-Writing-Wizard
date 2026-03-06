@@ -146,14 +146,27 @@ const AdminDashboard: React.FC = () => {
     const handleToggleAdmin = async (userId: string, currentStatus: boolean) => {
         setTogglingAdmin(userId);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_admin: !currentStatus })
-                .eq('id', userId);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Not authenticated');
+
+            const { data, error } = await supabase.functions.invoke('toggle-admin', {
+                body: { userId, isAdmin: !currentStatus },
+                headers: { Authorization: `Bearer ${session.access_token}` }
+            });
+
             if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+
+            // Update local state immediately
             setUserProfiles(prev =>
                 prev.map(p => p.id === userId ? { ...p, is_admin: !currentStatus } : p)
             );
+
+            // If the caller toggled themselves, refresh session to get new JWT
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.id === userId) {
+                await supabase.auth.refreshSession();
+            }
         } catch (err: any) {
             console.error('Error toggling admin:', err);
             alert(`Errore nell'aggiornamento dei permessi: ${err.message}`);
@@ -161,6 +174,7 @@ const AdminDashboard: React.FC = () => {
             setTogglingAdmin(null);
         }
     };
+
 
     const handleUpdatePricing = async () => {
         if (!pricingConfig || !pricingConfig.id) return;
