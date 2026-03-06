@@ -71,33 +71,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const clearAuthError = useCallback(() => setAuthError(null), []);
 
-    const fetchAdminStatus = async (userId: string) => {
-        try {
-            const timeoutPromise = new Promise<null>((resolve) =>
-                setTimeout(() => resolve(null), 5000)
-            );
-            const queryPromise = supabase
-                .from('profiles')
-                .select('is_admin')
-                .eq('id', userId)
-                .single()
-                .then(res => res);
-
-            const result = await Promise.race([queryPromise, timeoutPromise]);
-
-            if (!result || 'error' in result && result.error) {
-                console.warn('[Auth] fetchAdminStatus failed or timed out');
-                setIsAdmin(false);
-                return;
-            }
-
-            const data = (result as any).data;
-            console.log('[Auth] Admin status:', data?.is_admin ? 'ADMIN' : 'USER');
-            setIsAdmin(data?.is_admin ?? false);
-        } catch (err) {
-            console.error('[Auth] Crash fetching admin status:', err);
-            setIsAdmin(false);
-        }
+    // Read is_admin directly from JWT app_metadata — no DB query, no RLS
+    const readAdminFromSession = (s: Session | null): boolean => {
+        const adminClaim = s?.user?.app_metadata?.is_admin;
+        const result = adminClaim === true;
+        console.log('[Auth] Admin status from JWT:', result ? 'ADMIN' : 'USER');
+        return result;
     };
 
     useEffect(() => {
@@ -108,15 +87,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             try {
                 const { data: { session: initialSession } } = await supabase.auth.getSession();
                 console.log('[Auth] Initial session check:', initialSession ? 'Found' : 'None');
-
                 setSession(initialSession);
                 setUser(initialSession?.user ?? null);
-
-                if (initialSession?.user) {
-                    await fetchAdminStatus(initialSession.user.id);
-                } else {
-                    setIsAdmin(false);
-                }
+                setIsAdmin(readAdminFromSession(initialSession));
             } catch (err) {
                 console.error('[Auth] Fatal initialization error:', err);
             } finally {
@@ -132,16 +105,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             setSession(newSession);
             setUser(newSession?.user ?? null);
-
-            if (newSession?.user) {
-                await fetchAdminStatus(newSession.user.id);
-            } else {
-                setIsAdmin(false);
-            }
-
+            setIsAdmin(readAdminFromSession(newSession));
             setLoading(false);
 
-            // Handle specific events
             if (event === 'SIGNED_OUT') {
                 console.log('[Auth] User signed out — clearing local state');
                 setAuthError(null);
