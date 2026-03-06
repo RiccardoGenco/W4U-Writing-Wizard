@@ -15,6 +15,8 @@ import CoverPage from './pages/wizard/CoverPage';
 import ExportPage from './pages/wizard/ExportPage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import MockBookPage from './pages/wizard/MockBookPage';
 import AdminDashboard from './pages/AdminDashboard';
 import { Pricing } from './pages/Pricing';
@@ -39,6 +41,8 @@ const App: React.FC = () => {
               {/* Public routes */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Protected routes */}
               <Route path="/" element={<AuthGuard><MainLayout /></AuthGuard>}>
