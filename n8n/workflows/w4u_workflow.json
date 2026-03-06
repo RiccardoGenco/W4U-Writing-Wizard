@@ -890,7 +890,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": \"gpt-4o-mini\", \"max_tokens\": 8000, \"messages\": [ { \"role\": \"system\", \"content\": \"Sei uno scrittore professionista. Stai scrivendo il PARAGRAFO \" + $('Get Paragraph').first().json.paragraph_number + \". NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.  \" + \"BLUEPRINT (CONTESTO MACRO): \" + JSON.stringify($('Get Book').first().json.context_data?.blueprint || {}) + \"  \" + \"DETTAGLI CAPITOLO: \" + \"- Titolo: \" + ($('Get Paragraph').first().json.chapter_title || \"Senza Titolo\") + \" \" + \"- Sommario: \" + ($('Get Paragraph').first().json.chapter_summary || \"Nessun sommario\") + \"  \" + \"DETTAGLI QUESTO PARAGRAFO: \" + \"- Argomento: \" + ($('Get Paragraph').first().json.title || \"\") + \" \" + \"- Cosa deve succedere qui: \" + ($('Get Paragraph').first().json.description || \"Scrivi il contenuto adatto.\") + \"  \" + \"CONTESTO PARAGRAFI PRECEDENTI: \" + ($('Get Previous Paragraphs Context').first().json.combined_content ? $('Get Previous Paragraphs Context').first().json.combined_content : \"Ogni inizio porta con se una genesi. Nessun paragrafo precedente ancora.\") + \"  \" + \"MATERIALE BOZZA ESTRAPOLATO: \" + ($('RAG: Query Draft Chunks').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \") || \"Nessun materiale.\") + \"  \" +  \"ISTRUZIONI DI SCRITTURA: \" + \"REGOLE DI SCRITTURA (ADATTATI ALLA CATEGORIA DEL LIBRO CON CURA MANIACALE):  1. NON-FICTION / Saggistica / Manuali / Guide: STILE INFORMATIVO RIGOROSO E AUTOREVOLE. CRITICAL RULE: È ASSOLUTAMENTE VIETATA ogni forma di narrazione romanzata, storytelling, 'show, don\\'t tell', intro poetiche, aneddoti romanzati e personaggi d'invenzione fittizi. NON INIZIARE MAI i paragrafi raccontando una storiella. Usa un tono freddo, oggettivo, consulenziale, tecnico. Concentrati sull'accuratezza tecnica: spiega i concetti, elenca step procedurali, usa elenchi puntati se utile.  2. CUCINA E RICETTARI: STILE PROCEDURALE CRITICAL LOGIC.  3. FICTION (Romanzi, Gialli, Sci-Fi, Romance, Fantasy): STILE NARRATIVO IMMERSIVO. Applica 'show, don't tell'. Focus assoluto sulle descrizioni sensoriali, interiorità, archi drammatici e passioni.  Istruzione finale: Scrivi SOLO il testo per questa sezione ed espandilo riccamente in modo definitivo (minimo 1500 caratteri o più). \" + \"- Assicurati che il collegamento con i paragrafi precedenti sia fluido e logico.\" }, { \"role\": \"user\", \"content\": \"Scrivi il contenuto per il Paragrafo: \" + $('Get Paragraph').first().json.title } ] } }}",
+        "jsonBody": "={{ { \"model\": \"gpt-4o-mini\", \"max_tokens\": 8000, \"messages\": [ { \"role\": \"system\", \"content\": ($('Get Writer Prompt').first().json.prompt_text ? $('Get Writer Prompt').first().json.prompt_text + \"\\n\\n\" : \"Sei uno scrittore professionista. NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\") + \"BLUEPRINT (CONTESTO MACRO): \" + JSON.stringify($('Get Book').first().json.context_data?.blueprint || {}) +  \"  \" + \"DETTAGLI CAPITOLO: \" + \"- Titolo: \" + ($('Get Paragraph').first().json.chapter_title || \"Senza Titolo\") + \" \" + \"- Sommario: \" + ($('Get Paragraph').first().json.chapter_summary || \"Nessun sommario\") + \"  \" + \"DETTAGLI QUESTO PARAGRAFO: \" + \"- Argomento: \" + ($('Get Paragraph').first().json.title || \"\") + \" \" + \"- Cosa deve succedere qui: \" + ($('Get Paragraph').first().json.description || \"Scrivi il contenuto adatto.\") + \"  \" + \"CONTESTO PARAGRAFI PRECEDENTI: \" + ($('Get Previous Paragraphs Context').first().json.combined_content ? $('Get Previous Paragraphs Context').first().json.combined_content : \"Ogni inizio porta con se una genesi. Nessun paragrafo precedente ancora.\") + \"  \" + \"MATERIALE BOZZA ESTRAPOLATO: \" + ($('RAG: Query Draft Chunks').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \") || \"Nessun materiale.\") + \"  \" + \"ISTRUZIONI DI SCRITTURA: \" + \"REGOLE DI SCRITTURA (ADATTATI ALLA CATEGORIA DEL LIBRO CON CURA MANIACALE):  1. NON-FICTION / Saggistica / Manuali / Guide: STILE INFORMATIVO RIGOROSO E AUTOREVOLE. CRITICAL RULE: E ASSOLUTAMENTE VIETATA ogni forma di narrazione romanzata, storytelling, intro poetiche, aneddoti romanzati e personaggi d'invenzione fittizi. Usa un tono freddo, oggettivo, consulenziale, tecnico.  2. CUCINA E RICETTARI: STILE PROCEDURALE CRITICAL LOGIC.  3. FICTION (Romanzi, Gialli, Sci-Fi, Romance, Fantasy): STILE NARRATIVO IMMERSIVO. Applica show, dont tell. Focus assoluto sulle descrizioni sensoriali, interiorita, archi drammatici e passioni.  Istruzione finale: Scrivi SOLO il testo per questa sezione ed espandilo riccamente in modo definitivo (minimo 1500 caratteri o piu). \" + \"- Assicurati che il collegamento con i paragrafi precedenti sia fluido e logico.\" }, { \"role\": \"user\", \"content\": \"Scrivi il contenuto per il Paragrafo: \" + $('Get Paragraph').first().json.title } ] } }}",
         "options": {}
       },
       "id": "caeab055-7eaa-426d-9d74-d41034af17a8",
@@ -907,6 +907,30 @@
           "name": "OpenAi account 5"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT prompt_text FROM public.ai_prompts WHERE name = 'WRITER' AND is_active = true AND (genre = $1 OR genre = 'GENERAL') ORDER BY CASE WHEN genre = $1 THEN 0 ELSE 1 END LIMIT 1",
+        "options": {
+          "queryReplacement": "={{ $('Get Book').first().json.genre || 'GENERAL' }}"
+        }
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Get Writer Prompt",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -512,
+        16
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1922,6 +1946,17 @@
       ]
     },
     "Get Book": {
+      "main": [
+        [
+          {
+            "node": "Get Writer Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Writer Prompt": {
       "main": [
         [
           {
