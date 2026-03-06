@@ -114,6 +114,17 @@ const getTempPath = (filename) => {
     return path.join(__dirname, filename);
 };
 
+// --- HELPER: Template Rendering ---
+const renderTemplate = (template, data) => {
+    if (!template) return "";
+    let rendered = template;
+    for (const key in data) {
+        const regex = new RegExp(`{{${key}}}`, 'g');
+        rendered = rendered.replace(regex, data[key]);
+    }
+    return rendered;
+};
+
 
 // --- EPUB EXPORT ENDPOINT ---
 
@@ -180,6 +191,24 @@ app.post("/export/epub", async (req, res) => {
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
 
+        // Fetch Courtesy Templates
+        const { data: promptData } = await scopedSupabase
+            .from("system_prompts")
+            .select("*")
+            .filter('key', 'ilike', 'courtesy_%');
+
+        const prompts = (promptData || []).reduce((acc, curr) => ({ ...acc, [curr.key]: curr.prompt_text }), {});
+        const epubDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
+        const epubDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+
+        const templateData = {
+            title: cleanBookTitle,
+            author: cleanAuthor,
+            description: epubDesc,
+            description_short: epubDesc.substring(0, 50),
+            disclaimer: epubDisclaimer
+        };
+
         // Process Content with Production-Grade Logic
         const content = chapters.map((ch, index) => {
             const fullTitle = formatChapterTitle(index, ch.title || "Senza titolo");
@@ -198,13 +227,10 @@ app.post("/export/epub", async (req, res) => {
             };
         });
 
-        const epubDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
-        const epubDisclaimer = "Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.";
-
         // Titolo
         content.unshift({
             title: "Titolo",
-            content: `<div lang="it" style="text-align: center; margin-top: 30%;">
+            content: renderTemplate(prompts['courtesy_title_page'], templateData) || `<div lang="it" style="text-align: center; margin-top: 30%;">
                      <h2>${cleanAuthor}</h2>
                      <h1 style="font-size: 2.5em; margin: 0.5em 0;">${cleanBookTitle}</h1>
                      <p><em>${epubDesc}</em></p>
@@ -214,7 +240,7 @@ app.post("/export/epub", async (req, res) => {
         // Copyright
         content.splice(1, 0, {
             title: "Copyright",
-            content: `<div lang="it" style="text-align: center; margin-top: 10%;">
+            content: renderTemplate(prompts['courtesy_copyright_page'], templateData) || `<div lang="it" style="text-align: center; margin-top: 10%;">
                      <h2>${cleanBookTitle}</h2>
                      <p>${cleanBookTitle} - ${epubDesc.substring(0, 50)}...</p>
                      <h3>${cleanAuthor}</h3>
@@ -324,6 +350,16 @@ app.post("/export/docx", async (req, res) => {
         const cleanAuthor = book.author || "W4U Writing Wizard";
         const publisher = "W4U";
 
+        // Fetch Courtesy Templates
+        const { data: promptData } = await scopedSupabase
+            .from("system_prompts")
+            .select("*")
+            .filter('key', 'ilike', 'courtesy_%');
+
+        const prompts = (promptData || []).reduce((acc, curr) => ({ ...acc, [curr.key]: curr.prompt_text }), {});
+        const docxDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
+        const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
             Header, Footer, PageNumber, convertInchesToTwip,
             InternalHyperlink } = docx;
@@ -350,8 +386,6 @@ app.post("/export/docx", async (req, res) => {
         const children = [];
 
         // --- CONSTANTS ---
-        const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
-        const docxDisclaimer = "Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.";
 
         // --- TITLE PAGE ---
         children.push(
@@ -650,6 +684,24 @@ app.post("/export/pdf", async (req, res) => {
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
 
+        // Fetch Courtesy Templates
+        const { data: promptData } = await scopedSupabase
+            .from("system_prompts")
+            .select("*")
+            .filter('key', 'ilike', 'courtesy_%');
+
+        const prompts = (promptData || []).reduce((acc, curr) => ({ ...acc, [curr.key]: curr.prompt_text }), {});
+        const pdfDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
+        const pdfDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+
+        const templateData = {
+            title: cleanBookTitle,
+            author: cleanAuthor,
+            description: pdfDesc,
+            description_short: pdfDesc.substring(0, 50),
+            disclaimer: pdfDisclaimer
+        };
+
         // Build HTML for PDF
         let htmlContent = `
         <!DOCTYPE html>
@@ -679,20 +731,24 @@ app.post("/export/pdf", async (req, res) => {
         </head>
         <body>
             <div class="title-page">
+                ${renderTemplate(prompts['courtesy_title_page'], templateData) || `
                 <h1 class="book-title">${cleanBookTitle}</h1>
                 <h2 class="author">di ${cleanAuthor}</h2>
-                <p style="margin-top: 2em; font-style: italic; font-size: 1.2em;">${book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U"}</p>
+                <p style="margin-top: 2em; font-style: italic; font-size: 1.2em;">${pdfDesc}</p>
+                `}
             </div>
             <div class="title-page" style="margin-top: 10%;">
+                ${renderTemplate(prompts['courtesy_copyright_page'], templateData) || `
                 <h2 style="font-size: 2em; margin-bottom: 0.5em; font-weight: normal;">${cleanBookTitle}</h2>
-                <p style="font-size: 1.2em;">${cleanBookTitle} - ${book.plot_summary ? (book.plot_summary.substring(0, 50) + "...") : ""}</p>
+                <p style="font-size: 1.2em;">${cleanBookTitle} - ${pdfDesc.substring(0, 50)}...</p>
                 <h3 style="margin-top: 1em; font-size: 1.5em; font-weight: normal;">${cleanAuthor}</h3>
                 <div style="margin-top: 4em;">
                     <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
                 </div>
                 <div style="margin-top: 5em; text-align: justify; font-size: 0.9em; line-height: 1.8; padding: 0 3em;">
-                    <p>Tutti i diritti sono riservati a norma di legge. Nessuna parte di questo libro può essere riprodotta con alcun mezzo senza l’autorizzazione scritta dell’Autore e dell’Editore. È espressamente vietato trasmettere ad altri il presente libro, né in formato cartaceo né elettronico, né per denaro né a titolo gratuito. Le strategie riportate in questo libro sono frutto di anni di studi e specializzazioni, quindi non è garantito il raggiungimento dei medesimi risultati di crescita personale o professionale. Il lettore si assume piena responsabilità delle proprie scelte, consapevole dei rischi connessi a qualsiasi forma di esercizio. Il libro ha esclusivamente scopo formativo.</p>
+                    <p>${pdfDisclaimer}</p>
                 </div>
+                `}
             </div>
 
             <div class="toc">

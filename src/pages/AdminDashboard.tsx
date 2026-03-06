@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, BookOpen, Coins, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Shield, Users, BookOpen, Coins, Loader2, ChevronDown, ChevronUp, FileText, Save, RefreshCw, AlertCircle, Tag } from 'lucide-react';
 import { supabase } from '../lib/api';
+import PromoCodesAdmin from '../components/PromoCodesAdmin';
 
 interface UserCostStat {
     user_id: string;
@@ -27,12 +28,26 @@ interface BookCostStat {
     total_estimated_cost_eur: number;
 }
 
+interface SystemPrompt {
+    key: string;
+    prompt_text: string;
+    description: string;
+    updated_at: string;
+}
+
 const AdminDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [userStats, setUserStats] = useState<UserCostStat[]>([]);
     const [bookStats, setBookStats] = useState<BookCostStat[]>([]);
+    const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([]);
     const [isUserTableOpen, setIsUserTableOpen] = useState(true);
     const [isBookTableOpen, setIsBookTableOpen] = useState(true);
+    const [isCourtesyPagesOpen, setIsCourtesyPagesOpen] = useState(false);
+    const [isPricingOpen, setIsPricingOpen] = useState(false);
+    const [isPromoCodesOpen, setIsPromoCodesOpen] = useState(false);
+    const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
+    const [pricingConfig, setPricingConfig] = useState<any>(null);
+    const [savingPricing, setSavingPricing] = useState(false);
 
     useEffect(() => {
         fetchAdminData();
@@ -41,22 +56,75 @@ const AdminDashboard: React.FC = () => {
     const fetchAdminData = async () => {
         setLoading(true);
         try {
-            const [userRes, bookRes] = await Promise.all([
+            const [userRes, bookRes, promptRes, pricingRes] = await Promise.all([
                 supabase.from('vw_cost_per_user').select('*').order('total_estimated_cost_eur', { ascending: false }),
-                supabase.from('vw_cost_per_book').select('*').order('total_estimated_cost_eur', { ascending: false })
+                supabase.from('vw_cost_per_book').select('*').order('total_estimated_cost_eur', { ascending: false }),
+                supabase.from('system_prompts').select('*').filter('key', 'ilike', 'courtesy_%').order('key'),
+                supabase.from('pricing_config').select('*').limit(1).single()
             ]);
 
             if (userRes.error) throw userRes.error;
             if (bookRes.error) throw bookRes.error;
+            if (promptRes.error) throw promptRes.error;
+            if (pricingRes.error && pricingRes.error.code !== 'PGRST116') throw pricingRes.error;
 
             setUserStats(userRes.data || []);
             setBookStats(bookRes.data || []);
+            setSystemPrompts(promptRes.data || []);
+            setPricingConfig(pricingRes.data || null);
         } catch (err) {
             console.error("Error fetching admin stats:", err);
             // In a real app, use the Toast component here
             alert("Errore nel caricamento dei dati di amministrazione.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUpdatePricing = async () => {
+        if (!pricingConfig || !pricingConfig.id) return;
+        setSavingPricing(true);
+        try {
+            const payload = {
+                base_price_eur: Number(pricingConfig.base_price_eur),
+                base_pages: Number(pricingConfig.base_pages),
+                extra_price_eur: Number(pricingConfig.extra_price_eur),
+                extra_pages_increment: Number(pricingConfig.extra_pages_increment),
+                max_pages: Number(pricingConfig.max_pages),
+                updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase
+                .from('pricing_config')
+                .update(payload)
+                .eq('id', pricingConfig.id);
+
+            if (error) throw error;
+            // set saved successfully (maybe use a toast in real app)
+        } catch (err: any) {
+            console.error("Error updating pricing:", err);
+            alert(`Errore nell'aggiornamento dei prezzi: ${err.message || JSON.stringify(err)}`);
+        } finally {
+            setSavingPricing(false);
+        }
+    };
+
+    const handleUpdatePrompt = async (key: string, newText: string) => {
+        setSavingPrompt(key);
+        try {
+            const { error } = await supabase
+                .from('system_prompts')
+                .update({ prompt_text: newText, updated_at: new Date().toISOString() })
+                .eq('key', key);
+
+            if (error) throw error;
+
+            setSystemPrompts(prev => prev.map(p => p.key === key ? { ...p, prompt_text: newText } : p));
+            // alert("Template aggiornato con successo!");
+        } catch (err) {
+            console.error("Error updating prompt:", err);
+            alert("Errore nell'aggiornamento del template.");
+        } finally {
+            setSavingPrompt(null);
         }
     };
 
@@ -165,6 +233,174 @@ const AdminDashboard: React.FC = () => {
                             )}
                         </tbody>
                     </table>
+                )}
+            </div>
+
+            {/* Pricing Management */}
+            <div className="glass-panel" style={{ padding: '2rem', marginBottom: '3rem', transition: 'all 0.3s ease' }}>
+                <h2
+                    style={{ marginBottom: isPricingOpen ? '1.5rem' : '0', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setIsPricingOpen(!isPricingOpen)}
+                >
+                    <Coins size={20} color="var(--primary)" /> Gestione Prezzi
+                    {isPricingOpen ? <ChevronUp size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} /> : <ChevronDown size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
+                </h2>
+
+                {isPricingOpen && pricingConfig && (
+                    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Costo Base (€)</label>
+                                <input
+                                    type="number"
+                                    value={pricingConfig.base_price_eur}
+                                    onChange={(e) => setPricingConfig({ ...pricingConfig, base_price_eur: e.target.value })}
+                                    style={{ width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: '#fff' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Pagine Incluse Base</label>
+                                <input
+                                    type="number"
+                                    value={pricingConfig.base_pages}
+                                    onChange={(e) => setPricingConfig({ ...pricingConfig, base_pages: e.target.value })}
+                                    style={{ width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: '#fff' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Costo Scatto Extra (€)</label>
+                                <input
+                                    type="number"
+                                    value={pricingConfig.extra_price_eur}
+                                    onChange={(e) => setPricingConfig({ ...pricingConfig, extra_price_eur: e.target.value })}
+                                    style={{ width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: '#fff' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Pagine per Scatto Extra</label>
+                                <input
+                                    type="number"
+                                    value={pricingConfig.extra_pages_increment}
+                                    onChange={(e) => setPricingConfig({ ...pricingConfig, extra_pages_increment: e.target.value })}
+                                    style={{ width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: '#fff' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>Limite Massimo Pagine</label>
+                                <input
+                                    type="number"
+                                    value={pricingConfig.max_pages}
+                                    onChange={(e) => setPricingConfig({ ...pricingConfig, max_pages: e.target.value })}
+                                    style={{ width: '100%', padding: '0.8rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: '#fff' }}
+                                />
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={handleUpdatePricing}
+                                disabled={savingPricing}
+                                className="btn-primary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem' }}
+                            >
+                                {savingPricing ? <><RefreshCw size={18} className="animate-spin" /> Salvataggio...</> : <><Save size={18} /> Salva Configurazione</>}
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Promo Codes Management */}
+            <div className="glass-panel" style={{ padding: '2rem', marginBottom: '3rem', transition: 'all 0.3s ease' }}>
+                <h2
+                    style={{ marginBottom: isPromoCodesOpen ? '1.5rem' : '0', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setIsPromoCodesOpen(!isPromoCodesOpen)}
+                >
+                    <Tag size={20} color="var(--primary)" /> Gestione Codici Promozionali
+                    {isPromoCodesOpen ? <ChevronUp size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} /> : <ChevronDown size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
+                </h2>
+
+                {isPromoCodesOpen && (
+                    <PromoCodesAdmin />
+                )}
+            </div>
+
+            {/* Courtesy Pages Management */}
+            <div className="glass-panel" style={{ padding: '2rem', marginBottom: '3rem', transition: 'all 0.3s ease' }}>
+                <h2
+                    style={{ marginBottom: isCourtesyPagesOpen ? '1.5rem' : '0', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setIsCourtesyPagesOpen(!isCourtesyPagesOpen)}
+                >
+                    <FileText size={20} color="var(--primary)" /> Gestione Pagine di Cortesia
+                    {isCourtesyPagesOpen ? <ChevronUp size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} /> : <ChevronDown size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
+                </h2>
+
+                {isCourtesyPagesOpen && (
+                    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(0, 242, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 242, 255, 0.1)', display: 'flex', gap: '1rem' }}>
+                            <AlertCircle size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                                <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem', fontWeight: 600 }}>Istruzioni Segnaposti:</p>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                    Puoi usare i seguenti segnaposti nei template: <br />
+                                    <code>{`{{title}}`}</code> per il titolo, <code>{`{{author}}`}</code> per l'autore, <code>{`{{description}}`}</code> per la trama lunga, <code>{`{{description_short}}`}</code> per i primi 50 caratteri, <code>{`{{disclaimer}}`}</code> per il testo legale.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            {systemPrompts.map((prompt) => (
+                                <div key={prompt.key} style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <div>
+                                            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem' }}>{prompt.key.replace('courtesy_', '').replace(/_/g, ' ').toUpperCase()}</h3>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{prompt.description}</p>
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            Ultimo aggiornamento: {new Date(prompt.updated_at).toLocaleString('it-IT')}
+                                        </div>
+                                    </div>
+
+                                    <textarea
+                                        defaultValue={prompt.prompt_text}
+                                        onBlur={(e) => {
+                                            if (e.target.value !== prompt.prompt_text) {
+                                                handleUpdatePrompt(prompt.key, e.target.value);
+                                            }
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            minHeight: prompt.key === 'courtesy_disclaimer' ? '120px' : '200px',
+                                            background: 'rgba(0,0,0,0.3)',
+                                            color: '#e2e8f0',
+                                            border: '1px solid var(--glass-border)',
+                                            borderRadius: '8px',
+                                            padding: '1rem',
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.9rem',
+                                            resize: 'vertical',
+                                            outline: 'none',
+                                            transition: 'border-color 0.2s'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                                    />
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                            {savingPrompt === prompt.key ? (
+                                                <>
+                                                    <RefreshCw size={14} className="animate-spin" /> Salvataggio...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save size={14} /> Modifiche salvate al click fuori dal campo
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 )}
             </div>
 

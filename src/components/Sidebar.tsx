@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Book, Plus, History, Layout, Settings, LogOut, User, AlertCircle, Sun, Moon, Shield } from 'lucide-react';
+import { Book, Plus, History, Layout, Settings, LogOut, User, AlertCircle, Sun, Moon, Shield, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/auth';
 import { useTheme } from '../lib/useTheme';
+import { useWallet } from '../lib/useWallet';
 
 interface Project {
     id: string;
@@ -20,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
     const navigate = useNavigate();
     const { user, signOut } = useAuth();
     const { toggleTheme, isDark } = useTheme();
+    const { wallet } = useWallet();
     const [signingOut, setSigningOut] = useState(false);
     const [signOutError, setSignOutError] = useState(false);
 
@@ -115,6 +117,15 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
             <div style={{ marginTop: 'auto', borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', gap: '0.2rem', display: 'flex', flexDirection: 'column' }}>
                 <div className="sidebar-item" onClick={() => navigate('/')}>
                     <Layout size={18} /> <span>Dashboard</span>
+                </div>
+                <div className="sidebar-item" onClick={() => navigate('/pricing')}>
+                    <CreditCard size={18} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        <span>Credito W4U</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--primary)' }}>
+                            {wallet ? `€${wallet.balance.toLocaleString('it-IT', { minimumFractionDigits: 2 })}` : '€0,00'}
+                        </span>
+                    </div>
                 </div>
                 <div className="sidebar-item" onClick={() => navigate('/admin')}>
                     <Shield size={18} /> <span>Amministrazione</span>

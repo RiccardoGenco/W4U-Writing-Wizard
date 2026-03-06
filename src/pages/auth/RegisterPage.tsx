@@ -7,7 +7,7 @@ import { Book, UserPlus, Eye, EyeOff, AlertCircle, CheckCircle, WifiOff } from '
 
 const RegisterPage: React.FC = () => {
     const navigate = useNavigate();
-    const { signUp, user, clearAuthError } = useAuth();
+    const { signUp, resendConfirmationEmail, user, clearAuthError } = useAuth();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -18,6 +18,8 @@ const RegisterPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [resending, setResending] = useState(false);
+    const [resendSuccess, setResendSuccess] = useState(false);
 
     // If user is already logged in, redirect
     useEffect(() => {
@@ -157,13 +159,41 @@ const RegisterPage: React.FC = () => {
                         Abbiamo inviato un link di conferma a <strong style={{ color: 'var(--text-main)' }}>{email}</strong>.
                         Clicca sul link per attivare il tuo account.
                     </p>
-                    <Link
-                        to="/login"
-                        className="btn-primary"
-                        style={{ textDecoration: 'none', display: 'inline-flex', gap: '0.5rem', padding: '0.8rem 2rem' }}
-                    >
-                        Vai al Login
-                    </Link>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+                        <Link
+                            to="/login"
+                            className="btn-primary"
+                            style={{ textDecoration: 'none', display: 'inline-flex', gap: '0.5rem', padding: '0.8rem 2rem', width: 'fit-content' }}
+                        >
+                            Vai al Login
+                        </Link>
+
+                        <div style={{ marginTop: '1rem' }}>
+                            {resendSuccess ? (
+                                <p style={{ color: 'var(--success)', fontSize: '0.85rem', fontWeight: 500 }}>
+                                    Email inviata di nuovo! Controlla ora.
+                                </p>
+                            ) : (
+                                <button
+                                    onClick={async () => {
+                                        setResending(true);
+                                        const { error } = await resendConfirmationEmail(email);
+                                        if (error) setError(error);
+                                        else setResendSuccess(true);
+                                        setResending(false);
+                                    }}
+                                    disabled={resending}
+                                    style={{
+                                        background: 'none', border: 'none', color: 'var(--primary)',
+                                        fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline',
+                                        opacity: resending ? 0.5 : 1
+                                    }}
+                                >
+                                    {resending ? 'Invio in corso...' : 'Non hai ricevuto l\'email? Inviane un\'altra'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </motion.div>
             </div>
         );
