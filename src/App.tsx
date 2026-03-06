@@ -20,6 +20,7 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import MockBookPage from './pages/wizard/MockBookPage';
 import AdminDashboard from './pages/AdminDashboard';
 import { Pricing } from './pages/Pricing';
+import { PricingSuccess } from './pages/PricingSuccess';
 import { PaymentSuccess } from './pages/payment/Success';
 import { PaymentCancel } from './pages/payment/Cancel';
 import AdminGuard from './components/AdminGuard';
@@ -61,6 +62,7 @@ const App: React.FC = () => {
 
                 {/* Payment & Pricing Routes */}
                 <Route path="pricing" element={<Pricing />} />
+                <Route path="pricing/success" element={<PricingSuccess />} />
                 <Route path="payment/success" element={<PaymentSuccess />} />
                 <Route path="payment/cancel" element={<PaymentCancel />} />
 
