@@ -217,7 +217,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 options: {
                     data: {
                         author_name: authorName || ''
-                    }
+                    },
+                    emailRedirectTo: window.location.origin || import.meta.env.VITE_APP_URL || 'http://localhost:5173'
                 }
             });
 
@@ -313,7 +314,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             const { error } = await supabase.auth.resend({
                 type: 'signup',
-                email
+                email,
+                options: {
+                    emailRedirectTo: window.location.origin || import.meta.env.VITE_APP_URL || 'http://localhost:5173'
+                }
             });
 
             const duration = Math.round(performance.now() - startTime);
