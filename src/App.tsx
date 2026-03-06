@@ -22,6 +22,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import { Pricing } from './pages/Pricing';
 import { PaymentSuccess } from './pages/payment/Success';
 import { PaymentCancel } from './pages/payment/Cancel';
+import AdminGuard from './components/AdminGuard';
 
 // Styles
 import './index.css';
@@ -67,7 +68,7 @@ const App: React.FC = () => {
                 <Route path="mock-book" element={<MockBookPage />} />
 
                 {/* Admin Route */}
-                <Route path="admin" element={<AdminDashboard />} />
+                <Route path="admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />

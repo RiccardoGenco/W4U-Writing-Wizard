@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Users, BookOpen, Coins, Loader2, ChevronDown, ChevronUp, FileText, Save, RefreshCw, AlertCircle, Tag } from 'lucide-react';
+import { Shield, Users, BookOpen, Coins, Loader2, ChevronDown, ChevronUp, FileText, Save, RefreshCw, AlertCircle, Tag, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/api';
 import PromoCodesAdmin from '../components/PromoCodesAdmin';
 
@@ -35,17 +35,31 @@ interface SystemPrompt {
     updated_at: string;
 }
 
+interface AIPrompt {
+    id: string;
+    name: string;
+    book_type: string;
+    genre: string;
+    prompt_text: string;
+    description: string;
+    is_active: boolean;
+    created_at: string;
+}
+
 const AdminDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [userStats, setUserStats] = useState<UserCostStat[]>([]);
     const [bookStats, setBookStats] = useState<BookCostStat[]>([]);
     const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([]);
+    const [aiPrompts, setAiPrompts] = useState<AIPrompt[]>([]);
     const [isUserTableOpen, setIsUserTableOpen] = useState(true);
     const [isBookTableOpen, setIsBookTableOpen] = useState(true);
     const [isCourtesyPagesOpen, setIsCourtesyPagesOpen] = useState(false);
+    const [isAIPromptsOpen, setIsAIPromptsOpen] = useState(false);
     const [isPricingOpen, setIsPricingOpen] = useState(false);
     const [isPromoCodesOpen, setIsPromoCodesOpen] = useState(false);
     const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
+    const [savingAIPrompt, setSavingAIPrompt] = useState<string | null>(null);
     const [pricingConfig, setPricingConfig] = useState<any>(null);
     const [savingPricing, setSavingPricing] = useState(false);
 
@@ -56,22 +70,25 @@ const AdminDashboard: React.FC = () => {
     const fetchAdminData = async () => {
         setLoading(true);
         try {
-            const [userRes, bookRes, promptRes, pricingRes] = await Promise.all([
+            const [userRes, bookRes, promptRes, pricingRes, aiPromptRes] = await Promise.all([
                 supabase.from('vw_cost_per_user').select('*').order('total_estimated_cost_eur', { ascending: false }),
                 supabase.from('vw_cost_per_book').select('*').order('total_estimated_cost_eur', { ascending: false }),
                 supabase.from('system_prompts').select('*').filter('key', 'ilike', 'courtesy_%').order('key'),
-                supabase.from('pricing_config').select('*').limit(1).single()
+                supabase.from('pricing_config').select('*').limit(1).single(),
+                supabase.from('ai_prompts').select('*').order('genre').order('name')
             ]);
 
             if (userRes.error) throw userRes.error;
             if (bookRes.error) throw bookRes.error;
             if (promptRes.error) throw promptRes.error;
             if (pricingRes.error && pricingRes.error.code !== 'PGRST116') throw pricingRes.error;
+            if (aiPromptRes.error) throw aiPromptRes.error;
 
             setUserStats(userRes.data || []);
             setBookStats(bookRes.data || []);
             setSystemPrompts(promptRes.data || []);
             setPricingConfig(pricingRes.data || null);
+            setAiPrompts(aiPromptRes.data || []);
         } catch (err) {
             console.error("Error fetching admin stats:", err);
             // In a real app, use the Toast component here
@@ -125,6 +142,25 @@ const AdminDashboard: React.FC = () => {
             alert("Errore nell'aggiornamento del template.");
         } finally {
             setSavingPrompt(null);
+        }
+    };
+
+    const handleUpdateAIPrompt = async (id: string, newText: string) => {
+        setSavingAIPrompt(id);
+        try {
+            const { error } = await supabase
+                .from('ai_prompts')
+                .update({ prompt_text: newText })
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setAiPrompts(prev => prev.map(p => p.id === id ? { ...p, prompt_text: newText } : p));
+        } catch (err) {
+            console.error("Error updating AI prompt:", err);
+            alert("Errore nell'aggiornamento del prompt AI.");
+        } finally {
+            setSavingAIPrompt(null);
         }
     };
 
@@ -321,6 +357,101 @@ const AdminDashboard: React.FC = () => {
 
                 {isPromoCodesOpen && (
                     <PromoCodesAdmin />
+                )}
+            </div>
+
+            {/* AI Prompts Management */}
+            <div className="glass-panel" style={{ padding: '2rem', marginBottom: '3rem', transition: 'all 0.3s ease' }}>
+                <h2
+                    style={{ marginBottom: isAIPromptsOpen ? '1.5rem' : '0', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setIsAIPromptsOpen(!isAIPromptsOpen)}
+                >
+                    <Sparkles size={20} color="var(--primary)" /> Gestione Prompt Generativi (AI)
+                    {isAIPromptsOpen ? <ChevronUp size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} /> : <ChevronDown size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
+                </h2>
+
+                {isAIPromptsOpen && (
+                    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ marginBottom: '2rem', padding: '1rem', background: 'rgba(168, 85, 247, 0.05)', borderRadius: '8px', border: '1px solid rgba(168, 85, 247, 0.1)', display: 'flex', gap: '1rem' }}>
+                            <AlertCircle size={20} color="#a855f7" style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                                <p style={{ fontSize: '0.9rem', marginBottom: '0.5rem', fontWeight: 600 }}>Personalizzazione Prompt per Genere:</p>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                    Qui puoi definire come l'IA deve scrivere per ogni specifico genere. <br />
+                                    I prompt <strong>GENERAL</strong> sono usati come base se non esiste un prompt specifico per il genere del libro.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            {aiPrompts.map((prompt) => (
+                                <div key={prompt.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                            <div style={{
+                                                background: prompt.genre === 'GENERAL' ? 'rgba(255,255,255,0.1)' : 'rgba(0, 242, 255, 0.1)',
+                                                padding: '0.3rem 0.8rem',
+                                                borderRadius: '20px',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 700,
+                                                border: prompt.genre === 'GENERAL' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0, 242, 255, 0.3)',
+                                                color: prompt.genre === 'GENERAL' ? '#fff' : 'var(--primary)'
+                                            }}>
+                                                {prompt.genre}
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem' }}>
+                                                    {prompt.name} ({prompt.book_type})
+                                                </h3>
+                                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{prompt.description}</p>
+                                            </div>
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            Creato il: {new Date(prompt.created_at).toLocaleDateString('it-IT')}
+                                        </div>
+                                    </div>
+
+                                    <textarea
+                                        defaultValue={prompt.prompt_text}
+                                        onBlur={(e) => {
+                                            if (e.target.value !== prompt.prompt_text) {
+                                                handleUpdateAIPrompt(prompt.id, e.target.value);
+                                            }
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            minHeight: '150px',
+                                            background: 'rgba(0,0,0,0.3)',
+                                            color: '#e2e8f0',
+                                            border: '1px solid var(--glass-border)',
+                                            borderRadius: '8px',
+                                            padding: '1rem',
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.9rem',
+                                            resize: 'vertical',
+                                            outline: 'none',
+                                            transition: 'border-color 0.2s'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                                    />
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                            {savingAIPrompt === prompt.id ? (
+                                                <>
+                                                    <RefreshCw size={14} className="animate-spin" /> Salvataggio...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save size={14} /> Modifiche salvate al click fuori
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 )}
             </div>
 

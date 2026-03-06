@@ -19,7 +19,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProjectId }) => {
     const navigate = useNavigate();
-    const { user, signOut } = useAuth();
+    const { user, signOut, isAdmin } = useAuth();
     const { toggleTheme, isDark } = useTheme();
     const { wallet } = useWallet();
     const [signingOut, setSigningOut] = useState(false);
@@ -127,9 +127,11 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                         </span>
                     </div>
                 </div>
-                <div className="sidebar-item" onClick={() => navigate('/admin')}>
-                    <Shield size={18} /> <span>Amministrazione</span>
-                </div>
+                {isAdmin && (
+                    <div className="sidebar-item" onClick={() => navigate('/admin')}>
+                        <Shield size={18} /> <span>Amministrazione</span>
+                    </div>
+                )}
                 <div className="sidebar-item">
                     <Settings size={18} /> <span>Impostazioni</span>
                 </div>
