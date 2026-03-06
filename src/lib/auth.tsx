@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase, logDebug } from './api';
+import { supabase } from './api';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
 
 // ─── Error Translation Map ────────────────────────────────────────────────────
@@ -158,10 +158,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const signIn = async (email: string, password: string) => {
         console.log('[Auth] signIn attempt for:', email);
-        const startTime = performance.now();
+
         try {
             const { error } = await supabase.auth.signInWithPassword({ email, password });
-            const duration = Math.round(performance.now() - startTime);
             if (error) {
                 const translated = translateError(error);
                 setAuthError(translated);
