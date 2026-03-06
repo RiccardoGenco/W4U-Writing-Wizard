@@ -1,3 +1,3 @@
-import app from './_app.cjs';
+import app from '../server/index.cjs';
 
 export default app;
