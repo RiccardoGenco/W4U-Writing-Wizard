@@ -107,6 +107,23 @@ const ScaffoldRevisionPage: React.FC = () => {
         setRefreshingChapter(chapterId);
 
         try {
+            // Fetch book configuration for precise scaling
+            const { data: book, error: bookError } = await supabase
+                .from('books')
+                .select('target_pages, target_chapters, configuration')
+                .eq('id', bookId)
+                .single();
+
+            if (bookError) throw bookError;
+
+            const targetPages = book.target_pages || 100;
+            const targetChapters = book.target_chapters || chapters.length;
+            const wordsPerPage = book.configuration?.words_per_page || 250;
+            
+            const totalWordsTarget = targetPages * wordsPerPage;
+            const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
+            const paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));
+
             const scaffoldData: any = await callBookAgent('SCAFFOLD_CHAPTER', {
                 chapter: {
                     id: chapter.id,
@@ -114,7 +131,8 @@ const ScaffoldRevisionPage: React.FC = () => {
                     summary: chapter.summary,
                     currentParagraphCount: chapter.paragraphs.length
                 },
-                feedback: feedback
+                feedback: feedback,
+                targetParagraphCount: paragraphsPerChapter
             }, bookId);
 
             const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
@@ -129,7 +147,8 @@ const ScaffoldRevisionPage: React.FC = () => {
                     paragraph_number: pIndex + 1,
                     title: p.title || `Sottocapitolo ${pIndex + 1}`,
                     description: p.description || '',
-                    status: 'PENDING'
+                    status: 'PENDING',
+                    target_word_count: 250 // Standard target
                 }));
 
                 const { data: newParagraphs, error } = await supabase

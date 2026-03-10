@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
@@ -19,6 +19,21 @@ const ConfigurationPage: React.FC = () => {
     const [chaptersRate, setChaptersRate] = useState(10); // Pages per chapter default
 
     const [targets, setTargets] = useState<string[]>([]);
+    const [targetPages, setTargetPages] = useState(100);
+
+    useEffect(() => {
+        const fetchTargetPages = async () => {
+            const bookId = localStorage.getItem('active_book_id');
+            if (bookId) {
+                const { data } = await supabase.from('books').select('context_data').eq('id', bookId).single();
+                const pages = parseInt(data?.context_data?.target_pages as any) || 100;
+                setTargetPages(pages);
+            }
+        };
+        fetchTargetPages();
+    }, []);
+
+    const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
 
     const availableTargets = ['Principianti', 'Appassionati', 'Professionisti', 'Studenti', 'Curiosi', 'Bambini'];
 
@@ -44,8 +59,6 @@ const ConfigurationPage: React.FC = () => {
             }
 
             // 1. Call n8n to generate outline
-            const targetPages = parseInt(currentContext.target_pages as any) || 100;
-            const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
 
             // Save config to Supabase
             if (bookId) {
@@ -109,9 +122,33 @@ const ConfigurationPage: React.FC = () => {
 
             <header style={{ marginBottom: '3rem', textAlign: 'center' }}>
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Metti a punto lo stile</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>
-                    Definisci il tono di voce e il pubblico ideale per il tuo libro.
+                <p className="page-subtitle">
+                    Personalizza il tono, lo stile e la densità del tuo libro.
                 </p>
+
+                <div className="card" style={{
+                    marginTop: '2rem',
+                    padding: '1.5rem',
+                    background: 'rgba(99, 102, 241, 0.05)',
+                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 700 }}>Volume Obiettivo</h3>
+                        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Basato su {targetPages} pagine acquistate</p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {numChapters} Capitoli
+                        </div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary)' }}>
+                            ~{targetPages * 250} Parole Totali
+                        </div>
+                    </div>
+                </div>
             </header>
 
             <div className="glass-panel" style={{ padding: '3rem' }}>
