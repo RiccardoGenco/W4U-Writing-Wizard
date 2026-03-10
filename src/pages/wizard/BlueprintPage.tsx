@@ -138,7 +138,8 @@ const BlueprintPage: React.FC = () => {
                         paragraph_number: 1,
                         title: `Sottocapitolo Generico`,
                         description: `L'AI non ha risposto per questo capitolo. Modifica manuale necessaria.`,
-                        status: 'PENDING'
+                        status: 'PENDING',
+                        target_word_count: 250
                     });
                 }
             }
