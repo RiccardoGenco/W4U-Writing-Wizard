@@ -37,6 +37,7 @@ const ConceptPage: React.FC = () => {
     const [fileName, setFileName] = useState<string | null>(null);
     const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
     const [fileError, setFileError] = useState<string | null>(null);
+    const [targetPages, setTargetPages] = useState<number>(100);
 
     const bookId = localStorage.getItem('active_book_id');
 
@@ -70,6 +71,9 @@ const ConceptPage: React.FC = () => {
             }
             if (data.context_data?.pseudonym) {
                 setPseudonym(data.context_data.pseudonym);
+            }
+            if (data.context_data?.target_pages) {
+                setTargetPages(parseInt(data.context_data.target_pages as any) || 100);
             }
             // If we stored file content previously, retrieve (optional, might be too heavy for DB context_data, better to just keep in UI state if navigating back)
         }
@@ -229,7 +233,11 @@ const ConceptPage: React.FC = () => {
                 await supabase.from('books').update({ author: authorName }).eq('id', bookId);
             }
 
-            const data = await callBookAgent('GENERATE_CONCEPTS', { userInput: fullContext, title: bookTitle }, bookId);
+            const data = await callBookAgent('GENERATE_CONCEPTS', { 
+                userInput: fullContext, 
+                title: bookTitle,
+                targetPages: targetPages 
+            }, bookId);
             const generatedData = data.data || data;
 
             if (generatedData.bookId) {
