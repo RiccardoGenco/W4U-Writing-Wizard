@@ -19,21 +19,32 @@ const ConfigurationPage: React.FC = () => {
     const [chaptersRate, setChaptersRate] = useState(10); // Pages per chapter default
 
     const [targets, setTargets] = useState<string[]>([]);
-    const [targetPages, setTargetPages] = useState(100);
+    const [targetPages, setTargetPages] = useState<number | null>(null);
+    const [loadingContext, setLoadingContext] = useState(true);
 
     useEffect(() => {
         const fetchTargetPages = async () => {
             const bookId = localStorage.getItem('active_book_id');
             if (bookId) {
-                const { data } = await supabase.from('books').select('context_data').eq('id', bookId).single();
-                const pages = parseInt(data?.context_data?.target_pages as any) || 100;
-                setTargetPages(pages);
+                try {
+                    const { data } = await supabase.from('books').select('context_data').eq('id', bookId).single();
+                    const pages = parseInt(data?.context_data?.target_pages as any) || 100;
+                    setTargetPages(pages);
+                } catch (e) {
+                    console.error("Error fetching target pages", e);
+                    setTargetPages(100);
+                } finally {
+                    setLoadingContext(false);
+                }
+            } else {
+                setLoadingContext(false);
             }
         };
         fetchTargetPages();
     }, []);
 
-    const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
+    const effectiveTargetPages = targetPages || 100;
+    const numChapters = Math.max(1, Math.floor(effectiveTargetPages / chaptersRate));
 
     const availableTargets = ['Principianti', 'Appassionati', 'Professionisti', 'Studenti', 'Curiosi', 'Bambini'];
 
@@ -59,29 +70,31 @@ const ConfigurationPage: React.FC = () => {
             }
 
             // 1. Call n8n to generate outline
+            const finalTargetPages = parseInt(currentContext.target_pages as any) || effectiveTargetPages;
+            const finalNumChapters = Math.max(1, Math.floor(finalTargetPages / chaptersRate));
 
             // Save config to Supabase
             if (bookId) {
                 await supabase.from('books').update({
                     status: 'BLUEPRINT',
-                    target_chapters: numChapters,
+                    target_chapters: finalNumChapters,
                     context_data: { ...currentContext, configuration: config }
                 }).eq('id', bookId);
             }
 
             const data = await callBookAgent('OUTLINE', {
                 configuration: config,
-                targetPages: targetPages,
-                numChapters: numChapters
+                targetPages: finalTargetPages,
+                numChapters: finalNumChapters
             }, bookId);
 
             const resData = data.data || data;
 
             // Validation: check if AI generated the expected number of chapters
-            if (resData.chapters && Array.isArray(resData.chapters) && resData.chapters.length !== numChapters) {
-                console.warn(`[ARCHITECT] Mismatch: Expected ${numChapters}, got ${resData.chapters.length}`);
+            if (resData.chapters && Array.isArray(resData.chapters) && resData.chapters.length !== finalNumChapters) {
+                console.warn(`[ARCHITECT] Mismatch: Expected ${finalNumChapters}, got ${resData.chapters.length}`);
                 await logDebug('frontend', 'chapter_count_mismatch', {
-                    expected: numChapters,
+                    expected: finalNumChapters,
                     actual: resData.chapters.length,
                     book_id: bookId
                 }, bookId);
@@ -138,14 +151,16 @@ const ConfigurationPage: React.FC = () => {
                 }}>
                     <div>
                         <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 700 }}>Volume Obiettivo</h3>
-                        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Basato su {targetPages} pagine acquistate</p>
+                        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            {loadingContext ? 'Caricamento target...' : `Basato su ${effectiveTargetPages} pagine acquistate`}
+                        </p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {numChapters} Capitoli
+                            {loadingContext ? '--' : `${numChapters} Capitoli`}
                         </div>
                         <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary)' }}>
-                            ~{targetPages * 250} Parole Totali
+                            ~{effectiveTargetPages * 250} Parole Totali
                         </div>
                     </div>
                 </div>
