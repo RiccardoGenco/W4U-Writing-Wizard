@@ -61,7 +61,7 @@ const ConceptPage: React.FC = () => {
 
     const fetchBookData = async () => {
         if (!supabase || !bookId) return;
-        const { data } = await supabase.from('books').select('title, genre, context_data, author').eq('id', bookId).single();
+        const { data } = await supabase.from('books').select('title, genre, context_data, author, target_pages').eq('id', bookId).single();
         if (data) {
             setBookTitle(data.title);
             setGenre(data.genre);
@@ -72,7 +72,9 @@ const ConceptPage: React.FC = () => {
             if (data.context_data?.pseudonym) {
                 setPseudonym(data.context_data.pseudonym);
             }
-            if (data.context_data?.target_pages) {
+            if (data.target_pages) {
+                setTargetPages(data.target_pages);
+            } else if (data.context_data?.target_pages) {
                 setTargetPages(parseInt(data.context_data.target_pages as any) || 100);
             }
             // If we stored file content previously, retrieve (optional, might be too heavy for DB context_data, better to just keep in UI state if navigating back)

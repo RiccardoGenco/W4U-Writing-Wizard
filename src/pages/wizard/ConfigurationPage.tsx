@@ -27,8 +27,8 @@ const ConfigurationPage: React.FC = () => {
             const bookId = localStorage.getItem('active_book_id');
             if (bookId) {
                 try {
-                    const { data } = await supabase.from('books').select('context_data').eq('id', bookId).single();
-                    const pages = parseInt(data?.context_data?.target_pages as any) || 100;
+                    const { data } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
+                    const pages = data?.target_pages || parseInt(data?.context_data?.target_pages as any) || 100;
                     setTargetPages(pages);
                 } catch (e) {
                     console.error("Error fetching target pages", e);
@@ -64,13 +64,15 @@ const ConfigurationPage: React.FC = () => {
 
         try {
             // Fetch current context first
+            let fetchedTargetPages = effectiveTargetPages;
             if (bookId) {
-                const { data: currentBook } = await supabase.from('books').select('context_data').eq('id', bookId).single();
+                const { data: currentBook } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
                 currentContext = currentBook?.context_data || {};
+                fetchedTargetPages = currentBook?.target_pages || parseInt(currentContext?.target_pages as any) || effectiveTargetPages;
             }
 
             // 1. Call n8n to generate outline
-            const finalTargetPages = parseInt(currentContext.target_pages as any) || effectiveTargetPages;
+            const finalTargetPages = fetchedTargetPages;
             const finalNumChapters = Math.max(1, Math.floor(finalTargetPages / chaptersRate));
 
             // Save config to Supabase
