@@ -39,26 +39,32 @@ const ConfigurationPage: React.FC = () => {
         try {
             // Fetch current context first
             if (bookId) {
-                const { data: currentBook } = await supabase.from('books').select('context_data').eq('id', bookId).single();
+                const { data: currentBook } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
                 currentContext = currentBook?.context_data || {};
+                // Store the real column value so it is not lost when we spread context_data below
+                if (currentBook?.target_pages) (currentContext as any)._dbTargetPages = currentBook.target_pages;
             }
 
             // 1. Call n8n to generate outline
-            const targetPages = parseInt(currentContext.target_pages as any) || 100;
-            const numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));
+            // Priority: dedicated DB column → context_data (legacy) → hard default
+            const finalTargetPages: number = (currentContext as any)._dbTargetPages
+                || parseInt(currentContext.target_pages as any)
+                || 100;
+            const numChapters = Math.max(1, Math.floor(finalTargetPages / chaptersRate));
 
-            // Save config to Supabase
+            // Save config to Supabase (keep both column and context_data in sync)
             if (bookId) {
                 await supabase.from('books').update({
                     status: 'BLUEPRINT',
                     target_chapters: numChapters,
-                    context_data: { ...currentContext, configuration: config }
+                    target_pages: finalTargetPages,
+                    context_data: { ...currentContext, target_pages: finalTargetPages, configuration: config }
                 }).eq('id', bookId);
             }
 
             const data = await callBookAgent('OUTLINE', {
                 configuration: config,
-                targetPages: targetPages,
+                targetPages: finalTargetPages,
                 numChapters: numChapters
             }, bookId);
 

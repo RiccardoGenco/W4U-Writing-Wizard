@@ -1,0 +1,24 @@
+{
+  "parameters": {
+    "operation": "executeQuery",
+    "query": "INSERT INTO books (id, title, author, genre, status, context_data) \nVALUES (\n  $1::uuid, \n  $2, \n  $3, \n  $4, \n  'INTERVIEW', \n  jsonb_build_object(\n    'messages', CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END,\n    'target_pages', $6::integer\n  )\n) \nON CONFLICT (id) DO UPDATE SET \n  title = CASE WHEN EXCLUDED.title IS NOT NULL AND EXCLUDED.title NOT IN ('', 'Nuovo Libro', 'Nuovo Progetto') THEN EXCLUDED.title ELSE books.title END,\n  author = COALESCE(EXCLUDED.author, books.author),\n  genre = COALESCE(EXCLUDED.genre, books.genre),\n  context_data = jsonb_set(\n    jsonb_set(\n      books.context_data,\n      '{target_pages}',\n      COALESCE(EXCLUDED.context_data->'target_pages', books.context_data->'target_pages', '100'::jsonb)\n    ),\n    '{messages}',\n    COALESCE(books.context_data->'messages', '[]'::jsonb) || \n    CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END\n  )\nRETURNING id;",
+    "options": {
+      "queryReplacement": "={{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Webhook Router\"].json.body.book_id }},{{ $node[\"Webhook Router\"].json.body.title || null }},{{ $node[\"Webhook Router\"].json.body.author || null }},{{ $node[\"Webhook Router\"].json.body.genre || null }},{{ $node[\"Webhook Router\"].json.body.userInput || null }},{{ $node[\"Webhook Router\"].json.body.targetPages || 100 }}"
+    }
+  },
+  "id": "12151ef3-584e-4dd9-a44e-5ea5ef3e8556",
+  "name": "Init Book (Optional)",
+  "type": "n8n-nodes-base.postgres",
+  "typeVersion": 2,
+  "position": [
+    -1184,
+    208
+  ],
+  "credentials": {
+    "postgres": {
+      "id": "0AsoTCNHEls3AaYu",
+      "name": "Postgres account"
+    }
+  },
+  "notes": "Creates book record if not exists. Useful for ensuring ID validity."
+}

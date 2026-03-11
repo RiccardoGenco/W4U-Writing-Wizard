@@ -1,0 +1,50 @@
+[
+  {
+    "parameters": {
+      "jsCode": "const bookData = $node[\"Get Book Context Concept Architect1\"].json;\nconst dbContext = bookData.context_data || {};\nconst config = dbContext.configuration || {};\n\nconst targetPagesRaw = $node[\"Webhook Router\"].json.body.targetPages || config.target_pages || dbContext.target_pages;\nconst targetPages = parseInt(targetPagesRaw) || 100;\nconst chaptersRate = $node[\"Webhook Router\"].json.body.configuration?.chaptersRate || config.chaptersRate || 10;\nconst wordsPerPage = config.words_per_page || 250;\n\n// Priority: 1. Webhook Input, 2. Database Value, 3. Dynamic Calculation\nlet numChapters = $node[\"Webhook Router\"].json.body.numChapters || bookData.target_chapters;\n\nif (!numChapters || isNaN(parseInt(numChapters))) {\n  numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));\n} else {\n  numChapters = parseInt(numChapters);\n}\n\nconst totalWords = targetPages * wordsPerPage;\nconst wordsPerChapter = Math.floor(totalWords / numChapters);\nconst paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));\n\nreturn {\n  json: {\n    target_pages: targetPages,\n    total_words_target: totalWords,\n    num_chapters: numChapters,\n    words_per_chapter: wordsPerChapter,\n    paragraphs_per_chapter: paragraphsPerChapter,\n    debug_inputs: { targetPagesRaw, chaptersRate, config, numChapters }\n  }\n}"
+    },
+    "id": "aba417e0-1e50-463d-93bf-fe8ad7001289",
+    "name": "Calculator",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [
+      -512,
+      208
+    ]
+  },
+  {
+    "parameters": {
+      "method": "POST",
+      "url": "https://api.openai.com/v1/chat/completions",
+      "authentication": "predefinedCredentialType",
+      "nodeCredentialType": "openAiApi",
+      "sendHeaders": true,
+      "headerParameters": {
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      },
+      "sendBody": true,
+      "specifyBody": "json",
+      "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei l'Architetto Letterario W4U. Il tuo compito è spezzettare un Capitolo in ESATTAMENTE \" + ($node[\"Webhook Router\"].json.body.targetParagraphCount || 10) + \" Sottocapitoli (chiamati Paragrafi).\\n\\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\\n\\nTITOLO CAPITOLO: \" + $node[\"Webhook Router\"].json.body.chapter.title + \"\\nSOMMARIO CAPITOLO: \" + $node[\"Webhook Router\"].json.body.chapter.summary + \"\\n\\nFEEDBACK UTENTE (se presente): \" + ($node[\"Webhook Router\"].json.body.feedback || \"Nessun feedback. Genera da zero.\") + \"\\n\\nISTRUZIONI:\\n- Dividi il capitolo in ESATTAMENTE \" + ($node[\"Webhook Router\"].json.body.targetParagraphCount || 10) + \" paragrafi in base al GENERE:\\n  -- Saggistica/Manuale/Informativo: Introduzione, Argomentazioni Logiche, Dati, Sottocapitoli tematici.\\n  -- Ricettario: Ingredienti, Strumenti, Step preparazione, Valori.\\n  -- Narrativa (Romance, SciFi, Thriller): Scene narrative (incidenti scatenanti, plot twist, esplorazione).\\n- Ogni paragrafo dovrà poi essere usato per generare un blocco di circa 250 parole.\\n- CRITICAL RULE: DEVI GENERARE ESATTAMENTE \" + ($node[\"Webhook Router\"].json.body.targetParagraphCount || 10) + \" PARAGRAFI. NON UNO DI PIU', NON UNO DI MENO.\\n- Restituisci un array JSON di queste scene.\\n\\nOutput JSON: { \\\"paragraphs\\\": [ { \\\"paragraph_number\\\": 1, \\\"title\\\": \\\"Titolo Scena...\\\", \\\"description\\\": \\\"Descrizione super dettagliata...\\\" } ] }\" }}\n    }\n  ]\n} }}",
+      "options": {}
+    },
+    "id": "86c89aa3-05ba-4762-b4ca-df20ce3204e9",
+    "name": "Agent: Scaffolder",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4,
+    "position": [
+      -736,
+      592
+    ],
+    "credentials": {
+      "openAiApi": {
+        "id": "lIvnrEKrZKxdIRLJ",
+        "name": "OpenAi account 5"
+      }
+    }
+  }
+]

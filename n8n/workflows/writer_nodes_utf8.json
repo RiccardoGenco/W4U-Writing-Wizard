@@ -1,0 +1,165 @@
+[
+  {
+    "parameters": {
+      "operation": "executeQuery",
+      "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Writer',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+      "options": {}
+    },
+    "id": "6b25e417-0384-42d8-899b-94c51f8725af",
+    "name": "Log AI Usage: Writer",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2.4,
+    "position": [
+      608,
+      16
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "0AsoTCNHEls3AaYu",
+        "name": "Postgres account"
+      }
+    },
+    "onError": "continueRegularOutput"
+  },
+  {
+    "parameters": {
+      "operation": "executeQuery",
+      "query": "UPDATE paragraphs SET content = $1, status = 'COMPLETED', actual_word_count = $3, updated_at = NOW() WHERE id = $2::uuid",
+      "options": {
+        "queryReplacement": "={{ $node[\"Sanitize Writer\"].json.content }}, {{ $node[\"Get Paragraph\"].json.id }}, {{ $node[\"Sanitize Writer\"].json.word_count }}"
+      }
+    },
+    "id": "11f74a98-7951-4f42-a294-f057b2d36f93",
+    "name": "Update Paragraph",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2,
+    "position": [
+      1056,
+      16
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "0AsoTCNHEls3AaYu",
+        "name": "Postgres account"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "jsCode": "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\nlet rawContent = $node[\"Agent: Writer\"].json.choices[0].message.content;\n// Strip markdown backticks\nrawContent = rawContent.replace(/```markdown\\n?|```/g, '').trim();\n// Strip emojis\nconst cleanContent = rawContent.replace(emojiRegex, '');\nconst wordCount = cleanContent.split(/\\s+/).filter(w => w.length > 0).length;\n\nreturn {\n  content: cleanContent,\n  word_count: wordCount\n};"
+    },
+    "id": "15739214-3fc8-4e49-884d-0ccf8865e773",
+    "name": "Sanitize Writer",
+    "type": "n8n-nodes-base.code",
+    "typeVersion": 2,
+    "position": [
+      832,
+      16
+    ]
+  },
+  {
+    "parameters": {
+      "operation": "executeQuery",
+      "query": "SELECT string_agg(content, '\\n\\n' ORDER BY paragraph_number ASC) as combined_content FROM paragraphs WHERE chapter_id = $1::uuid AND paragraph_number < $2::integer AND status = 'COMPLETED'",
+      "options": {
+        "queryReplacement": "={{ $node[\"Get Paragraph\"].json.chapter_id }},{{ $node[\"Get Paragraph\"].json.paragraph_number }}"
+      }
+    },
+    "id": "af9e849e-873b-47cd-be90-8809a0eed580",
+    "name": "Get Previous Paragraphs Context",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2,
+    "position": [
+      -288,
+      16
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "0AsoTCNHEls3AaYu",
+        "name": "Postgres account"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "method": "POST",
+      "url": "https://api.openai.com/v1/chat/completions",
+      "authentication": "predefinedCredentialType",
+      "nodeCredentialType": "openAiApi",
+      "sendHeaders": true,
+      "headerParameters": {
+        "parameters": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      },
+      "sendBody": true,
+      "specifyBody": "json",
+      "jsonBody": "={{ { \"model\": \"gpt-4o-mini\", \"max_tokens\": 8000, \"messages\": [ { \"role\": \"system\", \"content\": ($('Get Writer Prompt').first().json.prompt_text ? $('Get Writer Prompt').first().json.prompt_text + \"\\n\\n\" : \"Sei uno scrittore professionista. NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\") + \"BLUEPRINT (CONTESTO MACRO): \" + JSON.stringify($('Get Book').first().json.context_data?.blueprint || {}) +  \"  \" + \"DETTAGLI CAPITOLO: \" + \"- Titolo: \" + ($('Get Paragraph').first().json.chapter_title || \"Senza Titolo\") + \" \" + \"- Sommario: \" + ($('Get Paragraph').first().json.chapter_summary || \"Nessun sommario\") + \"  \" + \"DETTAGLI QUESTO PARAGRAFO: \" + \"- Argomento: \" + ($('Get Paragraph').first().json.title || \"\") + \" \" + \"- Cosa deve succedere qui: \" + ($('Get Paragraph').first().json.description || \"Scrivi il contenuto adatto.\") + \"  \" + \"CONTESTO PARAGRAFI PRECEDENTI: \" + ($('Get Previous Paragraphs Context').first().json.combined_content ? $('Get Previous Paragraphs Context').first().json.combined_content : \"Ogni inizio porta con se una genesi. Nessun paragrafo precedente ancora.\") + \"  \" + \"MATERIALE BOZZA ESTRAPOLATO: \" + ($('RAG: Query Draft Chunks').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \") || \"Nessun materiale.\") + \"  \" + \"ISTRUZIONI DI SCRITTURA: \" + \"REGOLE DI SCRITTURA (ADATTATI ALLA CATEGORIA DEL LIBRO CON CURA MANIACALE):  1. NON-FICTION / Saggistica / Manuali / Guide: STILE INFORMATIVO RIGOROSO E AUTOREVOLE. CRITICAL RULE: E ASSOLUTAMENTE VIETATA ogni forma di narrazione romanzata, storytelling, intro poetiche, aneddoti romanzati e personaggi d'invenzione fittizi. Usa un tono freddo, oggettivo, consulenziale, tecnico.  2. CUCINA E RICETTARI: STILE PROCEDURALE CRITICAL LOGIC.  3. FICTION (Romanzi, Gialli, Sci-Fi, Romance, Fantasy): STILE NARRATIVO IMMERSIVO. Applica show, dont tell. Focus assoluto sulle descrizioni sensoriali, interiorita, archi drammatici e passioni.  Istruzione finale: Scrivi SOLO il testo per questa sezione. TARGET LUNGHEZZA: ESATTAMENTE \" + ($('Get Paragraph').first().json.target_word_count || 250) + \" PAROLE. Sii ricco di dettagli per raggiungere l'obiettivo senza essere ripetitivo. Assicurati che il collegamento con i paragrafi precedenti sia fluido e logico.\" }, { \"role\": \"user\", \"content\": \"Scrivi il contenuto per il Paragrafo: \" + $('Get Paragraph').first().json.title } ] } }}",
+      "options": {}
+    },
+    "id": "caeab055-7eaa-426d-9d74-d41034af17a8",
+    "name": "Agent: Writer",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4,
+    "position": [
+      384,
+      16
+    ],
+    "credentials": {
+      "openAiApi": {
+        "id": "lIvnrEKrZKxdIRLJ",
+        "name": "OpenAi account 5"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "operation": "executeQuery",
+      "query": "SELECT prompt_text FROM public.ai_prompts WHERE name = 'WRITER' AND is_active = true AND (genre = $1 OR genre = 'GENERAL') ORDER BY CASE WHEN genre = $1 THEN 0 ELSE 1 END LIMIT 1",
+      "options": {
+        "queryReplacement": "={{ $('Get Book').first().json.genre || 'GENERAL' }}"
+      }
+    },
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Get Writer Prompt",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2.4,
+    "position": [
+      -512,
+      16
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "0AsoTCNHEls3AaYu",
+        "name": "Postgres account"
+      }
+    },
+    "onError": "continueRegularOutput"
+  },
+  {
+    "parameters": {
+      "operation": "executeQuery",
+      "query": "SELECT p.*, c.title AS chapter_title, c.summary AS chapter_summary, c.book_id FROM paragraphs p JOIN chapters c ON p.chapter_id = c.id WHERE p.id = $1::uuid",
+      "options": {
+        "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.paragraphId || $node[\"Webhook Router\"].json.body.chapterId] }}"
+      }
+    },
+    "id": "6edb8de2-7da4-4e5c-8915-8621beab07d1",
+    "name": "Get Paragraph",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2,
+    "position": [
+      -736,
+      16
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "0AsoTCNHEls3AaYu",
+        "name": "Postgres account"
+      }
+    }
+  }
+]

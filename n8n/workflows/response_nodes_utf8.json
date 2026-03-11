@@ -1,0 +1,124 @@
+[
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "={\"success\": false, \"error\": \"Unauthorized\"}",
+      "options": {
+        "responseCode": 401
+      }
+    },
+    "id": "9fe41224-3e85-4a8e-b1eb-58321be8ef61",
+    "name": "Auth Error Response",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1,
+    "position": [
+      -1408,
+      400
+    ]
+  },
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "={{ {\n  \"success\": true,\n  \"bookId\": $node[\"Extract & Sanitize Prompt\"].json.bookId,\n  \"cover_url\": `https://dylnxdjycakxxnlgqvsj.supabase.co/storage/v1/object/public/covers/${$node[\"Extract & Sanitize Prompt\"].json.bookId}_cover.png`,\n  \"prompt\": $node[\"Extract & Sanitize Prompt\"].json.refinedPrompt,\n  \"message\": \"Cover generata con successo\"\n} }}",
+      "options": {}
+    },
+    "id": "8da2dfac-97ce-429e-b84c-031ee3dbdf2b",
+    "name": "Response Cover Success",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1.1,
+    "position": [
+      1504,
+      1024
+    ]
+  },
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "={{ {\n  \"bookId\": $node[\"Get Book Context Concept1\"].json.id,\n  \"concepts\": $node[\"Sanitize Concepts\"].json.concepts\n} }}",
+      "options": {}
+    },
+    "id": "687cce56-1ada-4eb5-a8d5-44c9effe00db",
+    "name": "Response Concept",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1,
+    "position": [
+      384,
+      -176
+    ]
+  },
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "={{ {\n  \"bookId\": $node[\"Get Book Context Editor\"].json.id,\n  \"aiResponse\": JSON.parse($node[\"Agent: Editor\"].json.choices[0].message.content.replace(/```json\\n?|```/g, '').trim()).aiResponse.replace(/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g, '')\n} }}",
+      "options": {}
+    },
+    "id": "1503cf9b-e9f8-46cf-bb4f-60e86571bf52",
+    "name": "Response Editor",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1,
+    "position": [
+      -64,
+      784
+    ]
+  },
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "{\n  \"bookId\": \"{{ $node['Get Book'].json.id }}\",\n  \"status\": \"success\"\n}",
+      "options": {}
+    },
+    "id": "70e1d043-6c7a-41af-8766-28e4645b87ee",
+    "name": "Response Write",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1,
+    "position": [
+      1504,
+      16
+    ]
+  },
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "={{ {\n  \"bookId\": $node[\"Get Book Context Concept Architect1\"].json.id,\n  \"chapters\": $node[\"Sanitize Chapters\"].json.chapters\n} }}",
+      "options": {}
+    },
+    "id": "b46ed707-4517-4e14-a6b6-100da4d89936",
+    "name": "Response Outline",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1,
+    "position": [
+      1280,
+      208
+    ]
+  },
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "={{ {\n  \"bookId\": $node[\"Init Book (Optional)\"].json.id,\n  \"aiResponse\": JSON.parse($node[\"Agent: Interviewer\"].json.choices[0].message.content.replace(/```json\\n?|```/g, '').trim()).question.replace(/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g, '')\n} }}",
+      "options": {}
+    },
+    "id": "5009abfe-136c-41ef-a98b-35eff0c13c28",
+    "name": "Response Interview",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1,
+    "position": [
+      160,
+      -368
+    ]
+  },
+  {
+    "parameters": {
+      "respondWith": "json",
+      "responseBody": "={{ $node[\"Agent: Scaffolder\"].json.choices[0].message.content }}",
+      "options": {}
+    },
+    "id": "be305d01-abc8-4d19-b206-b28cb29c3420",
+    "name": "Response Scaffold",
+    "type": "n8n-nodes-base.respondToWebhook",
+    "typeVersion": 1,
+    "position": [
+      -512,
+      592
+    ]
+  }
+]

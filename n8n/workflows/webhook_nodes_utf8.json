@@ -1,0 +1,77 @@
+[
+  {
+    "parameters": {
+      "schema": {
+        "__rl": true,
+        "mode": "list",
+        "value": "public"
+      },
+      "table": {
+        "__rl": true,
+        "value": "debug_logs",
+        "mode": "list",
+        "cachedResultName": "debug_logs"
+      },
+      "dataMode": "defineBelow",
+      "valuesToSend": {
+        "values": [
+          {
+            "column": "source",
+            "value": "n8n"
+          },
+          {
+            "column": "event_type",
+            "value": "={{ $json.body.action }}"
+          },
+          {
+            "column": "book_id",
+            "value": "={{ $json.body.bookId }}"
+          },
+          {
+            "column": "payload",
+            "value": "={{ JSON.stringify($json.body) }}"
+          }
+        ]
+      },
+      "options": {}
+    },
+    "id": "4753f3ed-88de-4a00-b00c-bcf0a290dead",
+    "name": "Log Webhook",
+    "type": "n8n-nodes-base.postgres",
+    "typeVersion": 2,
+    "position": [
+      -1408,
+      208
+    ],
+    "credentials": {
+      "postgres": {
+        "id": "0AsoTCNHEls3AaYu",
+        "name": "Postgres account"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "httpMethod": "POST",
+      "path": "book-agent-f5ryrr6ut656f",
+      "authentication": "headerAuth",
+      "responseMode": "responseNode",
+      "options": {}
+    },
+    "id": "0059f297-0346-4c28-a59f-556eef3a9ea4",
+    "name": "Webhook Router",
+    "type": "n8n-nodes-base.webhook",
+    "typeVersion": 1,
+    "position": [
+      -1856,
+      304
+    ],
+    "webhookId": "book-agent-webhook-v2",
+    "credentials": {
+      "httpHeaderAuth": {
+        "id": "72YOfDzDhT2VfwYf",
+        "name": "Header Auth account"
+      }
+    }
+  }
+]
