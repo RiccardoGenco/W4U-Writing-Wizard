@@ -97,19 +97,8 @@ const BlueprintPage: React.FC = () => {
             if (error) throw error;
 
             // Dynamic Scaffolding: Loop through each inserted chapter and call N8N to get paragraphs
+            // paragraphsPerChapter already calculated above from the first book fetch
             const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
-
-            // Fetch book metadata to calculate correct paragraph count per chapter
-            const { data: bookMeta } = await supabase.from('books')
-                .select('target_pages, target_chapters, context_data')
-                .eq('id', bookId)
-                .single();
-            const bookTargetPages: number = bookMeta?.target_pages || parseInt(bookMeta?.context_data?.target_pages) || 100;
-            const bookChaptersRate: number = bookMeta?.context_data?.configuration?.chaptersRate || 10;
-            const bookTargetChapters: number = bookMeta?.target_chapters
-                || Math.max(1, Math.floor(bookTargetPages / bookChaptersRate));
-            // How many subchapters/paragraphs per chapter: ~1 page = 1 paragraph
-            const paragraphsPerChapter: number = Math.max(1, Math.round(bookTargetPages / bookTargetChapters));
 
             for (let i = 0; i < insertedChapters.length; i++) {
                 const chapter = insertedChapters[i];
