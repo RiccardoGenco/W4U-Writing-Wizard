@@ -67,7 +67,7 @@ const BlueprintPage: React.FC = () => {
             // Fetch book configuration for precise scaling
             const { data: book, error: bookError } = await supabase
                 .from('books')
-                .select('target_pages, target_chapters, configuration')
+                .select('target_pages, target_chapters, context_data')
                 .eq('id', bookId)
                 .single();
 
@@ -75,11 +75,10 @@ const BlueprintPage: React.FC = () => {
 
             const targetPages = book.target_pages || 100;
             const targetChapters = book.target_chapters || chapters.length;
-            const wordsPerPage = book.configuration?.words_per_page || 250;
             
-            const totalWordsTarget = targetPages * wordsPerPage;
-            const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
-            const paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));
+            // 1 paragraph ≈ 1 page worth of content (approx 250 words)
+            // So paragraphs per chapter = targetPages / numChapters
+            const paragraphsPerChapter = Math.max(1, Math.round(targetPages / targetChapters));
 
             const dbChapters = chapters.map((c, index) => ({
                 book_id: bookId,
