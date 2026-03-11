@@ -64,6 +64,23 @@ const BlueprintPage: React.FC = () => {
         await logDebug('frontend', 'blueprint_confirm_start', { chapters_count: chapters.length }, bookId);
 
         try {
+            // Fetch book configuration for precise scaling
+            const { data: book, error: bookError } = await supabase
+                .from('books')
+                .select('target_pages, target_chapters, configuration')
+                .eq('id', bookId)
+                .single();
+
+            if (bookError) throw bookError;
+
+            const targetPages = book.target_pages || 100;
+            const targetChapters = book.target_chapters || chapters.length;
+            const wordsPerPage = book.configuration?.words_per_page || 250;
+            
+            const totalWordsTarget = targetPages * wordsPerPage;
+            const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
+            const paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));
+
             const dbChapters = chapters.map((c, index) => ({
                 book_id: bookId,
                 chapter_number: index + 1,
@@ -80,7 +97,7 @@ const BlueprintPage: React.FC = () => {
             if (error) throw error;
 
             // Dynamic Scaffolding: Loop through each inserted chapter and call N8N to get paragraphs
-            const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string }> = [];
+            const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
 
             // Fetch book metadata to calculate correct paragraph count per chapter
             const { data: bookMeta } = await supabase.from('books')
@@ -118,7 +135,8 @@ const BlueprintPage: React.FC = () => {
                                 paragraph_number: pIndex + 1,
                                 title: p.title || `Sottocapitolo ${pIndex + 1}`,
                                 description: p.description || '',
-                                status: 'PENDING'
+                                status: 'PENDING',
+                                target_word_count: 250 // Standard target per paragraph
                             });
                         });
                     } else {
@@ -132,7 +150,8 @@ const BlueprintPage: React.FC = () => {
                         paragraph_number: 1,
                         title: `Sottocapitolo Generico`,
                         description: `L'AI non ha risposto per questo capitolo. Modifica manuale necessaria.`,
-                        status: 'PENDING'
+                        status: 'PENDING',
+                        target_word_count: 250
                     });
                 }
             }

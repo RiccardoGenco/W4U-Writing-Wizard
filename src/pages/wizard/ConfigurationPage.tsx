@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal, Users, ChevronRight, Loader2 } from 'lucide-react';
@@ -19,6 +19,32 @@ const ConfigurationPage: React.FC = () => {
     const [chaptersRate, setChaptersRate] = useState(10); // Pages per chapter default
 
     const [targets, setTargets] = useState<string[]>([]);
+    const [targetPages, setTargetPages] = useState<number | null>(null);
+    const [loadingContext, setLoadingContext] = useState(true);
+
+    useEffect(() => {
+        const fetchTargetPages = async () => {
+            const bookId = localStorage.getItem('active_book_id');
+            if (bookId) {
+                try {
+                    const { data } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
+                    const pages = data?.target_pages || parseInt(data?.context_data?.target_pages as any) || 100;
+                    setTargetPages(pages);
+                } catch (e) {
+                    console.error("Error fetching target pages", e);
+                    setTargetPages(100);
+                } finally {
+                    setLoadingContext(false);
+                }
+            } else {
+                setLoadingContext(false);
+            }
+        };
+        fetchTargetPages();
+    }, []);
+
+    const effectiveTargetPages = targetPages || 100;
+    const numChapters = Math.max(1, Math.floor(effectiveTargetPages / chaptersRate));
 
     const availableTargets = ['Principianti', 'Appassionati', 'Professionisti', 'Studenti', 'Curiosi', 'Bambini'];
 
@@ -38,25 +64,22 @@ const ConfigurationPage: React.FC = () => {
 
         try {
             // Fetch current context first
+            let fetchedTargetPages = effectiveTargetPages;
             if (bookId) {
                 const { data: currentBook } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
                 currentContext = currentBook?.context_data || {};
-                // Store the real column value so it is not lost when we spread context_data below
-                if (currentBook?.target_pages) (currentContext as any)._dbTargetPages = currentBook.target_pages;
+                fetchedTargetPages = currentBook?.target_pages || parseInt(currentContext?.target_pages as any) || effectiveTargetPages;
             }
 
             // 1. Call n8n to generate outline
-            // Priority: dedicated DB column → context_data (legacy) → hard default
-            const finalTargetPages: number = (currentContext as any)._dbTargetPages
-                || parseInt(currentContext.target_pages as any)
-                || 100;
-            const numChapters = Math.max(1, Math.floor(finalTargetPages / chaptersRate));
+            const finalTargetPages = fetchedTargetPages;
+            const finalNumChapters = Math.max(1, Math.floor(finalTargetPages / chaptersRate));
 
             // Save config to Supabase (keep both column and context_data in sync)
             if (bookId) {
                 await supabase.from('books').update({
                     status: 'BLUEPRINT',
-                    target_chapters: numChapters,
+                    target_chapters: finalNumChapters,
                     target_pages: finalTargetPages,
                     context_data: { ...currentContext, target_pages: finalTargetPages, configuration: config }
                 }).eq('id', bookId);
@@ -65,16 +88,17 @@ const ConfigurationPage: React.FC = () => {
             const data = await callBookAgent('OUTLINE', {
                 configuration: config,
                 targetPages: finalTargetPages,
-                numChapters: numChapters
+                numChapters: finalNumChapters
             }, bookId);
+
 
             const resData = data.data || data;
 
             // Validation: check if AI generated the expected number of chapters
-            if (resData.chapters && Array.isArray(resData.chapters) && resData.chapters.length !== numChapters) {
-                console.warn(`[ARCHITECT] Mismatch: Expected ${numChapters}, got ${resData.chapters.length}`);
+            if (resData.chapters && Array.isArray(resData.chapters) && resData.chapters.length !== finalNumChapters) {
+                console.warn(`[ARCHITECT] Mismatch: Expected ${finalNumChapters}, got ${resData.chapters.length}`);
                 await logDebug('frontend', 'chapter_count_mismatch', {
-                    expected: numChapters,
+                    expected: finalNumChapters,
                     actual: resData.chapters.length,
                     book_id: bookId
                 }, bookId);
@@ -115,9 +139,35 @@ const ConfigurationPage: React.FC = () => {
 
             <header style={{ marginBottom: '3rem', textAlign: 'center' }}>
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Metti a punto lo stile</h1>
-                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>
-                    Definisci il tono di voce e il pubblico ideale per il tuo libro.
+                <p className="page-subtitle">
+                    Personalizza il tono, lo stile e la densità del tuo libro.
                 </p>
+
+                <div className="card" style={{
+                    marginTop: '2rem',
+                    padding: '1.5rem',
+                    background: 'rgba(99, 102, 241, 0.05)',
+                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                }}>
+                    <div>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 700 }}>Volume Obiettivo</h3>
+                        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            {loadingContext ? 'Caricamento target...' : `Basato su ${effectiveTargetPages} pagine acquistate`}
+                        </p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {loadingContext ? '--' : `${numChapters} Capitoli`}
+                        </div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary)' }}>
+                            ~{effectiveTargetPages * 250} Parole Totali
+                        </div>
+                    </div>
+                </div>
             </header>
 
             <div className="glass-panel" style={{ padding: '3rem' }}>
