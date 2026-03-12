@@ -994,10 +994,14 @@ async function forwardToN8n(requestId, userId, payload, token) {
             n8nHeaders['X-Webhook-Secret'] = process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
         }
 
-        // Update status to processing
-        await dbClient.from('ai_requests')
+        // Update status to processing using the service role client to bypass RLS
+        const { error: processingError } = await supabase.from('ai_requests')
             .update({ status: 'processing', updated_at: new Date().toISOString() })
             .eq('id', requestId);
+        
+        if (processingError) {
+            console.error(`[AI Proxy] Failed to update request ${requestId} to processing:`, processingError.message);
+        }
 
         console.log(`[AI Proxy] Forwarding request ${requestId} to n8n: ${n8nWebhookUrl}`);
 
@@ -1027,13 +1031,16 @@ async function forwardToN8n(requestId, userId, payload, token) {
                 }
 
                 if (base64Match && payload.action === 'GENERATE_COVER') {
-                    // Upload base64 to Supabase
+                    // Upload base64 to Supabase using service role (supabase client)
                     const buffer = Buffer.from(base64Match, 'base64');
                     const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
-                    const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                    const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
                     if (!uploadError) {
-                        const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                        const { data: publicUrlData } = supabase.storage.from('covers').getPublicUrl(fileName);
                         responseData = { cover_url: publicUrlData.publicUrl };
+                    } else {
+                        console.error("[AI Proxy] Base64 upload failed:", uploadError.message);
+                        throw new Error("Base64 cover upload failed: " + uploadError.message);
                     }
                 }
             } catch (e) {
@@ -1046,10 +1053,10 @@ async function forwardToN8n(requestId, userId, payload, token) {
 
             if (payload.action === 'GENERATE_COVER') {
                 const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
-                const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: contentType || 'image/png', upsert: true });
+                const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, buffer, { contentType: contentType || 'image/png', upsert: true });
                 if (uploadError) throw new Error("Failed to upload binary cover image: " + uploadError.message);
 
-                const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                const { data: publicUrlData } = supabase.storage.from('covers').getPublicUrl(fileName);
                 responseData = { cover_url: publicUrlData.publicUrl };
             } else {
                 responseData = { message: "Received binary data." };
@@ -1061,10 +1068,10 @@ async function forwardToN8n(requestId, userId, payload, token) {
                 // Assume it's raw base64
                 const buffer = Buffer.from(responseText, 'base64');
                 const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
-                const { error: uploadError } = await dbClient.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
                 if (uploadError) throw new Error("Failed to upload base64 string cover image: " + uploadError.message);
 
-                const { data: publicUrlData } = dbClient.storage.from('covers').getPublicUrl(fileName);
+                const { data: publicUrlData } = supabase.storage.from('covers').getPublicUrl(fileName);
                 responseData = { cover_url: publicUrlData.publicUrl };
             } else {
                 responseData = { text: responseText };
@@ -1077,8 +1084,9 @@ async function forwardToN8n(requestId, userId, payload, token) {
 
         console.log(`[AI Proxy] Request ${requestId} completed successfully`);
 
-        // Update ai_requests with result
-        await dbClient.from('ai_requests')
+        // Update ai_requests with result using service role
+        console.log(`[AI Proxy] Request ${requestId} completed successfully, updating DB...`);
+        const { error: completionError } = await supabase.from('ai_requests')
             .update({
                 status: 'completed',
                 response_data: responseData,
@@ -1086,15 +1094,23 @@ async function forwardToN8n(requestId, userId, payload, token) {
             })
             .eq('id', requestId);
 
-        // If it was a cover generation, update the book's cover_url
+        if (completionError) {
+            console.error(`[AI Proxy] Failed to update request ${requestId} to completed:`, completionError.message);
+        }
+
+        // If it was a cover generation, update the book's cover_url using service role
         if (payload.action === 'GENERATE_COVER' && responseData && responseData.cover_url) {
             console.log(`[AI Proxy] Updating cover_url for book ${payload.bookId}: ${responseData.cover_url}`);
-            await dbClient.from('books')
+            const { error: coverUpdateError } = await supabase.from('books')
                 .update({ 
                     cover_url: responseData.cover_url,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', payload.bookId);
+            
+            if (coverUpdateError) {
+                console.error(`[AI Proxy] Failed to update book ${payload.bookId} cover_url:`, coverUpdateError.message);
+            }
         }
 
     } catch (error) {
@@ -1111,13 +1127,18 @@ async function forwardToN8n(requestId, userId, payload, token) {
             );
         }
 
-        await dbClient.from('ai_requests')
+        // Update ai_requests with error using service role
+        const { error: finalErrorUpdate } = await supabase.from('ai_requests')
             .update({
                 status: 'failed',
                 error_message: error.message,
                 updated_at: new Date().toISOString()
             })
             .eq('id', requestId);
+        
+        if (finalErrorUpdate) {
+            console.error(`[AI Proxy] Failed to record failure for request ${requestId}:`, finalErrorUpdate.message);
+        }
     }
 }
 
