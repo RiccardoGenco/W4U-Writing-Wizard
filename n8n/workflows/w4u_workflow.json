@@ -1394,50 +1394,6 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "c01d6193-7ac3-4427-950b-9c78bb61f65d",
-              "name": "url",
-              "value": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-guvp42unz9Uckn41psuF1OB2/user-j4Fd1WW2LHh4dU5qy601skHr/img-7PeO5bzHuRGvjkka5jYi5Dsp.png?st=2026-02-20T10%3A05%3A49Z&se=2026-02-20T12%3A05%3A49Z&sp=r&sv=2026-02-06&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-02-19T11%3A09%3A02Z&ske=2026-02-20T11%3A09%3A02Z&sks=b&skv=2026-02-06&sig=K6yM53EqB6e9wskrdOLNZg%2BrrNGec1wt5vL2wi1arV8%3D",
-              "type": "string"
-            },
-            {
-              "id": "b611d1ec-fa34-41cb-81f4-6365fc456143",
-              "name": "",
-              "value": "",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        288,
-        1472
-      ],
-      "id": "ca43ec60-985f-47cc-8485-2424386f2824",
-      "name": "Edit Fields",
-      "disabled": true
-    },
-    {
-      "parameters": {
-        "jsCode": "return [{ json: { data: [{ url: 'https://oaidalleapiprodscus.blob.core.windows.net/private/org-guvp42unz9Uckn41psuF1OB2/user-j4Fd1WW2LHh4dU5qy601skHr/img-7PeO5bzHuRGvjkka5jYi5Dsp.png?st=2026-02-20T10%3A05%3A49Z&se=2026-02-20T12%3A05%3A49Z&sp=r&sv=2026-02-06&sr=b&rscd=inline&rsct=image/png&skoid=b2c0e1c0-cf97-4e19-8986-8073905d5723&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-02-19T11%3A09%3A02Z&ske=2026-02-20T11%3A09%3A02Z&sks=b&skv=2026-02-06&sig=K6yM53EqB6e9wskrdOLNZg%2BrrNGec1wt5vL2wi1arV8%3D' }] } }];"
-      },
-      "id": "2e7ec64d-b80c-478b-a3c9-8115570f88ff",
-      "name": "Mock Generate Cover",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -1952,
-        1696
-      ],
-      "disabled": true
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "https://api.openai.com/v1/chat/completions",
         "authentication": "predefinedCredentialType",
@@ -1461,8 +1417,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        -608,
-        848
+        -288,
+        1000
       ],
       "credentials": {
         "openAiApi": {
@@ -1482,8 +1438,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -384,
-        848
+        -64,
+        1000
       ]
     },
     {
@@ -1554,8 +1510,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -832,
-        848
+        -512,
+        1000
       ]
     },
     {
@@ -1567,8 +1523,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -832,
-        1472
+        -960,
+        1400
       ]
     },
     {
@@ -1587,8 +1543,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -608,
-        1472
+        -736,
+        1400
       ],
       "credentials": {
         "openAiApi": {
@@ -1610,8 +1566,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -384,
-        1472
+        -512,
+        1400
       ],
       "credentials": {
         "postgres": {
@@ -1631,8 +1587,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        -160,
-        1472
+        -288,
+        1400
       ]
     },
     {
@@ -1651,8 +1607,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -1472,
-        848
+        -1056,
+        1000
       ],
       "credentials": {
         "openAiApi": {
@@ -1674,8 +1630,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -1248,
-        848
+        -832,
+        1000
       ],
       "credentials": {
         "postgres": {
@@ -1784,17 +1740,6 @@
       ]
     },
     "Download Cover Image": {
-      "main": [
-        [
-          {
-            "node": "Response Cover Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Upload Cover to Server": {
       "main": [
         [
           {
@@ -2151,14 +2096,14 @@
         ],
         [
           {
-            "node": "rag-gen-emb-scaffold-001",
+            "node": "RAG: Gen Emb Scaffold",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "chunk-draft-text-001",
+            "node": "Chunk Draft Text",
             "type": "main",
             "index": 0
           }
@@ -2203,17 +2148,6 @@
         [
           {
             "node": "Agent: Interviewer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Edit Fields": {
-      "main": [
-        [
-          {
-            "node": "Log AI Usage: Generate Cover (DALL-E 3)",
             "type": "main",
             "index": 0
           }
@@ -2313,51 +2247,51 @@
         ]
       ]
     },
-    "chunk-draft-text-001": {
+    "Chunk Draft Text": {
       "main": [
         [
           {
-            "node": "index-gen-emb-001",
+            "node": "Index: Generate Embedding",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "index-gen-emb-001": {
+    "Index: Generate Embedding": {
       "main": [
         [
           {
-            "node": "upsert-draft-chunk-001",
+            "node": "Upsert Draft Chunk",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "upsert-draft-chunk-001": {
+    "Upsert Draft Chunk": {
       "main": [
         [
           {
-            "node": "resp-index-succ-001",
+            "node": "Response Indexing Success",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "rag-gen-emb-scaffold-001": {
+    "RAG: Gen Emb Scaffold": {
       "main": [
         [
           {
-            "node": "rag-query-scaffold-001",
+            "node": "RAG: Query Scaffold",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "rag-query-scaffold-001": {
+    "RAG: Query Scaffold": {
       "main": [
         [
           {
