@@ -12,6 +12,9 @@ export const getRouteByStatus = (status: string): string => {
             return '/create/editor';
         case 'EXPORT':
             return '/create/export';
+        case 'COVER':
+            return '/create/cover';
+
         default:
             return '/create/concept';
     }
