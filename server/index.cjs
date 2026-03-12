@@ -215,15 +215,27 @@ app.post("/export/epub", async (req, res) => {
 
             // Compile paragraphs for this chapter
             const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-            const compiledContent = chParagraphs.map(p => p.content || "").join("\n\n");
+            
+            // Build semantic HTML content
+            let chapterHtml = `<div lang="it"><h1>${fullTitle}</h1>`;
+            
+            // 1. Add Chapter Intro if exists
+            if (ch.content && ch.content.trim() !== "") {
+                chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.content)))}</div>`;
+            }
 
-            // Content Sanitization
-            const cleanMarkdown = normalizeText(removeEmojis(compiledContent));
-            const semanticHtml = marked.parse(cleanMarkdown);
+            // 2. Add Subchapters (Paragraphs)
+            chParagraphs.forEach(p => {
+                const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
+                const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
+                chapterHtml += `<section class="subchapter">${subTitle}${subContent}</section>`;
+            });
+
+            chapterHtml += `</div>`;
 
             return {
                 title: fullTitle,
-                content: `<div lang="it"><h1>${fullTitle}</h1><div>${semanticHtml}</div></div>`,
+                content: chapterHtml,
             };
         });
 
@@ -368,17 +380,22 @@ app.post("/export/docx", async (req, res) => {
             const rawTitle = ch.title || "Senza titolo";
             const fullTitle = formatChapterTitle(index, rawTitle);
 
+            // Fetch chapter introduction
+            const introHtml = ch.content ? marked.parse(normalizeText(removeEmojis(ch.content))) : "";
+
             // Compile paragraphs for this chapter
             const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-            const compiledContent = chParagraphs.map(p => p.content || "").join("\n\n");
-
-            const cleanMarkdown = normalizeText(removeEmojis(compiledContent));
-            const htmlContent = marked.parse(cleanMarkdown);
+            
+            const subchapters = chParagraphs.map(p => ({
+                title: p.title ? editorialCasing(normalizeText(removeEmojis(p.title))) : "",
+                htmlContent: p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : ""
+            }));
 
             return {
                 number: index + 1,
                 title: fullTitle,
-                htmlContent: htmlContent,
+                introHtml: introHtml,
+                subchapters: subchapters,
                 bookmarkId: `chapter_${index + 1}`
             };
         });
@@ -506,13 +523,38 @@ app.post("/export/docx", async (req, res) => {
                     ],
                     heading: HeadingLevel.HEADING_1,
                     alignment: AlignmentType.LEFT,
-                    spacing: { before: 240, after: 240 },
+                    spacing: { before: 400, after: 400 },
                     bookmark: { id: ch.bookmarkId }
                 })
             );
 
-            // Simple HTML-to-Paragraphs
-            parseHtmlToParagraphs(ch.htmlContent).forEach(p => children.push(p));
+            // 1. Chapter Introduction
+            if (ch.introHtml) {
+                parseHtmlToParagraphs(ch.introHtml).forEach(p => children.push(p));
+            }
+
+            // 2. Subchapters
+            ch.subchapters.forEach(sub => {
+                if (sub.title) {
+                    children.push(
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: sub.title,
+                                    bold: true,
+                                    font: { name: "Georgia", size: 32 }
+                                })
+                            ],
+                            heading: HeadingLevel.HEADING_2,
+                            spacing: { before: 300, after: 200 }
+                        })
+                    );
+                }
+                
+                if (sub.htmlContent) {
+                    parseHtmlToParagraphs(sub.htmlContent).forEach(p => children.push(p));
+                }
+            });
 
             children.push(new Paragraph({ text: "", pageBreakBefore: true }));
         });
@@ -718,23 +760,30 @@ app.post("/export/pdf", async (req, res) => {
             <meta charset="UTF-8">
             <style>
                 @page {
-                    margin: 2cm;
+                    margin: 2.5cm;
                     size: A4;
                 }
-                body { font-family: 'Georgia', serif; line-height: 1.6; color: #000; }
-                .title-page { text-align: center; margin-top: 30%; page-break-after: always; }
-                h1.book-title { font-size: 3em; margin-bottom: 0.5em; }
-                h2.author { font-size: 1.5em; font-weight: normal; color: #555; }
+                body { font-family: 'Georgia', serif; line-height: 1.8; color: #1a1a1a; }
+                .title-page { text-align: center; margin-top: 35%; page-break-after: always; }
+                h1.book-title { font-size: 3.5em; margin-bottom: 0.2em; color: #000; }
+                h2.author { font-size: 1.6em; font-weight: normal; color: #444; margin-bottom: 3em; }
                 
-                .toc { page-break-after: always; }
-                .toc h1 { text-align: center; }
-                .toc-item { margin: 0.5em 0; }
-                .toc-item a { text-decoration: none; color: #000; border-bottom: 1px dotted #ccc; display: block; width: 100%; }
+                .toc { page-break-after: always; padding: 1em 0; }
+                .toc h1 { text-align: center; font-size: 2.2em; margin-bottom: 1.5em; }
+                .toc-item { margin: 0.8em 0; font-size: 1.1em; }
+                .toc-item a { text-decoration: none; color: #333; border-bottom: 1px dotted #aaa; display: flex; justify-content: space-between; }
                 
-                .chapter { page-break-before: always; }
-                .chapter-title { text-align: center; font-size: 2em; margin-top: 2em; margin-bottom: 2em; font-weight: bold; }
-                .content p { text-indent: 1.5em; margin-bottom: 0.5em; text-align: justify; }
+                .chapter { page-break-before: always; padding-top: 1em; }
+                .chapter-title { text-align: center; font-size: 2.4em; margin-top: 2em; margin-bottom: 2em; font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 1em; }
+                
+                .chapter-intro { font-style: italic; color: #555; margin-bottom: 3em; font-size: 1.1em; line-height: 1.6; padding: 0 1em; border-left: 3px solid #eee; }
+                
+                .subchapter { margin-bottom: 3em; }
+                .subchapter h2 { font-size: 1.6em; margin-top: 2em; margin-bottom: 1em; color: #222; border-left: 4px solid #fecaca; padding-left: 15px; }
+                
+                .content p { text-indent: 1.5em; margin-bottom: 1em; text-align: justify; widows: 3; orphans: 3; }
                 .content p:first-of-type { text-indent: 0; }
+                .content h3 { font-size: 1.3em; margin-top: 1.5em; }
             </style>
         </head>
         <body>
@@ -773,20 +822,29 @@ app.post("/export/pdf", async (req, res) => {
                 
                 // Compile paragraphs for this chapter
                 const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-                const compiledContent = chParagraphs.map(p => p.content || "").join("\n\n");
-
-                // Content Sanitization
-                const cleanMarkdown = normalizeText(removeEmojis(compiledContent));
-                const semanticHtml = marked.parse(cleanMarkdown);
-
-                return `
+                
+                let chapterHtml = `
                 <div class="chapter" id="ch${i + 1}">
                     <h1 class="chapter-title">${fullTitle}</h1>
-                    <div class="content">
-                        ${semanticHtml}
+                    <div class="content">`;
+                
+                // 1. Intro
+                if (ch.content) {
+                    chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.content)))}</div>`;
+                }
+
+                // 2. Subchapters
+                chParagraphs.forEach(p => {
+                    const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
+                    const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
+                    chapterHtml += `<div class="subchapter">${subTitle}${subContent}</div>`;
+                });
+
+                chapterHtml += `
                     </div>
-                </div>
-                `;
+                </div>`;
+                
+                return chapterHtml;
             }).join('')}
         </body>
         </html>
