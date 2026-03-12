@@ -3,6 +3,8 @@ const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
 const fs = require("fs");
 const { v4: uuidv4 } = require("uuid");
+const multer = require("multer");
+
 // const Epub = require("epub-gen");
 // const docx = require("docx");
 // Puppeteer logic moved to /export/pdf
@@ -1246,7 +1248,80 @@ app.post("/api/ai-agent", async (req, res) => {
     }
 });
 
+// --- COVER UPLOAD ENDPOINT (For n8n) ---
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+/**
+ * POST /api/upload-cover
+ * Receives a cover image from n8n and uploads it to Supabase Storage.
+ * Then updates the book's cover_url.
+ */
+app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
+    try {
+        const { bookId } = req.body;
+        const file = req.file;
+
+        if (!bookId || !file) {
+            console.error("[Upload] Missing bookId or file");
+            return res.status(400).json({ error: "Missing bookId or image file" });
+        }
+
+        console.log(`[Upload] Processing cover for book ${bookId}, size: ${file.size} bytes`);
+
+        const fileName = `${bookId}_cover.png`;
+        
+        // Use the global supabase client (with service role if available)
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('covers')
+            .upload(fileName, file.buffer, {
+                contentType: 'image/png',
+                upsert: true
+            });
+
+        if (uploadError) {
+            console.error("[Upload] Supabase Storage error:", uploadError);
+            return res.status(500).json({ error: "Failed to upload to storage: " + uploadError.message });
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+            .from('covers')
+            .getPublicUrl(fileName);
+
+        // Update book record
+        const { error: dbError } = await supabase
+            .from('books')
+            .update({ 
+                cover_url: publicUrl,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', bookId);
+
+        if (dbError) {
+            console.error("[Upload] Database update error:", dbError);
+            return res.status(500).json({ error: "Failed to update book record: " + dbError.message });
+        }
+
+        console.log(`[Upload] Success! Cover URL: ${publicUrl}`);
+
+        res.json({
+            success: true,
+            cover_url: publicUrl,
+            message: "Cover uploaded and record updated successfully"
+        });
+
+    } catch (err) {
+        console.error("[Upload] Server error:", err);
+        res.status(500).json({ error: "Internal server error: " + err.message });
+    }
+});
+
 // --- SHARED SANITIZATION ENDPOINT ---
+
 
 app.post("/api/sanitize", (req, res) => {
     const { text, method } = req.body;

@@ -231,7 +231,8 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ {\n  \"success\": true,\n  \"bookId\": $node[\"Extract & Sanitize Prompt\"].json.bookId,\n  \"cover_url\": `https://dylnxdjycakxxnlgqvsj.supabase.co/storage/v1/object/public/covers/${$node[\"Extract & Sanitize Prompt\"].json.bookId}_cover.png`,\n  \"prompt\": $node[\"Extract & Sanitize Prompt\"].json.refinedPrompt,\n  \"message\": \"Cover generata con successo\"\n} }}",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"bookId\": $node[\"Extract & Sanitize Prompt\"].json.bookId,\n  \"cover_url\": $node[\"Upload Cover to Server\"].json.cover_url,\n  \"prompt\": $node[\"Extract & Sanitize Prompt\"].json.refinedPrompt,\n  \"message\": \"Cover generata con successo\"\n} }}",
+
         "options": {}
       },
       "id": "8da2dfac-97ce-429e-b84c-031ee3dbdf2b",
@@ -245,27 +246,35 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE books SET cover_url = $1, updated_at = NOW() WHERE id = $2::uuid RETURNING *",
-        "options": {
-          "queryReplacement": "={{ [`https://dylnxdjycakxxnlgqvsj.supabase.co/storage/v1/object/public/covers/${$node[\"Extract & Sanitize Prompt\"].json.bookId}_cover.png`, $node[\"Extract & Sanitize Prompt\"].json.bookId] }}"
-        }
+        "method": "POST",
+        "url": "https://w4u-writing-wizard.vercel.app/api/upload-cover",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "bookId",
+              "value": "={{ $node[\"Extract & Sanitize Prompt\"].json.bookId }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
       },
-      "id": "3629dbd9-deb3-448a-9ebb-12dddb8b4880",
-      "name": "Update Book Cover",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
+      "id": "e2f0d4a1-8d2a-4c2b-9e3d-123456789abc",
+      "name": "Upload Cover to Server",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
-        1280,
+        1250,
         1024
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "0AsoTCNHEls3AaYu",
-          "name": "Postgres account"
-        }
-      }
+      ]
     },
+
     {
       "parameters": {
         "url": "={{ $json.url }}",
@@ -1658,7 +1667,18 @@
         ]
       ]
     },
-    "Update Book Cover": {
+    "Download Cover Image": {
+      "main": [
+        [
+          {
+            "node": "Upload Cover to Server",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Cover to Server": {
       "main": [
         [
           {
@@ -1669,11 +1689,7 @@
         ]
       ]
     },
-    "Download Cover Image": {
-      "main": [
-        []
-      ]
-    },
+
     "Normalize Cover URL": {
       "main": [
         [
