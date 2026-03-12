@@ -40,7 +40,15 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
 
     const handleSave = async () => {
         setSaving(true);
+        // Update paragraph content and status
         await supabase.from('paragraphs').update({ content: editContent, status: 'COMPLETED' }).eq('id', paragraph.id);
+        
+        // Check if all paragraphs in the chapter are now done to update chapter status
+        const { data: pList } = await supabase.from('paragraphs').select('status, content').eq('chapter_id', chapterId);
+        if (pList && pList.every(p => p.status === 'COMPLETED' || (p.content && p.content.length > 50))) {
+            await supabase.from('chapters').update({ status: 'COMPLETED' }).eq('id', chapterId);
+        }
+
         setIsEditing(false);
         setSaving(false);
         onUpdate();
@@ -266,10 +274,13 @@ const ProductionPage: React.FC = () => {
                 // Compile chapter immediately after a paragraph finishes so it saves progress
                 const { data: latestParagraphs } = await supabase.from('paragraphs').select('content').eq('chapter_id', id).order('paragraph_number', { ascending: true });
                 if (latestParagraphs) {
-                    const compiled = latestParagraphs.filter(p => p.content).map(p => p.content).join('\\n\\n');
+                    const compiled = latestParagraphs.filter(p => p.content).map(p => p.content).join('\n\n');
                     await supabase.from('chapters').update({ content: compiled }).eq('id', id);
                 }
             }
+
+            // After all paragraphs are done, mark chapter as COMPLETED
+            await supabase.from('chapters').update({ status: 'COMPLETED' }).eq('id', id);
 
             fetchChapters();
         } catch (e) {

@@ -298,6 +298,66 @@ app.post("/export/epub", async (req, res) => {
     }
 });
 
+app.post('/api/ai-agent', async (req, res) => {
+    try {
+        const payload = req.body;
+        const response = await fetch(N8N_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            return res.status(response.status).send(error);
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('[Backend] Agent Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * Handle Manuscript Content Upload (Indexing for RAG)
+ */
+app.post('/api/upload-draft', async (req, res) => {
+    try {
+        const { bookId, textContent } = req.body;
+
+        if (!bookId || !textContent) {
+            return res.status(400).json({ error: 'Missing bookId or textContent' });
+        }
+
+        console.log(`[Backend] Indexing draft for book ${bookId} (${textContent.length} chars)`);
+
+        // Forward to N8N for chunking and embedding
+        const response = await fetch(N8N_WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'INDEX_DRAFT',
+                bookId,
+                textContent
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`N8N Error: ${errorText}`);
+        }
+
+        const result = await response.json();
+        res.json(result);
+
+    } catch (error) {
+        console.error('[Backend] Upload Draft Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- DOCX EXPORT ENDPOINT ---
 
 app.post("/export/docx", async (req, res) => {
