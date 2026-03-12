@@ -81,6 +81,7 @@ async function pollForCompletion(
 
             if (!statusResponse.ok) {
                 logDebug('frontend', 'polling_error', { requestId, attempt, status: statusResponse.status }, bookId);
+                if (statusResponse.status === 401) throw new Error('Unauthorized');
                 if (statusResponse.status === 404) throw new Error('Request not found');
                 continue; // Retry on other errors
             }

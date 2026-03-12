@@ -1251,6 +1251,28 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "INDEX_DRAFT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "index-draft-rule-001"
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -1525,7 +1547,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Safely build the OpenAI JSON payload for the Scaffolder.\n// Using JS string templates here avoids n8n expression injection bugs\n// when chapter titles/summaries contain apostrophes or special chars.\n\nconst webhookBody = $('Webhook Router').first().json?.body || {};\nconst chapterTitle = webhookBody.chapter?.title || 'Capitolo Sconosciuto';\nconst chapterSummary = webhookBody.chapter?.summary || '';\nconst feedback = webhookBody.feedback || 'Nessun feedback. Genera da zero.';\nconst targetCount = webhookBody.targetParagraphCount || 5;\n\nconst systemPrompt = `Sei l'Architetto Letterario W4U. Il tuo compito è spezzettare un Capitolo in ESATTAMENTE ${targetCount} Sottocapitoli (chiamati Paragrafi).\n\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\n\nTITOLO CAPITOLO: ${chapterTitle}\nSOMMARIO CAPITOLO: ${chapterSummary}\n\nFEEDBACK UTENTE (se presente): ${feedback}\n\nISTRUZIONI:\n- Dividi il capitolo in ESATTAMENTE ${targetCount} paragrafi in base al GENERE:\n  -- Saggistica/Manuale/Informativo: Introduzione, Argomentazioni Logiche, Dati, Sottocapitoli tematici.\n  -- Ricettario: Ingredienti, Strumenti, Step preparazione, Valori.\n  -- Narrativa (Romance, SciFi, Thriller): Scene narrative (incidenti scatenanti, plot twist, esplorazione).\n- Ogni paragrafo dovrà poi essere usato per generare un blocco di circa 250 parole.\n- CRITICAL RULE: DEVI GENERARE ESATTAMENTE ${targetCount} PARAGRAFI. NON UNO DI PIU', NON UNO DI MENO.\n- Restituisci un array JSON di queste scene.\n\nOutput JSON: { \"paragraphs\": [ { \"paragraph_number\": 1, \"title\": \"Titolo Scena...\", \"description\": \"Descrizione super dettagliata...\" } ] }`;\n\nconst openaiPayload = {\n    model: 'gpt-4o-mini',\n    max_tokens: 4000,\n    response_format: { type: 'json_object' },\n    messages: [\n        { role: 'system', content: systemPrompt }\n    ]\n};\n\nreturn { json: openaiPayload };"
+        "jsCode": "// Safely build the OpenAI JSON payload for the Scaffolder.\n// Using JS string templates here avoids n8n expression injection bugs\n// when chapter titles/summaries contain apostrophes or special chars.\nconst webhookBody = $('Webhook Router').first().json?.body || {};\nconst chapterTitle = webhookBody.chapter?.title || 'Capitolo Sconosciuto';\nconst chapterSummary = webhookBody.chapter?.summary || '';\nconst feedback = webhookBody.feedback || 'Nessun feedback. Genera da zero.';\nconst targetCount = webhookBody.targetParagraphCount || 5;\n\n// Extracted materials from RAG (if any)\nconst ragChunks = $('RAG: Query Scaffold').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \");\n\nconst systemPrompt = `Sei l'Architetto Letterario W4U. Il tuo compito è spezzettare un Capitolo in ESATTAMENTE ${targetCount} Sottocapitoli (chiamati Paragrafi).\n\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\n\nTITOLO CAPITOLO: ${chapterTitle}\nSOMMARIO CAPITOLO: ${chapterSummary}\n\nMATERIALE ESTRAPOLATO DAL MANOSCRITTO (Usa questo come base se presente):\n${ragChunks || 'Nessun materiale specifico trovato.'}\n\nFEEDBACK UTENTE (se presente): ${feedback}\n\nISTRUZIONI:\n- Dividi il capitolo in ESATTAMENTE ${targetCount} paragrafi in base al GENERE:\n  -- Saggistica/Manuale/Informativo: Introduzione, Argomentazioni Logiche, Dati, Sottocapitoli tematici.\n  -- Ricettario: Ingredienti, Strumenti, Step preparazione, Valori.\n  -- Narrativa (Romance, SciFi, Thriller): Scene narrative (incidenti scatenanti, plot twist, esplorazione).\n- Ogni paragrafo dovrà poi essere usato per generare un blocco di circa 250 parole.\n- CRITICAL RULE: DEVI GENERARE ESATTAMENTE ${targetCount} PARAGRAFI. NON UNO DI PIU', NON UNO DI MENO.\n- Restituisci un array JSON di queste scene.\n\nOutput JSON: { \"paragraphs\": [ { \"paragraph_number\": 1, \"title\": \"Titolo Scena...\", \"description\": \"Descrizione super dettagliata...\" } ] }`;\n\nconst openaiPayload = {\n    model: 'gpt-4o-mini',\n    max_tokens: 4000,\n    response_format: { type: 'json_object' },\n    messages: [\n        { role: 'system', content: systemPrompt }\n    ]\n};\n\nreturn { json: openaiPayload };"
       },
       "id": "003c1fa3-db38-4cb2-ac41-3875eb8dab8f",
       "name": "Build Scaffolder Payload",
@@ -1535,6 +1557,133 @@
         -832,
         848
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $node[\"Webhook Router\"].json.body.textContent || \"\";\nconst bookId = $node[\"Webhook Router\"].json.body.bookId;\nconst chunkSize = 1000;\nconst chunks = [];\n\nfor (let i = 0; i < text.length; i += chunkSize) {\n  chunks.push({\n    textContent: text.substring(i, i + chunkSize),\n    bookId: bookId,\n    chunkIndex: Math.floor(i / chunkSize)\n  });\n}\n\nreturn chunks.map(c => ({ json: c }));"
+      },
+      "id": "chunk-draft-text-001",
+      "name": "Chunk Draft Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -832,
+        1472
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"text-embedding-3-small\", \"input\": \"{{ $json.textContent }}\" }",
+        "options": {}
+      },
+      "id": "index-gen-emb-001",
+      "name": "Index: Generate Embedding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -608,
+        1472
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "lIvnrEKrZKxdIRLJ",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO draft_chunks (book_id, content, embedding, metadata) \nVALUES ($1::uuid, $2, $3::vector(1536), $4::jsonb)\nON CONFLICT DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ $node[\"Chunk Draft Text\"].json.bookId }},{{ $node[\"Chunk Draft Text\"].json.textContent }},{{ \"[\" + $json.data[0].embedding.join(\",\") + \"]\" }},{{ JSON.stringify({ index: $node[\"Chunk Draft Text\"].json.chunkIndex }) }}"
+        }
+      },
+      "id": "upsert-draft-chunk-001",
+      "name": "Upsert Draft Chunk",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -384,
+        1472
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\": true, \"message\": \"Indexing completed\"}",
+        "options": {}
+      },
+      "id": "resp-index-succ-001",
+      "name": "Response Indexing Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        1472
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"text-embedding-3-small\", \"input\": \"{{ $node[\\\"Webhook Router\\\"].json.body.chapter.title }} {{ $node[\\\"Webhook Router\\\"].json.body.chapter.summary }}\" }",
+        "options": {}
+      },
+      "id": "rag-gen-emb-scaffold-001",
+      "name": "RAG: Gen Emb Scaffold",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1472,
+        848
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "lIvnrEKrZKxdIRLJ",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM match_draft_chunks($1::uuid, $2::vector(1536), 0.2, 3);",
+        "options": {
+          "queryReplacement": "={{ $node[\"Webhook Router\"].json.body.bookId }},{{ \"[\" + $json.data[0].embedding.join(\",\") + \"]\" }}"
+        }
+      },
+      "id": "rag-query-scaffold-001",
+      "name": "RAG: Query Scaffold",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        -1248,
+        848
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "pinData": {},
@@ -2002,7 +2151,14 @@
         ],
         [
           {
-            "node": "Build Scaffolder Payload",
+            "node": "rag-gen-emb-scaffold-001",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "chunk-draft-text-001",
             "type": "main",
             "index": 0
           }
@@ -2151,6 +2307,61 @@
         [
           {
             "node": "Response Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "chunk-draft-text-001": {
+      "main": [
+        [
+          {
+            "node": "index-gen-emb-001",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "index-gen-emb-001": {
+      "main": [
+        [
+          {
+            "node": "upsert-draft-chunk-001",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "upsert-draft-chunk-001": {
+      "main": [
+        [
+          {
+            "node": "resp-index-succ-001",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "rag-gen-emb-scaffold-001": {
+      "main": [
+        [
+          {
+            "node": "rag-query-scaffold-001",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "rag-query-scaffold-001": {
+      "main": [
+        [
+          {
+            "node": "Build Scaffolder Payload",
             "type": "main",
             "index": 0
           }
