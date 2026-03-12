@@ -56,7 +56,10 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
 );
 
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
+const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
+const N8N_WEBHOOK_URL = n8nWebhookUrlRaw?.startsWith('/')
+    ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
+    : n8nWebhookUrlRaw;
 
 // --- EDITORIAL PIPELINE UTILS ---
 
@@ -300,27 +303,7 @@ app.post("/export/epub", async (req, res) => {
     }
 });
 
-app.post('/api/ai-agent', async (req, res) => {
-    try {
-        const payload = req.body;
-        const response = await fetch(N8N_WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            const error = await response.text();
-            return res.status(response.status).send(error);
-        }
-
-        const data = await response.json();
-        res.json(data);
-    } catch (error) {
-        console.error('[Backend] Agent Error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+// --- MANUSCRIPT ENDPOINTS ---
 
 /**
  * Handle Manuscript Content Upload (Indexing for RAG)
@@ -335,10 +318,22 @@ app.post('/api/upload-draft', async (req, res) => {
 
         console.log(`[Backend] Indexing draft for book ${bookId} (${textContent.length} chars)`);
 
+        const n8nHeaders = {
+            'Content-Type': 'application/json',
+        };
+
+        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
+        if (n8nApiKey) {
+            n8nHeaders['X-API-Key'] = n8nApiKey;
+        }
+        if (process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET) {
+            n8nHeaders['X-Webhook-Secret'] = process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
+        }
+
         // Forward to N8N for chunking and embedding
         const response = await fetch(N8N_WEBHOOK_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: n8nHeaders,
             body: JSON.stringify({
                 action: 'INDEX_DRAFT',
                 bookId,
@@ -1031,12 +1026,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
             );
         }
 
-        const n8nWebhookUrlRaw = process.env.N8N_WEBHOOK_URL || process.env.VITE_N8N_WEBHOOK_URL;
-
-        // Ensure absolute URL for Node fetch
-        const n8nWebhookUrl = n8nWebhookUrlRaw?.startsWith('/')
-            ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
-            : n8nWebhookUrlRaw;
+        const n8nWebhookUrl = N8N_WEBHOOK_URL;
 
         if (!n8nWebhookUrl) {
             throw new Error("N8N_WEBHOOK_URL not configured");
