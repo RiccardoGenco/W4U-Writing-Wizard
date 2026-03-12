@@ -681,6 +681,14 @@ app.post("/export/pdf", async (req, res) => {
             .order("chapter_number", { ascending: true });
         if (chaptersError || !chapters) throw new Error("Chapters not found");
 
+        const { data: paragraphs, error: paragraphsError } = await scopedSupabase
+            .from("paragraphs")
+            .select("*")
+            .in("chapter_id", chapters.map(c => c.id))
+            .order("paragraph_number", { ascending: true });
+
+        if (paragraphsError) throw new Error("Paragraphs not found");
+
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
 
@@ -760,14 +768,26 @@ app.post("/export/pdf", async (req, res) => {
                 `).join('')}
             </div>
             
-            ${chapters.map((ch, i) => `
+            ${chapters.map((ch, i) => {
+                const fullTitle = formatChapterTitle(i, ch.title || "Senza titolo");
+                
+                // Compile paragraphs for this chapter
+                const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
+                const compiledContent = chParagraphs.map(p => p.content || "").join("\n\n");
+
+                // Content Sanitization
+                const cleanMarkdown = normalizeText(removeEmojis(compiledContent));
+                const semanticHtml = marked.parse(cleanMarkdown);
+
+                return `
                 <div class="chapter" id="ch${i + 1}">
-                    <h1 class="chapter-title">${formatChapterTitle(i, ch.title || "Senza titolo")}</h1>
+                    <h1 class="chapter-title">${fullTitle}</h1>
                     <div class="content">
-                        ${marked.parse(normalizeText(removeEmojis(ch.content || "")))}
+                        ${semanticHtml}
                     </div>
                 </div>
-            `).join('')}
+                `;
+            }).join('')}
         </body>
         </html>
         `;
