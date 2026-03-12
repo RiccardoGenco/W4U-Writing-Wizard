@@ -99,7 +99,8 @@ const MainLayout: React.FC = () => {
                 activeProjectId={activeBookId}
             />
             <main className="main-content">
-                {activeBookPages && location.pathname !== '/' && (
+                {activeBookPages && location.pathname.startsWith('/create/') && (
+
                     <motion.div
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}

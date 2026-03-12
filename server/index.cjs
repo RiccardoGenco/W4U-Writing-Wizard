@@ -1086,6 +1086,17 @@ async function forwardToN8n(requestId, userId, payload, token) {
             })
             .eq('id', requestId);
 
+        // If it was a cover generation, update the book's cover_url
+        if (payload.action === 'GENERATE_COVER' && responseData && responseData.cover_url) {
+            console.log(`[AI Proxy] Updating cover_url for book ${payload.bookId}: ${responseData.cover_url}`);
+            await dbClient.from('books')
+                .update({ 
+                    cover_url: responseData.cover_url,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', payload.bookId);
+        }
+
     } catch (error) {
         console.error(`[AI Proxy] Request ${requestId} failed:`, error.message);
 

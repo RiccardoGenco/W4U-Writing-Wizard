@@ -230,8 +230,7 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ {\n  \"success\": true,\n  \"bookId\": $node[\"Extract & Sanitize Prompt\"].json.bookId,\n  \"cover_url\": $node[\"Upload Cover to Server\"].json.cover_url,\n  \"prompt\": $node[\"Extract & Sanitize Prompt\"].json.refinedPrompt,\n  \"message\": \"Cover generata con successo\"\n} }}",
+        "respondWith": "binary",
         "options": {}
       },
       "id": "b08093d9-65ed-4151-937d-eaca880d5fc6",
@@ -240,36 +239,6 @@
       "typeVersion": 1.1,
       "position": [
         1184,
-        1424
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://w4u-writing-wizard.vercel.app/api/upload-cover",
-        "sendBody": true,
-        "contentType": "multipart-form-data",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "bookId",
-              "value": "={{ $node[\"Extract & Sanitize Prompt\"].json.bookId }}"
-            },
-            {
-              "parameterType": "formBinaryData",
-              "name": "image",
-              "inputDataFieldName": "data"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "3e418e81-055f-4776-8679-6a56bf444006",
-      "name": "Upload Cover to Server",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        960,
         1424
       ]
     },
@@ -1669,7 +1638,7 @@
       "main": [
         [
           {
-            "node": "Upload Cover to Server",
+            "node": "Response Cover Success",
             "type": "main",
             "index": 0
           }
