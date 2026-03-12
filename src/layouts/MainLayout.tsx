@@ -54,11 +54,13 @@ const MainLayout: React.FC = () => {
         if (!supabase || !activeBookId) return;
         const { data } = await supabase
             .from('books')
-            .select('context_data')
+            .select('context_data, target_pages')
             .eq('id', activeBookId)
             .single();
 
-        if (data?.context_data?.target_pages) {
+        if (data?.target_pages) {
+            setActiveBookPages(data.target_pages);
+        } else if (data?.context_data?.target_pages) {
             setActiveBookPages(parseInt(data.context_data.target_pages));
         }
     };

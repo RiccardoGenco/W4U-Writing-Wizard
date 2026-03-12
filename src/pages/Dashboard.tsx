@@ -64,7 +64,8 @@ const Dashboard: React.FC = () => {
                     author: author || 'Anonimo',
                     genre: theme,
                     target_chapters: chapterCount,
-                    context_data: { target_pages: pages, initial_theme: theme }
+                    target_pages: pages,
+                    context_data: { initial_theme: theme }
                 }])
                 .select().single();
 

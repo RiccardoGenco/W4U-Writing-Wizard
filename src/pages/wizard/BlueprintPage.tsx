@@ -64,6 +64,22 @@ const BlueprintPage: React.FC = () => {
         await logDebug('frontend', 'blueprint_confirm_start', { chapters_count: chapters.length }, bookId);
 
         try {
+            // Fetch book configuration for precise scaling
+            const { data: book, error: bookError } = await supabase
+                .from('books')
+                .select('target_pages, target_chapters, context_data')
+                .eq('id', bookId)
+                .single();
+
+            if (bookError) throw bookError;
+
+            const targetPages = book.target_pages || 100;
+            const targetChapters = book.target_chapters || chapters.length;
+            
+            // 1 paragraph ≈ 1 page worth of content (approx 250 words)
+            // So paragraphs per chapter = targetPages / numChapters
+            const paragraphsPerChapter = Math.max(1, Math.round(targetPages / targetChapters));
+
             const dbChapters = chapters.map((c, index) => ({
                 book_id: bookId,
                 chapter_number: index + 1,
@@ -80,7 +96,8 @@ const BlueprintPage: React.FC = () => {
             if (error) throw error;
 
             // Dynamic Scaffolding: Loop through each inserted chapter and call N8N to get paragraphs
-            const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string }> = [];
+            // paragraphsPerChapter already calculated above from the first book fetch
+            const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
 
             for (let i = 0; i < insertedChapters.length; i++) {
                 const chapter = insertedChapters[i];
@@ -93,7 +110,8 @@ const BlueprintPage: React.FC = () => {
                             id: chapter.id,
                             title: chapter.title,
                             summary: originalChapter?.summary || ''
-                        }
+                        },
+                        targetParagraphCount: paragraphsPerChapter
                     }, bookId);
 
                     const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
@@ -105,7 +123,8 @@ const BlueprintPage: React.FC = () => {
                                 paragraph_number: pIndex + 1,
                                 title: p.title || `Sottocapitolo ${pIndex + 1}`,
                                 description: p.description || '',
-                                status: 'PENDING'
+                                status: 'PENDING',
+                                target_word_count: 250 // Standard target per paragraph
                             });
                         });
                     } else {
@@ -119,7 +138,8 @@ const BlueprintPage: React.FC = () => {
                         paragraph_number: 1,
                         title: `Sottocapitolo Generico`,
                         description: `L'AI non ha risposto per questo capitolo. Modifica manuale necessaria.`,
-                        status: 'PENDING'
+                        status: 'PENDING',
+                        target_word_count: 250
                     });
                 }
             }
