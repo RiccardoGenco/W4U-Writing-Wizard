@@ -1666,6 +1666,76 @@
         -128,
         272
       ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"status\": \"started\"}",
+        "options": {}
+      },
+      "id": "resp-started-001",
+      "name": "Respond Started",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -944,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $node[\"Webhook Router\"].json.headers.host }}/api/upload-cover",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "bookId",
+              "value": "={{ $node[\"Webhook Router\"].json.body.bookId }}"
+            },
+            {
+              "name": "image",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "upload-cover-001",
+      "name": "Upload to Supabase Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        960,
+        1424
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ai_requests SET status = 'completed', response_data = $1::jsonb, updated_at = NOW() WHERE id = $2::uuid",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({ cover_url: $json.cover_url }) }}, {{ $node[\"Webhook Router\"].json.body.requestId }}"
+        }
+      },
+      "id": "update-ai-request-001",
+      "name": "Update AI Request Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1184,
+        1424
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -1769,7 +1839,7 @@
       "main": [
         [
           {
-            "node": "Response Cover Success",
+            "node": "Upload to Supabase Storage",
             "type": "main",
             "index": 0
           }
@@ -2108,7 +2178,7 @@
         ],
         [
           {
-            "node": "Get Book Context Cover",
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }
@@ -2344,6 +2414,28 @@
         [
           {
             "node": "RAG: Generate Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Started": {
+      "main": [
+        [
+          {
+            "node": "Get Book Context Cover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Supabase Storage": {
+      "main": [
+        [
+          {
+            "node": "Update AI Request Status",
             "type": "main",
             "index": 0
           }

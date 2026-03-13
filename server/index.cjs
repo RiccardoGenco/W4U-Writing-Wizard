@@ -1076,6 +1076,13 @@ async function forwardToN8n(requestId, userId, payload, token) {
         if (contentType.includes('application/json')) {
             try {
                 responseData = JSON.parse(responseText);
+
+                // Handle immediate response from n8n for async tasks
+                if (responseData && (responseData.status === 'started' || responseData.status === 'processing')) {
+                    console.log(`[AI Proxy] Request ${requestId} started/processing in n8n (async mode). Proxy exiting.`);
+                    return; // Exit without marking as completed, n8n will do it.
+                }
+
                 // Check if n8n returned a JSON with a base64 string (some n8n setups do this)
                 // e.g., [{"data": "base64..."}] or {"data": "base64..."}
                 let base64Match = null;
