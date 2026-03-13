@@ -1459,7 +1459,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": \"text-embedding-3-small\", \"input\": $(\"Get Paragraph\").first().json.title + \" \" + $(\"Get Paragraph\").first().json.description } }}",
+        "jsonBody": "={{ $json }}",
         "options": {}
       },
       "id": "e34a4aaa-04fc-4375-81fb-3dd076e8820c",
@@ -1535,7 +1535,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"model\": \"text-embedding-3-small\", \"input\": \"{{ $json.textContent }}\" }",
+        "jsonBody": "={{ { \"model\": \"text-embedding-3-small\", \"input\": $json.textContent } }}",
         "options": {}
       },
       "id": "index-gen-emb-001",
@@ -1599,7 +1599,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"model\": \"text-embedding-3-small\", \"input\": \"{{ $node[\\\"Webhook Router\\\"].json.body.chapter.title }} {{ $node[\\\"Webhook Router\\\"].json.body.chapter.summary }}\" }",
+        "jsonBody": "={{ $json }}",
         "options": {}
       },
       "id": "rag-gen-emb-scaffold-001",
@@ -1640,6 +1640,32 @@
         }
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookBody = $('Webhook Router').first().json?.body || {};\nconst title = webhookBody.chapter?.title || \"\";\nconst summary = webhookBody.chapter?.summary || \"\";\nreturn {\n  json: {\n    model: \"text-embedding-3-small\",\n    input: `${title} ${summary}`.trim() || \"Empty Context\"\n  }\n};"
+      },
+      "id": "build-emb-scaffold-payload-001",
+      "name": "Build Emb Scaffold Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1280,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const paragraph = $('Get Paragraph').first().json || {};\nconst title = paragraph.title || \"\";\nconst description = paragraph.description || \"\";\nreturn {\n  json: {\n    model: \"text-embedding-3-small\",\n    input: `${title} ${description}`.trim() || \"Empty Context\"\n  }\n};"
+      },
+      "id": "build-rag-query-payload-001",
+      "name": "Build RAG Query Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        272
+      ]
     }
   ],
   "pinData": {},
@@ -2096,7 +2122,7 @@
         ],
         [
           {
-            "node": "RAG: Gen Emb Scaffold",
+            "node": "Build Emb Scaffold Payload",
             "type": "main",
             "index": 0
           }
@@ -2169,7 +2195,7 @@
       "main": [
         [
           {
-            "node": "RAG: Generate Embedding",
+            "node": "Build RAG Query Payload",
             "type": "main",
             "index": 0
           }
@@ -2296,6 +2322,28 @@
         [
           {
             "node": "Build Scaffolder Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Emb Scaffold Payload": {
+      "main": [
+        [
+          {
+            "node": "RAG: Gen Emb Scaffold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build RAG Query Payload": {
+      "main": [
+        [
+          {
+            "node": "RAG: Generate Embedding",
             "type": "main",
             "index": 0
           }

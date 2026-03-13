@@ -1066,9 +1066,12 @@ async function forwardToN8n(requestId, userId, payload, token) {
         const contentType = n8nResponse.headers.get('content-type') || '';
         let responseData = null;
 
-        const responseText = await n8nResponse.text();
+        const arrayBuffer = await n8nResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const responseText = buffer.toString('utf-8');
+        
         console.log(`[AI Proxy Debug] n8n Response Content-Type: ${contentType}`);
-        console.log(`[AI Proxy Debug] n8n Response Text Preview: ${responseText.substring(0, 500)}... (length: ${responseText.length})`);
+        console.log(`[AI Proxy Debug] n8n Response Content length: ${buffer.length}`);
 
         if (contentType.includes('application/json')) {
             try {
@@ -1084,9 +1087,9 @@ async function forwardToN8n(requestId, userId, payload, token) {
 
                 if (base64Match && payload.action === 'GENERATE_COVER') {
                     // Upload base64 to Supabase using service role (supabase client)
-                    const buffer = Buffer.from(base64Match, 'base64');
+                    const imageBuffer = Buffer.from(base64Match, 'base64');
                     const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
-                    const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                    const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, imageBuffer, { contentType: 'image/png', upsert: true });
                     if (!uploadError) {
                         const { data: publicUrlData } = supabase.storage.from('covers').getPublicUrl(fileName);
                         responseData = { cover_url: publicUrlData.publicUrl };
@@ -1099,10 +1102,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
                 responseData = { text: responseText };
             }
         } else if (contentType.includes('image/') || contentType.includes('application/octet-stream')) {
-            // It's binary data
-            const arrayBuffer = await n8nResponse.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-
+            // It's binary data (we already have the buffer)
             if (payload.action === 'GENERATE_COVER') {
                 const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
                 const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, buffer, { contentType: contentType || 'image/png', upsert: true });
@@ -1115,12 +1115,11 @@ async function forwardToN8n(requestId, userId, payload, token) {
             }
         } else {
             // Might be raw base64 text or plain text
-            const responseText = await n8nResponse.text();
             if (payload.action === 'GENERATE_COVER' && responseText.length > 500 && !responseText.includes(' ')) {
                 // Assume it's raw base64
-                const buffer = Buffer.from(responseText, 'base64');
+                const imageBuffer = Buffer.from(responseText, 'base64');
                 const fileName = `${payload.bookId}_cover_${Date.now()}.png`;
-                const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, buffer, { contentType: 'image/png', upsert: true });
+                const { error: uploadError } = await supabase.storage.from('covers').upload(fileName, imageBuffer, { contentType: 'image/png', upsert: true });
                 if (uploadError) throw new Error("Failed to upload base64 string cover image: " + uploadError.message);
 
                 const { data: publicUrlData } = supabase.storage.from('covers').getPublicUrl(fileName);
@@ -1131,7 +1130,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
         }
 
         if (!n8nResponse.ok) {
-            throw new Error(`n8n error ${n8nResponse.status}: ${responseText}`);
+            throw new Error(`n8n error ${n8nResponse.status}: ${responseText.substring(0, 100)}`);
         }
 
         console.log(`[AI Proxy] Request ${requestId} completed successfully`);
