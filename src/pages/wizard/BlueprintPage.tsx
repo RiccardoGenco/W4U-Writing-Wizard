@@ -281,20 +281,20 @@ const BlueprintPage: React.FC = () => {
 
                     return (
                         <div key={chapter.id} className="glass-panel" style={{
-                            padding: '2rem',
+                            padding: '2.5rem',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '1.2rem',
+                            gap: '1.5rem',
                             background: isModified 
-                                ? 'rgba(52, 211, 153, 0.05)' 
-                                : 'rgba(0, 242, 255, 0.03)',
+                                ? 'linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(16, 185, 129, 0.15))' 
+                                : 'linear-gradient(135deg, rgba(0, 242, 255, 0.12), rgba(34, 211, 238, 0.12))',
                             border: isModified 
-                                ? '1px solid rgba(52, 211, 153, 0.3)' 
-                                : '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '24px',
+                                ? '1px solid rgba(52, 211, 153, 0.4)' 
+                                : '1px solid rgba(0, 242, 255, 0.3)',
+                            borderRadius: '32px',
                             boxShadow: isModified 
-                                ? '0 10px 30px rgba(52, 211, 153, 0.1)' 
-                                : 'var(--shadow-card)',
+                                ? '0 20px 50px rgba(52, 211, 153, 0.2)' 
+                                : '0 45px 115px -20px rgba(0, 0, 0, 0.85)', // Increased shadow density
                             transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
                             position: 'relative',
                             overflow: 'hidden'
@@ -374,15 +374,16 @@ const BlueprintPage: React.FC = () => {
                                             maxLength={200}
                                             style={{
                                                 width: '100%',
-                                                padding: '0.8rem',
-                                                paddingBottom: '1.5rem',
-                                                borderRadius: '8px',
-                                                background: 'rgba(0,0,0,0.2)',
-                                                border: '1px solid var(--glass-border)',
-                                                color: 'white',
-                                                minHeight: '80px',
-                                                fontSize: '0.85rem',
-                                                resize: 'none'
+                                                minHeight: '120px',
+                                                background: '#ffffff', // Pure white
+                                                border: '1px solid rgba(0, 0, 0, 0.15)',
+                                                borderRadius: '16px',
+                                                padding: '1.2rem',
+                                                color: '#000000', // Pure black for maximum contrast
+                                                fontSize: '1rem',
+                                                lineHeight: 1.6,
+                                                resize: 'none',
+                                                boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.08)'
                                             }}
                                             disabled={refreshing !== null}
                                         />

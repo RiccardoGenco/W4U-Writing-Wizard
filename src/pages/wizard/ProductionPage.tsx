@@ -88,21 +88,21 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
 
     return (
         <div style={{ 
-            marginBottom: '2rem', 
-            background: 'rgba(255,255,255,0.02)', 
+            marginBottom: '2.5rem', 
+            background: 'linear-gradient(135deg, rgba(0, 242, 255, 0.08), rgba(34, 211, 238, 0.08))', 
             borderRadius: '24px', 
-            border: '1px solid rgba(255, 255, 255, 0.05)', 
+            border: '1px solid rgba(0, 242, 255, 0.15)', 
             overflow: 'hidden',
-            boxShadow: 'var(--shadow-card)',
+            boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.85)',
             transition: 'all 0.3s ease'
         }}>
             <div style={{ 
                 padding: '1.2rem 1.5rem', 
-                borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                borderBottom: '1px solid rgba(0, 242, 255, 0.1)', 
                 display: 'flex', 
                 justifyContent: 'space-between', 
                 alignItems: 'center', 
-                background: 'rgba(0, 242, 255, 0.03)' 
+                background: 'rgba(0, 242, 255, 0.05)' 
             }}>
                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                     {paragraph.paragraph_number}. {paragraph.title}
@@ -140,10 +140,11 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
                             style={{
-                                width: '100%', minHeight: '300px', background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)', border: '1px solid var(--border)',
-                                borderRadius: '6px', padding: '1rem', resize: 'vertical',
-                                fontSize: '1rem', lineHeight: '1.6'
+                                width: '100%', minHeight: '300px', background: '#ffffff',
+                                color: '#000000', border: '1px solid rgba(0, 0, 0, 0.15)',
+                                borderRadius: '16px', padding: '1.5rem', resize: 'vertical',
+                                fontSize: '1.05rem', lineHeight: '1.7',
+                                boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.08)'
                             }}
                         />
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.8rem', marginTop: '1rem' }}>

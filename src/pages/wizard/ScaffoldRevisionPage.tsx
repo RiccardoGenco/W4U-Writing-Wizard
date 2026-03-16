@@ -210,9 +210,12 @@ const ScaffoldRevisionPage: React.FC = () => {
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
                                     cursor: 'pointer',
-                                    backgroundColor: isExpanded ? 'rgba(0, 242, 255, 0.05)' : 'transparent',
-                                    borderBottom: isExpanded ? '1px solid rgba(0, 242, 255, 0.1)' : 'none',
-                                    transition: 'all 0.3s ease'
+                                    backgroundColor: isExpanded ? 'rgba(0, 242, 255, 0.12)' : 'rgba(0, 242, 255, 0.03)',
+                                    borderBottom: isExpanded ? '1px solid rgba(0, 242, 255, 0.2)' : 'none',
+                                    transition: 'all 0.3s ease',
+                                    background: isExpanded 
+                                        ? 'linear-gradient(135deg, rgba(0, 242, 255, 0.12), rgba(34, 211, 238, 0.12))' 
+                                        : 'transparent'
                                 }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -293,7 +296,13 @@ const ScaffoldRevisionPage: React.FC = () => {
                                                 placeholder="Es. 'Aggiungi una scena d'azione', 'Rimuovi il paragrafo 3'..."
                                                 value={feedbacks[chapter.id] || ''}
                                                 onChange={(e) => setFeedbacks(prev => ({ ...prev, [chapter.id]: e.target.value }))}
-                                                style={{ flex: 1 }}
+                                                style={{ 
+                                                    flex: 1,
+                                                    background: '#ffffff',
+                                                    color: '#000000',
+                                                    border: '1px solid rgba(0, 0, 0, 0.15)',
+                                                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
+                                                }}
                                             />
                                             <button
                                                 className="btn-secondary"
