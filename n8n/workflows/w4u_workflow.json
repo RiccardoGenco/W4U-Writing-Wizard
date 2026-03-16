@@ -247,9 +247,7 @@
         "url": "={{ $json.url }}",
         "options": {
           "response": {
-            "response": {
-              "responseFormat": "file"
-            }
+            "responseFormat": "file"
           }
         }
       },

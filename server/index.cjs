@@ -61,6 +61,20 @@ const N8N_WEBHOOK_URL = n8nWebhookUrlRaw?.startsWith('/')
     ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
     : n8nWebhookUrlRaw;
 
+// Centralized logger for backend
+const logDebug = async (source, eventType, payload, bookId = null) => {
+    try {
+        await supabase.from('debug_logs').insert({
+            source,
+            event_type: eventType,
+            payload,
+            book_id: bookId || null
+        });
+    } catch (e) {
+        console.error("[Backend Debug] Failed to log to DB:", e.message);
+    }
+};
+
 // --- EDITORIAL PIPELINE UTILS ---
 
 const removeEmojis = (text) => {
