@@ -2436,6 +2436,17 @@
           }
         ]
       ]
+    },
+    "Update AI Request Status": {
+      "main": [
+        [
+          {
+            "node": "Response Cover Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
