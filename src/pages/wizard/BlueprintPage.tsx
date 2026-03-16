@@ -287,10 +287,10 @@ const BlueprintPage: React.FC = () => {
                             gap: '1.5rem',
                             background: isModified 
                                 ? 'linear-gradient(135deg, rgba(52, 211, 153, 0.15), rgba(16, 185, 129, 0.15))' 
-                                : 'linear-gradient(135deg, rgba(0, 242, 255, 0.12), rgba(34, 211, 238, 0.12))',
+                                : 'linear-gradient(135deg, rgba(14, 116, 144, 0.2), rgba(8, 70, 87, 0.25))',
                             border: isModified 
                                 ? '1px solid rgba(52, 211, 153, 0.4)' 
-                                : '1px solid rgba(0, 242, 255, 0.3)',
+                                : '1px solid rgba(14, 116, 144, 0.4)',
                             borderRadius: '32px',
                             boxShadow: isModified 
                                 ? '0 20px 50px rgba(52, 211, 153, 0.06)' 

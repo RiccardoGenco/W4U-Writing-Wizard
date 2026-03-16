@@ -89,20 +89,20 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
     return (
         <div style={{ 
             marginBottom: '2.5rem', 
-            background: 'linear-gradient(135deg, rgba(0, 242, 255, 0.08), rgba(34, 211, 238, 0.08))', 
+            background: 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), rgba(var(--primary-rgb), 0.15))', 
             borderRadius: '24px', 
-            border: '1px solid rgba(0, 242, 255, 0.15)', 
+            border: '1px solid rgba(var(--primary-rgb), 0.2)', 
             overflow: 'hidden',
             boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.25)',
             transition: 'all 0.3s ease'
         }}>
             <div style={{ 
                 padding: '1.2rem 1.5rem', 
-                borderBottom: '1px solid rgba(0, 242, 255, 0.1)', 
+                borderBottom: '1px solid rgba(var(--primary-rgb), 0.1)', 
                 display: 'flex', 
                 justifyContent: 'space-between', 
                 alignItems: 'center', 
-                background: 'rgba(0, 242, 255, 0.05)' 
+                background: 'rgba(var(--primary-rgb), 0.05)' 
             }}>
                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                     {paragraph.paragraph_number}. {paragraph.title}

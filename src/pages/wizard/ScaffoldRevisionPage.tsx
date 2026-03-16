@@ -210,11 +210,11 @@ const ScaffoldRevisionPage: React.FC = () => {
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
                                     cursor: 'pointer',
-                                    backgroundColor: isExpanded ? 'rgba(0, 242, 255, 0.12)' : 'rgba(0, 242, 255, 0.03)',
-                                    borderBottom: isExpanded ? '1px solid rgba(0, 242, 255, 0.2)' : 'none',
+                                    backgroundColor: isExpanded ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(var(--primary-rgb), 0.03)',
+                                    borderBottom: isExpanded ? '1px solid rgba(var(--primary-rgb), 0.2)' : 'none',
                                     transition: 'all 0.3s ease',
                                     background: isExpanded 
-                                        ? 'linear-gradient(135deg, rgba(0, 242, 255, 0.12), rgba(34, 211, 238, 0.12))' 
+                                        ? 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.15), rgba(var(--primary-rgb), 0.2))' 
                                         : 'transparent'
                                 }}
                             >

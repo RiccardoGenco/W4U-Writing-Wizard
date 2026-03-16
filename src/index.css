@@ -1,7 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
 
 :root {
-  --primary: #00f2ff;
+  --primary: #0e7490;
+  --primary-rgb: 14, 116, 144;
   --primary-hover: #00d8e6;
   --bg-dark: #050505;
   --bg-card: rgba(18, 18, 20, 0.7);
