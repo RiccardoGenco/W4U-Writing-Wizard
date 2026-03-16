@@ -1034,7 +1034,12 @@ async function forwardToN8n(requestId, userId, payload, token) {
             throw new Error("N8N_WEBHOOK_URL not configured");
         }
 
-        const n8nPayload = { ...payload, userId, requestId };
+        const n8nPayload = { 
+            ...payload, 
+            userId, 
+            requestId,
+            temperature: payload.temperature ?? 0.2
+        };
 
         const n8nHeaders = {
             'Content-Type': 'application/json',
