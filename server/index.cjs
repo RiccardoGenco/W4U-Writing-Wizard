@@ -1338,7 +1338,7 @@ app.post("/api/ai-agent", async (req, res) => {
         
         if (finalTemperature === undefined && bookId) {
             try {
-                // 1. Get book info
+                // 1. Get book info and all relevant prompt templates in one go (conceptual, or just cleaner)
                 const { data: book } = await supabase
                     .from('books')
                     .select('genre, book_type')
@@ -1346,34 +1346,27 @@ app.post("/api/ai-agent", async (req, res) => {
                     .single();
 
                 if (book) {
-                    // 2. Try specific prompt for genre
-                    const { data: prompt } = await supabase
-                        .from('ai_prompts')
-                        .select('temperature')
-                        .eq('name', action)
-                        .eq('genre', book.genre)
-                        .eq('book_type', book.book_type)
-                        .eq('is_active', true)
-                        .limit(1)
-                        .single();
-
-                    if (prompt) {
-                        finalTemperature = prompt.temperature;
-                    } else {
-                        // 3. Fallback to GENERAL prompt
-                        const { data: genPrompt } = await supabase
-                            .from('ai_prompts')
+                    // Fetch both the specific and general prompts in parallel
+                    const [specificRes, generalRes] = await Promise.all([
+                        supabase.from('ai_prompts')
+                            .select('temperature')
+                            .eq('name', action)
+                            .eq('genre', book.genre)
+                            .eq('book_type', book.book_type)
+                            .eq('is_active', true)
+                            .maybeSingle(),
+                        supabase.from('ai_prompts')
                             .select('temperature')
                             .eq('name', action)
                             .eq('genre', 'GENERAL')
                             .eq('book_type', book.book_type)
                             .eq('is_active', true)
-                            .limit(1)
-                            .single();
-                        
-                        if (genPrompt) {
-                            finalTemperature = genPrompt.temperature;
-                        }
+                            .maybeSingle()
+                    ]);
+
+                    const prompt = specificRes.data || generalRes.data;
+                    if (prompt) {
+                        finalTemperature = prompt.temperature;
                     }
                 }
             } catch (err) {
