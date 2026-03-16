@@ -1408,11 +1408,15 @@ const upload = multer({
  */
 app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
     try {
-        const { bookId } = req.body;
+        console.log(`[Upload Debug] req.body:`, req.body);
+        console.log(`[Upload Debug] req.file:`, req.file ? `Exists (${req.file.size} bytes)` : 'Missing');
+        console.log(`[Upload Debug] Content-Type:`, req.headers['content-type']);
+
+        const { bookId } = req.body || {}; // Safety: fallback to {}
         const file = req.file;
 
         if (!bookId || !file) {
-            console.error("[Upload] Missing bookId or file");
+            console.error("[Upload] Missing bookId or file:", { bookId, fileExists: !!file });
             return res.status(400).json({ error: "Missing bookId or image file" });
         }
 
