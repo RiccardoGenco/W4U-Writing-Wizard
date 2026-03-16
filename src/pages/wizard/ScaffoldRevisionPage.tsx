@@ -205,13 +205,14 @@ const ScaffoldRevisionPage: React.FC = () => {
                                 className="accordion-header"
                                 onClick={() => setExpandedChapter(isExpanded ? null : chapter.id)}
                                 style={{
-                                    padding: '1.5rem',
+                                    padding: '1.2rem 1.5rem',
                                     display: 'flex',
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
                                     cursor: 'pointer',
-                                    backgroundColor: isExpanded ? 'rgba(99, 102, 241, 0.05)' : 'transparent',
-                                    transition: 'background-color 0.2s ease'
+                                    backgroundColor: isExpanded ? 'rgba(0, 242, 255, 0.05)' : 'transparent',
+                                    borderBottom: isExpanded ? '1px solid rgba(0, 242, 255, 0.1)' : 'none',
+                                    transition: 'all 0.3s ease'
                                 }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -247,11 +248,23 @@ const ScaffoldRevisionPage: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginBottom: '1.5rem' }}>
                                         {chapter.paragraphs.map(p => (
                                             <div key={p.id || p.paragraph_number} style={{
-                                                padding: '1rem',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '6px',
-                                                backgroundColor: 'var(--bg-primary)'
+                                                padding: '1.2rem',
+                                                border: '1px solid rgba(255, 255, 255, 0.05)',
+                                                borderRadius: '16px',
+                                                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                                                transition: 'all 0.3s ease',
+                                                position: 'relative',
+                                                overflow: 'hidden'
                                             }}>
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    left: 0,
+                                                    width: '3px',
+                                                    height: '100%',
+                                                    background: 'var(--primary)',
+                                                    opacity: 0.5
+                                                }} />
                                                 <div style={{ fontWeight: 600, color: 'var(--primary)', marginBottom: '0.4rem', fontSize: '0.95rem' }}>
                                                     {p.paragraph_number}. {p.title}
                                                 </div>

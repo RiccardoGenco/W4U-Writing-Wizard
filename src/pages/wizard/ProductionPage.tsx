@@ -87,8 +87,23 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
     };
 
     return (
-        <div style={{ marginBottom: '1.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--glass-border)', overflow: 'hidden' }}>
-            <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)' }}>
+        <div style={{ 
+            marginBottom: '2rem', 
+            background: 'rgba(255,255,255,0.02)', 
+            borderRadius: '24px', 
+            border: '1px solid rgba(255, 255, 255, 0.05)', 
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-card)',
+            transition: 'all 0.3s ease'
+        }}>
+            <div style={{ 
+                padding: '1.2rem 1.5rem', 
+                borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                background: 'rgba(0, 242, 255, 0.03)' 
+            }}>
                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                     {paragraph.paragraph_number}. {paragraph.title}
                 </div>
@@ -143,11 +158,20 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
                 ) : (
                     <div className="animate-fade-in">
                         {paragraph.content ? (
-                            <div className="markdown-content" dangerouslySetInnerHTML={{ __html: marked.parse(paragraph.content) as string }} />
+                            <div className="markdown-content" style={{ fontSize: '1.05rem', lineHeight: '1.7' }} dangerouslySetInnerHTML={{ __html: marked.parse(paragraph.content) as string }} />
                         ) : (
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.95rem', background: 'rgba(0,0,0,0.1)', padding: '1rem', borderRadius: '6px' }}>
-                                <p style={{ fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Obiettivo della scena:</p>
-                                <p style={{ fontStyle: 'italic' }}>{paragraph.description}</p>
+                            <div style={{ 
+                                color: 'var(--text-muted)', 
+                                fontSize: '0.95rem', 
+                                background: 'rgba(0, 242, 255, 0.02)', 
+                                padding: '1.5rem', 
+                                borderRadius: '16px',
+                                border: '1px dashed rgba(0, 242, 255, 0.1)'
+                            }}>
+                                <p style={{ fontWeight: 600, color: 'var(--primary)', marginBottom: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <FileText size={16} /> Obiettivo della scena:
+                                </p>
+                                <p style={{ fontStyle: 'italic', color: 'var(--text-main)', opacity: 0.8 }}>{paragraph.description}</p>
                             </div>
                         )}
                     </div>
@@ -399,10 +423,17 @@ const ProductionPage: React.FC = () => {
 
             {/* Right Panel: Preview & Editing (Paragraphs) */}
             <div className="glass-panel" style={{ height: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ 
+                    padding: '1.5rem', 
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '1rem',
+                    background: 'rgba(0, 242, 255, 0.02)'
+                }}>
                     <FileText size={20} color="var(--primary)" />
-                    <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>{currentChapter?.title}</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>— Gestione Sottocapitoli</span>
+                    <span style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--primary)' }}>{currentChapter?.title}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500 }}>— Sottocapitoli</span>
                 </div>
 
                 <div style={{ padding: '2rem', flex: 1, overflowY: 'auto', background: 'rgba(15, 23, 42, 0.3)' }}>

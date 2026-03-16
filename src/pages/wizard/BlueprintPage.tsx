@@ -281,15 +281,36 @@ const BlueprintPage: React.FC = () => {
 
                     return (
                         <div key={chapter.id} className="glass-panel" style={{
-                            padding: '1.5rem',
+                            padding: '2rem',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '1rem',
-                            background: 'rgba(30, 41, 59, 0.4)',
-                            border: isModified ? '1px solid var(--success)' : '1px solid var(--glass-border)',
-                            opacity: isModified ? 0.8 : 1,
-                            transition: 'all 0.3s ease'
+                            gap: '1.2rem',
+                            background: isModified 
+                                ? 'rgba(52, 211, 153, 0.05)' 
+                                : 'rgba(0, 242, 255, 0.03)',
+                            border: isModified 
+                                ? '1px solid rgba(52, 211, 153, 0.3)' 
+                                : '1px solid rgba(255, 255, 255, 0.1)',
+                            borderRadius: '24px',
+                            boxShadow: isModified 
+                                ? '0 10px 30px rgba(52, 211, 153, 0.1)' 
+                                : 'var(--shadow-card)',
+                            transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                            position: 'relative',
+                            overflow: 'hidden'
                         }}>
+                            {/* Subtle background glow for cards */}
+                            <div style={{
+                                position: 'absolute',
+                                top: '-20%',
+                                right: '-10%',
+                                width: '150px',
+                                height: '150px',
+                                background: isModified ? 'var(--success)' : 'var(--primary)',
+                                filter: 'blur(100px)',
+                                opacity: 0.05,
+                                pointerEvents: 'none'
+                            }} />
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ flex: 1 }}>
                                     <input
@@ -324,8 +345,21 @@ const BlueprintPage: React.FC = () => {
                                     />
                                 </div>
                                 {isModified && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', fontSize: '0.8rem', fontWeight: 600 }}>
-                                        <CheckCircle size={16} /> Modificato
+                                    <div style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '0.5rem', 
+                                        color: 'var(--success)', 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: 800,
+                                        background: 'rgba(52, 211, 153, 0.1)',
+                                        padding: '0.4rem 0.8rem',
+                                        borderRadius: '20px',
+                                        border: '1px solid rgba(52, 211, 153, 0.2)',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.05em'
+                                    }}>
+                                        <CheckCircle size={14} /> Modificato
                                     </div>
                                 )}
                             </div>
