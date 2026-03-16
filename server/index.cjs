@@ -1423,6 +1423,13 @@ const upload = multer({
 app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
     try {
         let { bookId, imageUrl } = req.body || {}; 
+        
+        // Handle n8n common errors: trailing space in key or leading '=' in values
+        if (!bookId && req.body && req.body["bookId "]) bookId = req.body["bookId "];
+        
+        if (typeof bookId === 'string') bookId = bookId.replace(/^=/, '').trim();
+        if (typeof imageUrl === 'string') imageUrl = imageUrl.replace(/^=/, '').trim();
+
         let file = req.file;
 
         // Diagnostic log
