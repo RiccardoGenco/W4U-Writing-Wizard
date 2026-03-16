@@ -1432,9 +1432,16 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
         if (!file && imageUrl) {
             try {
                 console.log(`[Upload] Downloading image from URL: ${imageUrl.substring(0, 50)}...`);
-                // Node 18+ has fetch global. 
-                const response = await fetch(imageUrl);
-                if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+                
+                const response = await fetch(imageUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (W4U-Writing-Wizard/1.0)'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`OpenAI respond con status ${response.status}: ${response.statusText}`);
+                }
                 
                 const arrayBuffer = await response.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
@@ -1447,7 +1454,10 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
                 };
             } catch (fetchErr) {
                 console.error("[Upload] Error fetching image from URL:", fetchErr);
-                return res.status(400).json({ error: "Failed to download image from the provided URL" });
+                return res.status(400).json({ 
+                    error: "Failed to download image from the provided URL",
+                    details: fetchErr.message
+                });
             }
         }
 
