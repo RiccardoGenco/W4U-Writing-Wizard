@@ -93,7 +93,7 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
             borderRadius: '24px', 
             border: '1px solid rgba(0, 242, 255, 0.15)', 
             overflow: 'hidden',
-            boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.85)',
+            boxShadow: '0 40px 100px -20px rgba(0, 0, 0, 0.25)',
             transition: 'all 0.3s ease'
         }}>
             <div style={{ 

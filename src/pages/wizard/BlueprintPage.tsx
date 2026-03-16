@@ -293,8 +293,8 @@ const BlueprintPage: React.FC = () => {
                                 : '1px solid rgba(0, 242, 255, 0.3)',
                             borderRadius: '32px',
                             boxShadow: isModified 
-                                ? '0 20px 50px rgba(52, 211, 153, 0.2)' 
-                                : '0 45px 115px -20px rgba(0, 0, 0, 0.85)', // Increased shadow density
+                                ? '0 20px 50px rgba(52, 211, 153, 0.06)' 
+                                : '0 45px 115px -20px rgba(0, 0, 0, 0.25)', // Reduced shadow intensity
                             transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
                             position: 'relative',
                             overflow: 'hidden'

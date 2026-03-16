@@ -21,9 +21,9 @@
   --error: #fb7185;
   --success: #34d399;
   --glass-border: rgba(255, 255, 255, 0.05);
-  --shadow-card: 0 40px 100px -20px rgba(0, 0, 0, 0.7);
-  --shadow-primary: 0 10px 30px rgba(0, 242, 255, 0.2);
-  --shadow-primary-hover: 0 15px 40px rgba(0, 242, 255, 0.3);
+  --shadow-card: 0 40px 100px -20px rgba(0, 0, 0, 0.2);
+  --shadow-primary: 0 10px 30px rgba(0, 242, 255, 0.06);
+  --shadow-primary-hover: 0 15px 40px rgba(0, 242, 255, 0.1);
   --sidebar-width: 280px;
 }
 
@@ -50,9 +50,9 @@
   --error: #e11d48;
   --success: #059669;
   --glass-border: rgba(0, 0, 0, 0.1);
-  --shadow-card: 0 20px 60px -15px rgba(0, 0, 0, 0.1);
-  --shadow-primary: 0 8px 25px rgba(14, 116, 144, 0.15);
-  --shadow-primary-hover: 0 12px 35px rgba(14, 116, 144, 0.25);
+  --shadow-card: 0 20px 60px -15px rgba(0, 0, 0, 0.05);
+  --shadow-primary: 0 8px 25px rgba(14, 116, 144, 0.05);
+  --shadow-primary-hover: 0 12px 35px rgba(14, 116, 144, 0.08);
 }
 
 * {
