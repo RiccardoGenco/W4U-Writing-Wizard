@@ -1682,7 +1682,6 @@
         "url": "={{ $node[\"Webhook Router\"].json.body.serverUrl }}/api/upload-cover",
         "sendBody": true,
         "specifyBody": "key-value",
-        "contentType": "multipart/form-data",
         "bodyParameters": {
           "parameters": [
             {
