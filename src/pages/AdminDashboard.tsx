@@ -42,6 +42,7 @@ interface AIPrompt {
     genre: string;
     prompt_text: string;
     description: string;
+    temperature: number;
     is_active: boolean;
     created_at: string;
 }
@@ -223,17 +224,17 @@ const AdminDashboard: React.FC = () => {
         }
     };
 
-    const handleUpdateAIPrompt = async (id: string, newText: string) => {
+    const handleUpdateAIPrompt = async (id: string, updates: Partial<AIPrompt>) => {
         setSavingAIPrompt(id);
         try {
             const { error } = await supabase
                 .from('ai_prompts')
-                .update({ prompt_text: newText })
+                .update(updates)
                 .eq('id', id);
 
             if (error) throw error;
 
-            setAiPrompts(prev => prev.map(p => p.id === id ? { ...p, prompt_text: newText } : p));
+            setAiPrompts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
         } catch (err) {
             console.error("Error updating AI prompt:", err);
             alert("Errore nell'aggiornamento del prompt AI.");
@@ -581,11 +582,42 @@ const AdminDashboard: React.FC = () => {
                                         </div>
                                     </div>
 
+                                    <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '2rem', background: 'rgba(0,0,0,0.2)', padding: '0.8rem 1rem', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                                                <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                    <Sparkles size={14} /> Temperatura AI (Creatività)
+                                                </label>
+                                                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)' }}>{prompt.temperature ?? 0.2}</span>
+                                            </div>
+                                            <input 
+                                                type="range"
+                                                min="0"
+                                                max="1"
+                                                step="0.05"
+                                                value={prompt.temperature ?? 0.2}
+                                                onChange={(e) => {
+                                                    const val = parseFloat(e.target.value);
+                                                    setAiPrompts(prev => prev.map(p => p.id === prompt.id ? { ...p, temperature: val } : p));
+                                                }}
+                                                onMouseUp={(e) => {
+                                                    const val = parseFloat((e.target as HTMLInputElement).value);
+                                                    handleUpdateAIPrompt(prompt.id, { temperature: val });
+                                                }}
+                                                style={{ width: '100%', height: '4px', background: 'var(--glass-border)', borderRadius: '2px', outline: 'none', cursor: 'pointer' }}
+                                            />
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: '200px' }}>
+                                            0.0 = Deterministico (più preciso)<br />
+                                            1.0 = Creativo (più vario)
+                                        </div>
+                                    </div>
+
                                     <textarea
                                         defaultValue={prompt.prompt_text}
                                         onBlur={(e) => {
                                             if (e.target.value !== prompt.prompt_text) {
-                                                handleUpdateAIPrompt(prompt.id, e.target.value);
+                                                handleUpdateAIPrompt(prompt.id, { prompt_text: e.target.value });
                                             }
                                         }}
                                         style={{

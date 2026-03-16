@@ -1333,9 +1333,58 @@ app.post("/api/ai-agent", async (req, res) => {
             message: 'Request queued for processing'
         });
 
+        // Fetch prompt-specific temperature if not provided in req.body
+        let finalTemperature = req.body.temperature;
+        
+        if (finalTemperature === undefined && bookId) {
+            try {
+                // 1. Get book info
+                const { data: book } = await supabase
+                    .from('books')
+                    .select('genre, book_type')
+                    .eq('id', bookId)
+                    .single();
+
+                if (book) {
+                    // 2. Try specific prompt for genre
+                    const { data: prompt } = await supabase
+                        .from('ai_prompts')
+                        .select('temperature')
+                        .eq('name', action)
+                        .eq('genre', book.genre)
+                        .eq('book_type', book.book_type)
+                        .eq('is_active', true)
+                        .limit(1)
+                        .single();
+
+                    if (prompt) {
+                        finalTemperature = prompt.temperature;
+                    } else {
+                        // 3. Fallback to GENERAL prompt
+                        const { data: genPrompt } = await supabase
+                            .from('ai_prompts')
+                            .select('temperature')
+                            .eq('name', action)
+                            .eq('genre', 'GENERAL')
+                            .eq('book_type', book.book_type)
+                            .eq('is_active', true)
+                            .limit(1)
+                            .single();
+                        
+                        if (genPrompt) {
+                            finalTemperature = genPrompt.temperature;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("[AI Proxy] Temperature lookup failed, using default:", err.message);
+            }
+        }
+
         // Forward to n8n asynchronously (don't await)
         // Pass the token so `forwardToN8n` can also create a scoped client to update the record
-        forwardToN8n(aiRequest.id, user.id, req.body, token).catch(err => {
+        const finalPayload = { ...req.body, temperature: finalTemperature };
+        forwardToN8n(aiRequest.id, user.id, finalPayload, token).catch(err => {
             console.error('[AI Proxy] Background n8n forward error:', err);
         });
 
