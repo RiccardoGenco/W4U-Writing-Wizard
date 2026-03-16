@@ -77,7 +77,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Refine Prompt with LLM',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Refine Prompt with LLM',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "a55215ac-b76d-4fe4-8034-336958fae546",
@@ -99,7 +99,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Editor',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Editor',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "5835af01-6598-417d-82e3-fb38a176d82f",
@@ -121,7 +121,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Plotter',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Plotter',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "7c24f574-e650-4d40-82fa-479eb4536a29",
@@ -143,7 +143,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Writer',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Writer',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "8c67209d-e1b8-45e0-929b-e03840793988",
@@ -165,7 +165,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Architect',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Architect',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "e6f7bc01-ac1b-4c9b-8313-ee4ecc4f8ad8",
@@ -187,7 +187,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Interviewer',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Interviewer',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "4357d1f2-9c04-4dda-90fb-3f6ac75b5096",
@@ -209,7 +209,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Concept Gen1',\n  '{{ $json.model || \"gpt-4o-mini\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Concept Gen1',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "15d9b383-84fb-424c-a992-44b169fc3d98",
@@ -313,7 +313,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 500,\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert at creating DALL-E 3 prompts for book covers. Output ONLY a refined prompt, nothing else. No markdown, no explanations, just the prompt text. Crucially, ENSURE the title and author name are mentioned as text elements to be rendered on the cover.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Refine this book cover prompt for DALL-E 3 while preserving the instructions to include the title and author name as text:\\n\\n\" + $json.prompt + \"\\n\\nMake it more visual, specific, and optimized for image generation. Focus on composition, lighting, color palette, and artistic style. Keep it under 1000 characters.\"\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"max_tokens\": 500,\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert at creating DALL-E 3 prompts for book covers. Output ONLY a refined prompt, nothing else. No markdown, no explanations, just the prompt text. Crucially, ENSURE the title and author name are mentioned as text elements to be rendered on the cover.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Refine this book cover prompt for DALL-E 3 while preserving the instructions to include the title and author name as text:\\n\\n\" + $json.prompt + \"\\n\\nMake it more visual, specific, and optimized for image generation. Focus on composition, lighting, color palette, and artistic style. Keep it under 1000 characters.\"\n    }\n  ]\n} }}",
         "options": {}
       },
       "id": "4f1cfc29-d9c5-47d8-88d1-97fb2b9f3c0f",
@@ -477,7 +477,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 20000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un Editor Letterario Professionale. NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\nCONTESTO LIBRO:\\n- Titolo: \" + ($node[\"Get Book Context Editor\"].json.title || 'In definizione') + \"\\n- Blueprint: \" + JSON.stringify($node[\"Get Book Context Editor\"].json.context_data?.blueprint || {}) + \"\\n\\nTESTO DA REVISIONARE:\\n\" + $node[\"Webhook Router\"].json.body.content + \"\\n\\nISTRUZIONI:\\n1. Analizza il capitolo cercando incongruenze con il blueprint, errori grammaticali o miglioramenti stilistici.\\n2. Fornisci un suggerimento conciso ed efficace che l'autore possa scegliere di applicare.\\n3. OUTPUT JSON: { \\\"aiResponse\\\": \\\"...\\\" }\"\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"max_tokens\": 20000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un Editor Letterario Professionale. NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\nCONTESTO LIBRO:\\n- Titolo: \" + ($node[\"Get Book Context Editor\"].json.title || 'In definizione') + \"\\n- Blueprint: \" + JSON.stringify($node[\"Get Book Context Editor\"].json.context_data?.blueprint || {}) + \"\\n\\nTESTO DA REVISIONARE:\\n\" + $node[\"Webhook Router\"].json.body.content + \"\\n\\nISTRUZIONI:\\n1. Analizza il capitolo cercando incongruenze con il blueprint, errori grammaticali o miglioramenti stilistici.\\n2. Fornisci un suggerimento conciso ed efficace che l'autore possa scegliere di applicare.\\n3. OUTPUT JSON: { \\\"aiResponse\\\": \\\"...\\\" }\"\n    }\n  ]\n} }}",
         "options": {}
       },
       "id": "fd32c7d3-8051-4737-85a8-b637134f8c98",
@@ -657,7 +657,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ \n{\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 4000, \"temperature\": $node[\"Webhook Router\"].json.body.temperature ?? 0.2,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un Master Plotter. Crea una trama dettagliata basata sul BLUEPRINT del libro. NON USARE MAI EMOJI.\\n\\nCONTESTO:\\n- Titolo: \" + ($node[\"Get Book Context Concept Architect1\"].json.title || \"Nuovo Libro\") + \"\\n- Genere: \" + ($node[\"Get Book Context Concept Architect1\"].json.genre || \"In definizione\") + \"\\n\\nBLUEPRINT (ELEMENTI CHIAVE):\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\nCONCEPT SCELTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.selected_concept || {}) + \"\\n\\nGenera una trama coerente con questi elementi.\"\n    }\n  ]\n}\n}}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.PLOT_ARCHITECT || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.PLOT_ARCHITECT || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": \"BLUEPRINT:\n\" + JSON.stringify($node[\"Get Book Context1\"].json.context_data?.blueprint || {}) }\n  ]\n} }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -828,7 +828,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": \"gpt-4o-mini\", \"max_tokens\": 8000, \"temperature\": $('Webhook Router').first().json.body.temperature ?? $('Get Writer Prompt').first().json.temperature ?? 0.2, \"messages\": [ { \"role\": \"system\", \"content\": ($('Get Writer Prompt').first().json.prompt_text ? $('Get Writer Prompt').first().json.prompt_text + \"\\n\\n\" : \"Sei uno scrittore professionista. NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\n\") + \"BLUEPRINT (CONTESTO MACRO): \" + JSON.stringify($('Get Book').first().json.context_data?.blueprint || {}) +  \"  \" + \"DETTAGLI CAPITOLO: \" + \"- Titolo: \" + ($('Get Paragraph').first().json.chapter_title || \"Senza Titolo\") + \" \" + \"- Sommario: \" + ($('Get Paragraph').first().json.chapter_summary || \"Nessun sommario\") + \"  \" + \"DETTAGLI QUESTO PARAGRAFO: \" + \"- Argomento: \" + ($('Get Paragraph').first().json.title || \"\") + \" \" + \"- Cosa deve succedere qui: \" + ($('Get Paragraph').first().json.description || \"Scrivi il contenuto adatto.\") + \"  \" + \"CONTESTO PARAGRAFI PRECEDENTI: \" + ($('Get Previous Paragraphs Context').first().json.combined_content ? $('Get Previous Paragraphs Context').first().json.combined_content : \"Ogni inizio porta con se una genesi. Nessun paragrafo precedente ancora.\") + \"  \" + \"MATERIALE BOZZA ESTRAPOLATO: \" + ($('RAG: Query Draft Chunks').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \") || \"Nessun materiale.\") + \"  \" + \"ISTRUZIONI DI SCRITTURA: \" + \"REGOLE DI SCRITTURA (ADATTATI ALLA CATEGORIA DEL LIBRO CON CURA MANIACALE):  1. NON-FICTION / Saggistica / Manuali / Guide: STILE INFORMATIVO RIGOROSO E AUTOREVOLE. CRITICAL RULE: E ASSOLUTAMENTE VIETATA ogni forma di narrazione romanzata, storytelling, intro poetiche, aneddoti romanzati e personaggi d'invenzione fittizi. Usa un tono freddo, oggettivo, consulenziale, tecnico.  2. CUCINA E RICETTARI: STILE PROCEDURALE CRITICAL LOGIC.  3. FICTION (Romanzi, Gialli, Sci-Fi, Romance, Fantasy): STILE NARRATIVO IMMERSIVO. Applica show, dont tell. Focus assoluto sulle descrizioni sensoriali, interiorita, archi drammatici e passioni.  Istruzione finale: Scrivi SOLO il testo per questa sezione. TARGET LUNGHEZZA: ESATTAMENTE \" + ($('Get Paragraph').first().json.target_word_count || 250) + \" PAROLE. Sii ricco di dettagli per raggiungere l'obiettivo senza essere ripetitivo. Assicurati che il collegamento con i paragrafi precedenti sia fluido e logico.\" }, { \"role\": \"user\", \"content\": \"Scrivi il contenuto per il Paragrafo: \" + $('Get Paragraph').first().json.title } ] } }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    { \"role\": \"system\", \"content\": ($node[\"Get Book Context1\"].json.prompts.WRITER || \"Scrivi il libro.\") },\n    { \"role\": \"user\", \"content\": \"TITOLO: \" + $node[\"Get Book Context1\"].json.title + \"\\nCAPITOLO: \" + ($node[\"Webhook Router\"].json.body.chapter?.title || \"Senza Titolo\") + \"\\nSINTESI: \" + ($node[\"Webhook Router\"].json.body.chapter?.summary || \"\") }\n  ]\n} }}",
         "options": {}
       },
       "id": "1e7fcb48-4258-43bc-9953-bc5cf44c0964",
@@ -845,30 +845,6 @@
           "name": "OpenAi account 5"
         }
       }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT prompt_text, temperature FROM public.ai_prompts WHERE name = 'WRITER' AND is_active = true AND (genre = $1 OR genre = 'GENERAL') ORDER BY CASE WHEN genre = $1 THEN 0 ELSE 1 END LIMIT 1",
-        "options": {
-          "queryReplacement": "={{ $('Get Book').first().json.genre || 'GENERAL' }}"
-        }
-      },
-      "id": "5a325e0c-1c74-45e6-9b1c-8501be85a2dc",
-      "name": "Get Writer Prompt",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.4,
-      "position": [
-        -704,
-        64
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "0AsoTCNHEls3AaYu",
-          "name": "Postgres account"
-        }
-      },
-      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -948,7 +924,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ \n{\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 8000, \"temperature\": $node[\"Webhook Router\"].json.body.temperature ?? 0.2,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei l'Architetto Letterario W4U. Il tuo compito è creare o MODIFICARE l'indice di un libro.\\n\\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\\n\\n\" + \n( $node[\"Webhook Router\"].json.body.feedback ? \n  \"STAI AGGIORNANDO UN INDICE ESISTENTE.\\n\" + \n  \"FEEDBACK UTENTE: \" + $node[\"Webhook Router\"].json.body.feedback + \"\\n\\n\" + \n  \"INDICE ATTUALE DA MODIFICARE:\\n\" + JSON.stringify($node[\"Webhook Router\"].json.body.currentChapters) + \"\\n\\n\" + \n  \"ISTRUZIONI: Modifica L'INDICE in base al feedback. Copia esattamente intatti i capitoli che non richiedono modifiche.\" \n  : \n  \"STAI CREANDO UN NUOVO INDICE DA ZERO.\\n\\n\" + \n  \"BLUEPRINT CONTESTO:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) + \"\\n\\n\" + \n  \"TRAMA DA SEGUIRE:\\n\" + $node[\"Agent: Plotter\"].json.choices[0].message.content \n) + \n\"\\n\\nDATI TECNICI:\\n- Numero Capitoli: \" + $node[\"Calculator\"].json.num_chapters + \"\\n- Target per Capitolo: \" + $node[\"Calculator\"].json.words_per_chapter + \" parole\\nCRITICAL MANDATORY RULE: DEVI GENERARE ESATTAMENTE \" + $node[\"Calculator\"].json.num_chapters + \" CAPITOLI, NEMMENO UNO IN PIU' O IN MENO.\\n\\nOutput JSON: { \\\"chapters\\\": [ { \\\"chapter_number\\\": 1, \\\"title\\\": \\\"...\\\", \\\"summary\\\": \\\"...\\\", \\\"subtitles\\\": [], \\\"key_points\\\": [], \\\"target_word_count\\\": \" + $node[\"Calculator\"].json.words_per_chapter + \" } ] }\"\n    },\n    { \"role\": \"user\", \"content\": ( $node[\"Webhook Router\"].json.body.feedback ? \"Aggiorna l'indice in base al feedback. DEVE avere i capitoli esatti richiesti. JSON only.\" : \"Genera l'indice completo. DEVE ESSERE ESATTAMENTE DI \" + $node[\"Calculator\"].json.num_chapters + \" CAPITOLI, non uno di piu ne uno di meno. JSON only.\" ) }\n  ]\n}\n}}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.ARCHITECT || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.ARCHITECT || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": ($node[\"Webhook Router\"].json.body.feedback ? \"FEEDBACK: \" + $node[\"Webhook Router\"].json.body.feedback : \"Genera indice da zero.\") }\n  ]\n} }}",
         "options": {}
       },
       "id": "349a4d1d-82f7-4c46-bd4d-3ca74b9e9f73",
@@ -1011,7 +987,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 4000, \"temperature\": $node[\\\"Webhook Router\\\"].json.body.temperature ?? 0.3,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un editor letterario professionale italiano. DEVI RISPONDERE ESCLUSIVAMENTE IN LINGUA ITALIANA. \\n\\nIl tuo compito è intervistare l'utente per definire i dettagli di un libro. \\n\\nCONTESTO PROGETTO:\\n- Titolo: \" + ($node['Get Book Context1'].json.title || 'In definizione') + \"\\n- Genere: \" + ($node['Get Book Context1'].json.genre || 'In definizione') + \"\\n- Target Pagine: \" + ($node['Get Book Context1'].json.context_data?.target_pages || '100') + \"\\n\\nBLUEPRINT ATTUALE (Fatti già noti):\\n\" + JSON.stringify($node['Get Book Context1'].json.context_data?.blueprint || {}) + \"\\n\\nSTORIA DELLA CHAT (Dettagli):\\n\" + ($node['Get Book Context1'].json.context_data?.messages || []).map(m => m.role.toUpperCase() + ': ' + m.content).join('\\n') + \"\\n\\nISTRUZIONI:\\n1. Analizza la storia e fai la PROSSIMA domanda in ITALIANO per approfondire l'idea. Sii discorsivo. CHIEDI UNA COSA ALLA VOLTA.\\n2. Aggiorna il BLUEPRINT in base al Genere.\\n  - SE FICTIONAL (Narrativa/Romanzo): indaga su ambientazione, personaggi, atmosfera, ritmo.\\n  - SE NON-FICTIONAL (Saggio, Ricettario, Guida): indaga su target, problemi da risolvere, concetti tecnici, struttura logica.\\n3. NON USARE MAI EMOJI.\\n4. OUTPUT JSON: { \\\"question\\\": \\\"...\\\", \\\"blueprint\\\": { \\\"setting\\\": \\\"...\\\", \\\"characters\\\": \\\"...\\\", \\\"plot_vibes\\\": \\\"...\\\", \\\"genre_refinement\\\": \\\"...\\\" } }\"\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.INTERVIEWER || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.INTERVIEWER || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": \"USER INPUT: \" + ($node[\"Webhook Router\"].json.body.userInput || \"Iniziamo.\") }\n  ]\n} }}",
         "options": {}
       },
       "id": "ab2125ef-0ba2-45f5-bd95-5b832155ab0f",
@@ -1308,7 +1284,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o-mini\",\n  \"max_tokens\": 4000, \"temperature\": $node[\"Webhook Router\"].json.body.temperature ?? 0.3,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un esperto editor letterario italiano. DEVI RISPONDERE ESCLUSIVAMENTE IN LINGUA ITALIANA. \\n\\nBasandoti sulle risposte dell'utente all'intervista guidata, il tuo compito è duplice:\\n1. Generare un BLUEPRINT tecnico. SE FICTIONAL: ambientazione, personaggi, atmosfera. SE NON-FICTIONAL: target audience, problemi risolti, struttura logica, concetti chiave.\\n2. CRITICAL MANDATORY RULE: Generare ESATTAMENTE 6 (SEI) diverse e distinte proposte di Concept Cards. Nessuna in più, nessuna in meno. Se generi meno di 6 concept, fallirai irrimediabilmente il task. Devi fornire SEI concept. di Concept Cards (titolo, descrizione breve, stile).\\n\\nREGOLE TASSATIVE:\\n- TUTTO il contenuto deve essere in ITALIANO.\\n- NON USARE MAI EMOJI IN NESSUNA CIRCOSTANZA.\\n\\nRISPOSTE UTENTE:\\n\" + $node['Webhook Router'].json.body.userInput + \"\\n\\nOutput JSON format: { \\\"blueprint\\\": { \\\"setting\\\": \\\"...\\\", \\\"characters\\\": \\\"...\\\", \\\"plot_vibes\\\": \\\"...\\\", \\\"themes\\\": \\\"...\\\" }, \\\"concepts\\\": [ { \\\"title\\\": \\\"...\\\", \\\"description\\\": \\\"...\\\", \\\"style\\\": \\\"...\\\" } ] }\"\n    }\n  ]\n} }}",
+        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.CONCEPT_GEN || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.CONCEPT_GEN || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": \"USER INPUT: \" + ($node[\"Webhook Router\"].json.body.userInput || \"\") }\n  ]\n} }}",
         "options": {}
       },
       "id": "784b28d7-745a-4861-99ad-1bd8a4b757d6",
@@ -1352,7 +1328,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT * FROM books WHERE id = $1::uuid",
+        "query": "SELECT b.*, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id",
         "options": {
           "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
         }
@@ -1483,7 +1459,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Safely build the OpenAI JSON payload for the Scaffolder.\n// Using JS string templates here avoids n8n expression injection bugs\n// when chapter titles/summaries contain apostrophes or special chars.\nconst webhookBody = $('Webhook Router').first().json?.body || {};\nconst chapterTitle = webhookBody.chapter?.title || 'Capitolo Sconosciuto';\nconst chapterSummary = webhookBody.chapter?.summary || '';\nconst feedback = webhookBody.feedback || 'Nessun feedback. Genera da zero.';\nconst targetCount = webhookBody.targetParagraphCount || 5;\n\n// Extracted materials from RAG (if any)\nconst ragChunks = $('RAG: Query Scaffold').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \");\n\nconst systemPrompt = `Sei l'Architetto Letterario W4U. Il tuo compito è spezzettare un Capitolo in ESATTAMENTE ${targetCount} Sottocapitoli (chiamati Paragrafi).\n\nIMPORTANTE: RISPONDI SOLO CON UN OGGETTO JSON. NESSUN TESTO INTRODUTTIVO. NON USARE MAI EMOJI.\n\nTITOLO CAPITOLO: ${chapterTitle}\nSOMMARIO CAPITOLO: ${chapterSummary}\n\nMATERIALE ESTRAPOLATO DAL MANOSCRITTO (Usa questo come base se presente):\n${ragChunks || 'Nessun materiale specifico trovato.'}\n\nFEEDBACK UTENTE (se presente): ${feedback}\n\nISTRUZIONI:\n- Dividi il capitolo in ESATTAMENTE ${targetCount} paragrafi in base al GENERE:\n  -- Saggistica/Manuale/Informativo: Introduzione, Argomentazioni Logiche, Dati, Sottocapitoli tematici.\n  -- Ricettario: Ingredienti, Strumenti, Step preparazione, Valori.\n  -- Narrativa (Romance, SciFi, Thriller): Scene narrative (incidenti scatenanti, plot twist, esplorazione).\n- Ogni paragrafo dovrà poi essere usato per generare un blocco di circa 250 parole.\n- CRITICAL RULE: DEVI GENERARE ESATTAMENTE ${targetCount} PARAGRAFI. NON UNO DI PIU', NON UNO DI MENO.\n- Restituisci un array JSON di queste scene.\n\nOutput JSON: { \"paragraphs\": [ { \"paragraph_number\": 1, \"title\": \"Titolo Scena...\", \"description\": \"Descrizione super dettagliata...\" } ] }`;\n\nconst openaiPayload = {\n    model: 'gpt-4o-mini',\n    max_tokens: 4000,\n    response_format: { type: 'json_object' },\n    messages: [\n        { role: 'system', content: systemPrompt }\n    ]\n};\n\nreturn { json: openaiPayload };"
+        "jsCode": "// Safely build the OpenAI JSON payload for the Scaffolder.\n// Using JS string templates here avoids n8n expression injection bugs\n// when chapter titles/summaries contain apostrophes or special chars.\nconst webhookBody = $('Webhook Router').first().json?.body || {};\nconst genre = webhookBody.genre || $('Get Book Context1').first().json?.genre || 'Narrativa';\nconst chapterTitle = webhookBody.chapter?.title || 'Capitolo Sconosciuto';\nconst chapterSummary = webhookBody.chapter?.summary || '';\nconst feedback = webhookBody.feedback || 'Nessun feedback. Genera da zero.';\nconst targetCount = webhookBody.targetParagraphCount || 5;\n\n// Extracted materials from RAG (if any)\nconst ragChunks = $('RAG: Query Scaffold').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \");\n\nconst systemPrompt = $(\"Get Book Context1\").first().json.prompts.SCAFFOLDER || \"Sei l'Architetto Letterario W4U.\";\n\nconst openaiPayload = {\n    model: 'gpt-4o',\n    max_tokens: 4000,\n    response_format: { type: 'json_object' },\n    messages: [\n        { role: 'system', content: systemPrompt }\n    ]\n};\n\nreturn { json: openaiPayload };"
       },
       "id": "cadb080d-3a13-41bc-a86c-4cba0570b3b0",
       "name": "Build Scaffolder Payload",
@@ -2046,24 +2022,7 @@
     },
     "Get Book": {
       "main": [
-        [
-          {
-            "node": "Get Writer Prompt",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Writer Prompt": {
-      "main": [
-        [
-          {
-            "node": "Get Previous Paragraphs Context",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Agent: Architect": {
