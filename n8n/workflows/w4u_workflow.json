@@ -245,6 +245,7 @@
     {
       "parameters": {
         "url": "={{ $json.url }}",
+        "responseFormat": "file",
         "options": {}
       },
       "id": "ce68fd89-fa59-4249-9b0c-cd0bcf875226",

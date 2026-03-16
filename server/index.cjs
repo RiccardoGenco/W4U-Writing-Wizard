@@ -236,10 +236,10 @@ app.post("/export/epub", async (req, res) => {
 
             // Compile paragraphs for this chapter
             const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-            
+
             // Build semantic HTML content
             let chapterHtml = `<div lang="it"><h1>${fullTitle}</h1>`;
-            
+
             // 1. Add Chapter Intro if exists
             if (ch.content && ch.content.trim() !== "") {
                 chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.content)))}</div>`;
@@ -458,7 +458,7 @@ app.post("/export/docx", async (req, res) => {
 
             // Compile paragraphs for this chapter
             const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-            
+
             const subchapters = chParagraphs.map(p => ({
                 title: p.title ? editorialCasing(normalizeText(removeEmojis(p.title))) : "",
                 htmlContent: p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : ""
@@ -623,7 +623,7 @@ app.post("/export/docx", async (req, res) => {
                         })
                     );
                 }
-                
+
                 if (sub.htmlContent) {
                     parseHtmlToParagraphs(sub.htmlContent).forEach(p => children.push(p));
                 }
@@ -893,34 +893,34 @@ app.post("/export/pdf", async (req, res) => {
             </div>
             
             ${chapters.map((ch, i) => {
-                const fullTitle = formatChapterTitle(i, ch.title || "Senza titolo");
-                
-                // Compile paragraphs for this chapter
-                const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-                
-                let chapterHtml = `
+            const fullTitle = formatChapterTitle(i, ch.title || "Senza titolo");
+
+            // Compile paragraphs for this chapter
+            const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
+
+            let chapterHtml = `
                 <div class="chapter" id="ch${i + 1}">
                     <h1 class="chapter-title">${fullTitle}</h1>
                     <div class="content">`;
-                
-                // 1. Intro
-                if (ch.content) {
-                    chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.content)))}</div>`;
-                }
 
-                // 2. Subchapters
-                chParagraphs.forEach(p => {
-                    const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
-                    const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
-                    chapterHtml += `<div class="subchapter">${subTitle}${subContent}</div>`;
-                });
+            // 1. Intro
+            if (ch.content) {
+                chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.content)))}</div>`;
+            }
 
-                chapterHtml += `
+            // 2. Subchapters
+            chParagraphs.forEach(p => {
+                const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
+                const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
+                chapterHtml += `<div class="subchapter">${subTitle}${subContent}</div>`;
+            });
+
+            chapterHtml += `
                     </div>
                 </div>`;
-                
-                return chapterHtml;
-            }).join('')}
+
+            return chapterHtml;
+        }).join('')}
         </body>
         </html>
         `;
@@ -1048,9 +1048,9 @@ async function forwardToN8n(requestId, userId, payload, token) {
             throw new Error("N8N_WEBHOOK_URL not configured");
         }
 
-        const n8nPayload = { 
-            ...payload, 
-            userId, 
+        const n8nPayload = {
+            ...payload,
+            userId,
             requestId,
             serverUrl: payload.serverUrl, // Pass serverUrl through to n8n
             temperature: payload.temperature ?? 0.2
@@ -1072,7 +1072,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
         const { error: processingError } = await supabase.from('ai_requests')
             .update({ status: 'processing', updated_at: new Date().toISOString() })
             .eq('id', requestId);
-        
+
         if (processingError) {
             console.error(`[AI Proxy] Failed to update request ${requestId} to processing:`, processingError.message);
         }
@@ -1091,7 +1091,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
         const arrayBuffer = await n8nResponse.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const responseText = buffer.toString('utf-8');
-        
+
         console.log(`[AI Proxy Debug] n8n Response Content-Type: ${contentType}`);
         console.log(`[AI Proxy Debug] n8n Response Content length: ${buffer.length}`);
 
@@ -1182,12 +1182,12 @@ async function forwardToN8n(requestId, userId, payload, token) {
         if (payload.action === 'GENERATE_COVER' && responseData && responseData.cover_url) {
             console.log(`[AI Proxy] Updating cover_url for book ${payload.bookId}: ${responseData.cover_url}`);
             const { error: coverUpdateError } = await supabase.from('books')
-                .update({ 
+                .update({
                     cover_url: responseData.cover_url,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', payload.bookId);
-            
+
             if (coverUpdateError) {
                 console.error(`[AI Proxy] Failed to update book ${payload.bookId} cover_url:`, coverUpdateError.message);
             }
@@ -1215,7 +1215,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
                 updated_at: new Date().toISOString()
             })
             .eq('id', requestId);
-        
+
         if (finalErrorUpdate) {
             console.error(`[AI Proxy] Failed to record failure for request ${requestId}:`, finalErrorUpdate.message);
         }
@@ -1356,7 +1356,7 @@ app.post("/api/ai-agent", async (req, res) => {
 
         // Fetch prompt-specific temperature if not provided in req.body
         let finalTemperature = req.body.temperature;
-        
+
         if (finalTemperature === undefined && bookId) {
             try {
                 // 1. Get book info and all relevant prompt templates in one go (conceptual, or just cleaner)
@@ -1410,7 +1410,7 @@ app.post("/api/ai-agent", async (req, res) => {
 
 // --- COVER UPLOAD ENDPOINT (For n8n) ---
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
     storage: storage,
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
@@ -1422,8 +1422,34 @@ const upload = multer({
  */
 app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
     try {
-        const { bookId } = req.body || {}; 
-        const file = req.file;
+        let { bookId, imageUrl } = req.body || {}; 
+        let file = req.file;
+
+        // Diagnostic log
+        console.log(`[Upload] Request for book ${bookId}. File: ${!!file}, URL: ${!!imageUrl}`);
+
+        // If no file but URL is provided, download it
+        if (!file && imageUrl) {
+            try {
+                console.log(`[Upload] Downloading image from URL: ${imageUrl.substring(0, 50)}...`);
+                // Node 18+ has fetch global. 
+                const response = await fetch(imageUrl);
+                if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                
+                file = {
+                    buffer: buffer,
+                    size: buffer.length,
+                    mimetype: response.headers.get('content-type') || 'image/png',
+                    originalname: 'image.png'
+                };
+            } catch (fetchErr) {
+                console.error("[Upload] Error fetching image from URL:", fetchErr);
+                return res.status(400).json({ error: "Failed to download image from the provided URL" });
+            }
+        }
 
         // Diagnostic log to DB
         await logDebug('server', 'upload_debug', {
@@ -1431,24 +1457,24 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
             fileExists: !!file,
             fileSize: file?.size,
             headers: req.headers
-        }, bookId);
+        }, bookId || null);
 
         if (!bookId || !file) {
             const missing = [];
             if (!bookId) missing.push("bookId");
-            if (!file) missing.push("image file");
+            if (!file) missing.push("image file or imageUrl");
             
             console.error("[Upload] Missing data:", missing.join(", "));
             return res.status(400).json({ 
                 error: `Missing parameters: ${missing.join(", ")}`,
-                debug: { bodyReceived: !!req.body, fileReceived: !!file }
+                debug: { bodyReceived: !!req.body, fileReceived: !!file, urlReceived: !!imageUrl }
             });
         }
 
         console.log(`[Upload] Processing cover for book ${bookId}, size: ${file.size} bytes`);
 
         const fileName = `${bookId}_cover.png`;
-        
+
         // Use the global supabase client (with service role if available)
         const { data: uploadData, error: uploadError } = await supabase.storage
             .from('covers')
@@ -1470,7 +1496,7 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
         // Update book record
         const { error: dbError } = await supabase
             .from('books')
-            .update({ 
+            .update({
                 cover_url: publicUrl,
                 updated_at: new Date().toISOString()
             })
