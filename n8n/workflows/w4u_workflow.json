@@ -245,11 +245,8 @@
     {
       "parameters": {
         "url": "={{ $json.url }}",
-        "options": {
-          "response": {
-            "responseFormat": "file"
-          }
-        }
+        "responseFormat": "file",
+        "options": {}
       },
       "id": "3c616b0f-fb6f-4603-ac3e-f708b168c77c",
       "name": "Download Cover Image",
