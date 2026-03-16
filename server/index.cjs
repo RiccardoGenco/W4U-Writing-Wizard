@@ -721,6 +721,8 @@ app.post("/export/pdf", async (req, res) => {
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
+        const { marked } = await import("marked");
+
         // Lazy load Puppeteer
         let puppeteer;
         let chromium;
