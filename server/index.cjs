@@ -1038,6 +1038,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
             ...payload, 
             userId, 
             requestId,
+            serverUrl: payload.serverUrl, // Pass serverUrl through to n8n
             temperature: payload.temperature ?? 0.2
         };
 
@@ -1326,11 +1327,17 @@ app.post("/api/ai-agent", async (req, res) => {
 
         console.log(`[AI Proxy] Created async request ${aiRequest.id} for user ${user.id}`);
 
+        // Detect serverUrl from request headers or fall back to defined env
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const host = req.headers.host;
+        const serverUrl = `${protocol}://${host}`;
+
         // Return immediately with requestId
         res.json({
             status: 'pending',
             requestId: aiRequest.id,
-            message: 'Request queued for processing'
+            message: 'Request queued for processing',
+            serverUrl // Optional: let frontend know too if needed
         });
 
         // Fetch prompt-specific temperature if not provided in req.body
@@ -1376,7 +1383,7 @@ app.post("/api/ai-agent", async (req, res) => {
 
         // Forward to n8n asynchronously (don't await)
         // Pass the token so `forwardToN8n` can also create a scoped client to update the record
-        const finalPayload = { ...req.body, temperature: finalTemperature };
+        const finalPayload = { ...req.body, temperature: finalTemperature, serverUrl };
         forwardToN8n(aiRequest.id, user.id, finalPayload, token).catch(err => {
             console.error('[AI Proxy] Background n8n forward error:', err);
         });
