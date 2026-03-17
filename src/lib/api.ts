@@ -67,7 +67,6 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
  */
 async function pollForCompletion(
     requestId: string,
-    headers: any,
     bookId?: string | null,
     maxAttempts = 60
 ): Promise<any> {
@@ -77,11 +76,22 @@ async function pollForCompletion(
         await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
 
         try {
-            const statusResponse = await fetch(`/api/ai-agent/status/${requestId}`, { method: 'GET', headers });
+            // Refresh headers to get a fresh token if it expired
+            const currentHeaders = await getAuthHeaders();
+            const statusResponse = await fetch(`/api/ai-agent/status/${requestId}`, { 
+                method: 'GET', 
+                headers: currentHeaders 
+            });
 
             if (!statusResponse.ok) {
+                if (statusResponse.status === 401) {
+                    // Try to refresh session once
+                    const { data: { session } } = await supabase.auth.refreshSession();
+                    if (!session) throw new Error('Unauthorized');
+                    continue; // Retry with new session
+                }
+                
                 logDebug('frontend', 'polling_error', { requestId, attempt, status: statusResponse.status }, bookId);
-                if (statusResponse.status === 401) throw new Error('Unauthorized');
                 if (statusResponse.status === 404) throw new Error('Request not found');
                 continue; // Retry on other errors
             }
@@ -160,7 +170,7 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
         }, bookId);
 
         // Step 2: Poll for completion
-        const result = await pollForCompletion(initialData.requestId, authHeaders, bookId);
+        const result = await pollForCompletion(initialData.requestId, bookId);
 
         return result;
 

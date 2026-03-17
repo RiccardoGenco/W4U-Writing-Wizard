@@ -895,7 +895,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ {\n  \"bookId\": $node[\"Get Book Context Concept Architect1\"].json.id,\n  \"chapters\": $node[\"Sanitize Chapters\"].json.chapters\n} }}",
+        "responseBody": "={{ {\n  \"status\": \"completed\",\n  \"data\": {\n    \"bookId\": $node[\"Get Book Context Concept Architect1\"].json.id,\n    \"chapters\": $node[\"Sanitize Chapters\"].json.chapters\n  }\n} }}",
         "options": {}
       },
       "id": "a7d6971a-e500-47b9-84bb-404ff44b4638",
@@ -1386,7 +1386,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $node[\"Agent: Scaffolder\"].json.choices[0].message.content }}",
+        "responseBody": "={{ {\n  \"status\": \"completed\",\n  \"data\": {\n    \"chapters\": $node[\"Agent: Scaffolder\"].json.chapters || $node[\"Agent: Scaffolder\"].json.choices[0].message.content.chapters || JSON.parse($node[\"Agent: Scaffolder\"].json.choices[0].message.content).chapters\n  }\n} }}",
         "options": {}
       },
       "id": "4d18874b-0627-42a4-a583-bcedec0feb9e",
@@ -2376,7 +2376,7 @@
         ],
         [
           {
-            "node": "Respond Started",
+            "node": "Get Book Context (Scaffolder)",
             "type": "main",
             "index": 0
           }
