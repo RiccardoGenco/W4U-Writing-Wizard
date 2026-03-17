@@ -80,6 +80,12 @@ const BlueprintPage: React.FC = () => {
             // So paragraphs per chapter = targetPages / numChapters
             const paragraphsPerChapter = Math.max(1, Math.round(targetPages / targetChapters));
 
+            // 0. Clean up existing chapters (CASCADE will handle paragraphs)
+            await supabase
+                .from('chapters')
+                .delete()
+                .eq('book_id', bookId);
+
             const dbChapters = chapters.map((c, index) => ({
                 book_id: bookId,
                 chapter_number: index + 1,
