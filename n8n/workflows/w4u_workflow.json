@@ -1640,6 +1640,90 @@
     },
     {
       "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "cover-cond",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "GENERATE_COVER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "writer-cond",
+                    "leftValue": "={{ ['WRITE', 'WRITE_PARAGRAPH'].includes($node[\"Webhook Router\"].json.body.action) }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "async-action-router-001",
+      "name": "Async Action Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -720,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ai_requests SET status = 'completed', response_data = $1::jsonb, updated_at = NOW() WHERE id = $2::uuid",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({ aiResponse: $node[\"Agent: Writer\"].json.choices[0].message.content }) }}, {{ $node[\"Webhook Router\"].json.body.requestId }}"
+        }
+      },
+      "id": "update-ai-request-writer-001",
+      "name": "Update Request Status (Writer)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1200,
+        272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "={{ $node[\"Webhook Router\"].json.body.serverUrl }}/api/upload-cover",
         "sendBody": true,
@@ -2083,7 +2167,7 @@
         ],
         [
           {
-            "node": "Get Paragraph",
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }
@@ -2111,7 +2195,7 @@
         ],
         [
           {
-            "node": "Get Paragraph",
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }
@@ -2262,6 +2346,11 @@
       "main": [
         [
           {
+            "node": "Update Request Status (Writer)",
+            "type": "main",
+            "index": 0
+          },
+          {
             "node": "Response Write",
             "type": "main",
             "index": 0
@@ -2350,7 +2439,25 @@
       "main": [
         [
           {
+            "node": "Async Action Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Async Action Router": {
+      "main": [
+        [
+          {
             "node": "Get Book Context Cover",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Paragraph",
             "type": "main",
             "index": 0
           }
