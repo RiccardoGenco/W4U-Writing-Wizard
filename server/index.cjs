@@ -1354,50 +1354,9 @@ app.post("/api/ai-agent", async (req, res) => {
             serverUrl // Optional: let frontend know too if needed
         });
 
-        // Fetch prompt-specific temperature if not provided in req.body
-        let finalTemperature = req.body.temperature;
-
-        if (finalTemperature === undefined && bookId) {
-            try {
-                // 1. Get book info and all relevant prompt templates in one go (conceptual, or just cleaner)
-                const { data: book } = await supabase
-                    .from('books')
-                    .select('genre, book_type')
-                    .eq('id', bookId)
-                    .single();
-
-                if (book) {
-                    // Fetch both the specific and general prompts in parallel
-                    const [specificRes, generalRes] = await Promise.all([
-                        supabase.from('ai_prompts')
-                            .select('temperature')
-                            .eq('name', action)
-                            .eq('genre', book.genre)
-                            .eq('book_type', book.book_type)
-                            .eq('is_active', true)
-                            .maybeSingle(),
-                        supabase.from('ai_prompts')
-                            .select('temperature')
-                            .eq('name', action)
-                            .eq('genre', 'GENERAL')
-                            .eq('book_type', book.book_type)
-                            .eq('is_active', true)
-                            .maybeSingle()
-                    ]);
-
-                    const prompt = specificRes.data || generalRes.data;
-                    if (prompt) {
-                        finalTemperature = prompt.temperature;
-                    }
-                }
-            } catch (err) {
-                console.warn("[AI Proxy] Temperature lookup failed, using default:", err.message);
-            }
-        }
-
         // Forward to n8n asynchronously (don't await)
         // Pass the token so `forwardToN8n` can also create a scoped client to update the record
-        const finalPayload = { ...req.body, temperature: finalTemperature, serverUrl };
+        const finalPayload = { ...req.body, serverUrl };
         console.log(`[AI Proxy Debug] Dispatching ${action} for book ${bookId}. serverUrl: ${serverUrl}`);
         forwardToN8n(aiRequest.id, user.id, finalPayload, token).catch(err => {
             console.error('[AI Proxy] Background n8n forward error:', err);
