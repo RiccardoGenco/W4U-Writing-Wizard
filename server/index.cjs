@@ -1376,7 +1376,8 @@ app.post("/api/ai-agent", async (req, res) => {
 
         // Forward to n8n asynchronously (don't await)
         // Pass the token so `forwardToN8n` can also create a scoped client to update the record
-        const finalPayload = { ...req.body, temperature: finalTemperature };
+        const serverUrl = `${req.protocol}://${req.get("host")}`;
+        const finalPayload = { ...req.body, temperature: finalTemperature, serverUrl };
         forwardToN8n(aiRequest.id, user.id, finalPayload, token).catch(err => {
             console.error('[AI Proxy] Background n8n forward error:', err);
         });

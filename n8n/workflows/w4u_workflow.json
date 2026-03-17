@@ -1769,7 +1769,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://{{ $node[\"Webhook Router\"].json.headers.host }}/api/upload-cover",
+        "url": "={{ $node[\"Webhook Router\"].json.body.serverUrl }}/api/upload-cover",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
