@@ -77,7 +77,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Refine Prompt with LLM',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ (($json.usage ? $json.usage.prompt_tokens : 0) * 0.0000025 + ($json.usage ? $json.usage.completion_tokens : 0) * 0.00001) * 1.05 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Refine Prompt with LLM',\n  '{{ $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "a55215ac-b76d-4fe4-8034-336958fae546",
@@ -99,7 +99,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Editor',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ (($json.usage ? $json.usage.prompt_tokens : 0) * 0.0000025 + ($json.usage ? $json.usage.completion_tokens : 0) * 0.00001) * 1.05 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Editor',\n  '{{ $node[\"Get Book Context Editor\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context Editor\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "5835af01-6598-417d-82e3-fb38a176d82f",
@@ -121,7 +121,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Plotter',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ (($json.usage ? $json.usage.prompt_tokens : 0) * 0.0000025 + ($json.usage ? $json.usage.completion_tokens : 0) * 0.00001) * 1.05 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Plotter',\n  '{{ $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "7c24f574-e650-4d40-82fa-479eb4536a29",
@@ -143,7 +143,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Writer',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ (($json.usage ? $json.usage.prompt_tokens : 0) * 0.0000025 + ($json.usage ? $json.usage.completion_tokens : 0) * 0.00001) * 1.05 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Writer',\n  '{{ $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "8c67209d-e1b8-45e0-929b-e03840793988",
@@ -165,7 +165,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Architect',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ (($json.usage ? $json.usage.prompt_tokens : 0) * 0.0000025 + ($json.usage ? $json.usage.completion_tokens : 0) * 0.00001) * 1.05 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Architect',\n  '{{ $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "e6f7bc01-ac1b-4c9b-8313-ee4ecc4f8ad8",
@@ -187,7 +187,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Interviewer',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ (($json.usage ? $json.usage.prompt_tokens : 0) * 0.0000025 + ($json.usage ? $json.usage.completion_tokens : 0) * 0.00001) * 1.05 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Interviewer',\n  '{{ $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "4357d1f2-9c04-4dda-90fb-3f6ac75b5096",
@@ -209,7 +209,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Concept Gen1',\n  '{{ $json.model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ (($json.usage ? $json.usage.prompt_tokens : 0) * 0.0000025 + ($json.usage ? $json.usage.completion_tokens : 0) * 0.00001) * 1.05 }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Agent: Concept Gen1',\n  '{{ $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "15d9b383-84fb-424c-a992-44b169fc3d98",
@@ -313,7 +313,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"max_tokens\": 500,\n  \"temperature\": $node[\"Get Book Context Cover\"].json.temps.COVER_REFINEMENT || 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": $node[\"Get Book Context Cover\"].json.prompts.COVER_REFINEMENT || \"You are an expert at creating DALL-E 3 prompts for book covers.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Refine this book cover prompt for DALL-E 3 while preserving the instructions to include the title and author name as text:\\n\\n\" + $json.prompt\n    }\n  ]\n} }}",
+        "jsonBody": "={{ { \\\"model\\\": $node[\\\"Get Book Context Cover\\\"].json.primary_model || \\\"gpt-4o\\\", \\\"max_tokens\\\": 500, \\\"temperature\\\": $node[\\\"Get Book Context Cover\\\"].json.temps.COVER_REFINEMENT || 0.7, \\\"messages\\\": [ { \\\"role\\\": \\\"system\\\", \\\"content\\\": $node[\\\"Get Book Context Cover\\\"].json.prompts.COVER_REFINEMENT || \\\"You are an expert at creating DALL-E 3 prompts for book covers.\\\" }, { \\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"Refine this book cover prompt for DALL-E 3 while preserving the instructions to include the title and author name as text:\\\\n\\\\n\\\" + $json.prompt } ] } }}",
         "options": {}
       },
       "id": "4f1cfc29-d9c5-47d8-88d1-97fb2b9f3c0f",
@@ -477,7 +477,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context Editor\"].json.temps.EDITOR || 0.2,\n  \"max_tokens\": 20000,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": ($node[\"Get Book Context Editor\"].json.prompts.EDITOR || \"Sei un Editor Letterario Professionale.\") + \"\\n\\nCONTESTO LIBRO:\\n- Titolo: \" + ($node[\"Get Book Context Editor\"].json.title || 'In definizione') + \"\\n- Blueprint: \" + JSON.stringify($node[\"Get Book Context Editor\"].json.context_data?.blueprint || {}) + \"\\n\\nTESTO DA REVISIONARE:\\n\" + $node[\"Webhook Router\"].json.body.content\n    }\n  ]\n} }}",
+        "jsonBody": "={{ { \\\"model\\\": $node[\\\"Get Book Context Editor\\\"].json.primary_model || \\\"gpt-4o\\\", \\\"temperature\\\": $node[\\\"Get Book Context Editor\\\"].json.temps.EDITOR || 0.2, \\\"max_tokens\\\": 20000, \\\"response_format\\\": { \\\"type\\\": \\\"json_object\\\" }, \\\"messages\\\": [ { \\\"role\\\": \\\"system\\\", \\\"content\\\": ($node[\\\"Get Book Context Editor\\\"].json.prompts.EDITOR || \\\"Sei un Editor Letterario Professionale.\\\") + \\\"\\\\n\\\\nCONTESTO LIBRO:\\\\n- Titolo: \\\" + ($node[\\\"Get Book Context Editor\\\"].json.title || 'In definizione') + \\\"\\\\n- Blueprint: \\\" + JSON.stringify($node[\\\"Get Book Context Editor\\\"].json.context_data?.blueprint || {}) + \\\"\\\\n\\\\nTESTO DA REVISIONARE:\\\\n\\\" + $node[\\\"Webhook Router\\\"].json.body.content } ] } }}",
         "options": {}
       },
       "id": "fd32c7d3-8051-4737-85a8-b637134f8c98",
@@ -657,7 +657,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.PLOT_ARCHITECT || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.PLOT_ARCHITECT || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": \"BLUEPRINT:\\n\" + JSON.stringify($node[\"Get Book Context1\"].json.context_data?.blueprint || {}) }\n  ]\n} }}",
+        "jsonBody": "={{ { \\\"model\\\": $node[\\\"Get Book Context1\\\"].json.primary_model || \\\"gpt-4o\\\", \\\"temperature\\\": $node[\\\"Get Book Context1\\\"].json.temps.PLOT_ARCHITECT || 0.3, \\\"messages\\\": [ { \\\"role\\\": \\\"system\\\", \\\"content\\\": $node[\\\"Get Book Context1\\\"].json.prompts.PLOT_ARCHITECT || \\\"Prompt non trovato.\\\" }, { \\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"BLUEPRINT:\\\\n\\\" + JSON.stringify($node[\\\"Get Book Context1\\\"].json.context_data?.blueprint || {}) } ] } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -828,7 +828,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    { \"role\": \"system\", \"content\": ($node[\"Get Book Context1\"].json.prompts.WRITER || \"Scrivi il libro.\") },\n    { \"role\": \"user\", \"content\": \"TITOLO: \" + $node[\"Get Book Context1\"].json.title + \"\\nCAPITOLO: \" + ($node[\"Webhook Router\"].json.body.chapter?.title || \"Senza Titolo\") + \"\\nSINTESI: \" + ($node[\"Webhook Router\"].json.body.chapter?.summary || \"\") }\n  ]\n} }}",
+        "jsonBody": "={{ { \\\"model\\\": $node[\\\"Get Book Context1\\\"].json.primary_model || \\\"gpt-4o\\\", \\\"messages\\\": [ { \\\"role\\\": \\\"system\\\", \\\"content\\\": ($node[\\\"Get Book Context1\\\"].json.prompts.WRITER || \\\"Scrivi il libro.\\\") }, { \\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"TITOLO: \\\" + $node[\\\"Get Book Context1\\\"].json.title + \\\"\\\\nCAPITOLO: \\\" + ($node[\\\"Webhook Router\\\"].json.body.chapter?.title || \\\"Senza Titolo\\\") + \\\"\\\\nSINTESI: \\\" + ($node[\\\"Webhook Router\\\"].json.body.chapter?.summary || \\\"\\\") } ] } }}",
         "options": {}
       },
       "id": "1e7fcb48-4258-43bc-9953-bc5cf44c0964",
@@ -924,7 +924,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.ARCHITECT || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.ARCHITECT || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": ($node[\"Webhook Router\"].json.body.feedback ? \"FEEDBACK: \" + $node[\"Webhook Router\"].json.body.feedback : \"Genera indice da zero.\") }\n  ]\n} }}",
+        "jsonBody": "={{ { \\\"model\\\": $node[\\\"Get Book Context1\\\"].json.primary_model || \\\"gpt-4o\\\", \\\"temperature\\\": $node[\\\"Get Book Context1\\\"].json.temps.ARCHITECT || 0.3, \\\"messages\\\": [ { \\\"role\\\": \\\"system\\\", \\\"content\\\": $node[\\\"Get Book Context1\\\"].json.prompts.ARCHITECT || \\\"Prompt non trovato.\\\" }, { \\\"role\\\": \\\"user\\\", \\\"content\\\": ($node[\\\"Webhook Router\\\"].json.body.feedback ? \\\"FEEDBACK: \\\" + $node[\\\"Webhook Router\\\"].json.body.feedback : \\\"Genera indice da zero.\\\") } ] } }}",
         "options": {}
       },
       "id": "349a4d1d-82f7-4c46-bd4d-3ca74b9e9f73",
@@ -987,7 +987,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.INTERVIEWER || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.INTERVIEWER || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": \"USER INPUT: \" + ($node[\"Webhook Router\"].json.body.userInput || \"Iniziamo.\") }\n  ]\n} }}",
+        "jsonBody": "={{ { \\\"model\\\": $node[\\\"Get Book Context1\\\"].json.primary_model || \\\"gpt-4o\\\", \\\"temperature\\\": $node[\\\"Get Book Context1\\\"].json.temps.INTERVIEWER || 0.3, \\\"messages\\\": [ { \\\"role\\\": \\\"system\\\", \\\"content\\\": $node[\\\"Get Book Context1\\\"].json.prompts.INTERVIEWER || \\\"Prompt non trovato.\\\" }, { \\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"USER INPUT: \\\" + ($node[\\\"Webhook Router\\\"].json.body.userInput || \\\"Iniziamo.\\\") } ] } }}",
         "options": {}
       },
       "id": "ab2125ef-0ba2-45f5-bd95-5b832155ab0f",
@@ -1284,7 +1284,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"model\": \"gpt-4o\",\n  \"temperature\": $node[\"Get Book Context1\"].json.temps.CONCEPT_GEN || 0.3,\n  \"messages\": [\n    { \"role\": \"system\", \"content\": $node[\"Get Book Context1\"].json.prompts.CONCEPT_GEN || \"Prompt non trovato.\" },\n    { \"role\": \"user\", \"content\": \"USER INPUT: \" + ($node[\"Webhook Router\"].json.body.userInput || \"\") }\n  ]\n} }}",
+        "jsonBody": "={{ { \\\"model\\\": $node[\\\"Get Book Context1\\\"].json.primary_model || \\\"gpt-4o\\\", \\\"temperature\\\": $node[\\\"Get Book Context1\\\"].json.temps.CONCEPT_GEN || 0.3, \\\"messages\\\": [ { \\\"role\\\": \\\"system\\\", \\\"content\\\": $node[\\\"Get Book Context1\\\"].json.prompts.CONCEPT_GEN || \\\"Prompt non trovato.\\\" }, { \\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"USER INPUT: \\\" + ($node[\\\"Webhook Router\\\"].json.body.userInput || \\\"\\\") } ] } }}",
         "options": {}
       },
       "id": "784b28d7-745a-4861-99ad-1bd8a4b757d6",
@@ -1328,7 +1328,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
         }
@@ -1685,6 +1685,28 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "outline-cond",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "GENERATE_OUTLINE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -1767,6 +1789,29 @@
       "position": [
         864,
         1120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ai_requests SET status = 'completed', response_data = $1::jsonb, updated_at = NOW() WHERE id = $2::uuid",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({ aiResponse: $node[\"Agent: Architect\"].json.choices[0].message.content }) }}, {{ $node[\"Webhook Router\"].json.body.requestId }}"
+        }
+      },
+      "id": "update-ai-request-outline-001",
+      "name": "Update AI Request Status (Outline)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1200,
+        400
       ],
       "credentials": {
         "postgres": {
@@ -1931,6 +1976,11 @@
     "Sanitize Chapters": {
       "main": [
         [
+          {
+            "node": "Update AI Request Status (Outline)",
+            "type": "main",
+            "index": 0
+          },
           {
             "node": "Response Outline",
             "type": "main",
@@ -2106,7 +2156,13 @@
     },
     "Get Book": {
       "main": [
-        []
+        [
+          {
+            "node": "Get Previous Paragraphs Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Agent: Architect": {
@@ -2160,7 +2216,14 @@
         ],
         [
           {
-            "node": "Get Book Context Concept Architect1",
+            "node": "Respond Started",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }
@@ -2202,14 +2265,7 @@
         ],
         [
           {
-            "node": "Build Emb Scaffold Payload",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Chunk Draft Text",
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }
@@ -2458,6 +2514,24 @@
         [
           {
             "node": "Get Paragraph",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Book Context Concept Architect1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update AI Request Status (Outline)": {
+      "main": [
+        [
+          {
+            "node": "Response Outline",
             "type": "main",
             "index": 0
           }

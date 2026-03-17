@@ -74,6 +74,9 @@ const AdminDashboard: React.FC = () => {
     const [togglingAdmin, setTogglingAdmin] = useState<string | null>(null);
     const [pricingConfig, setPricingConfig] = useState<any>(null);
     const [savingPricing, setSavingPricing] = useState(false);
+    const [activeModel, setActiveModel] = useState<string>('gpt-4o');
+    const [savingModel, setSavingModel] = useState(false);
+    const [isAIConfigOpen, setIsAIConfigOpen] = useState(false);
 
     useEffect(() => {
         fetchAdminData();
@@ -83,12 +86,13 @@ const AdminDashboard: React.FC = () => {
     const fetchAdminData = async () => {
         setLoading(true);
         try {
-            const [userRes, bookRes, promptRes, pricingRes, aiPromptRes] = await Promise.all([
+            const [userRes, bookRes, promptRes, pricingRes, aiPromptRes, aiSettingsRes] = await Promise.all([
                 supabase.from('vw_cost_per_user').select('*').order('total_estimated_cost_eur', { ascending: false }),
                 supabase.from('vw_cost_per_book').select('*').order('total_estimated_cost_eur', { ascending: false }),
                 supabase.from('system_prompts').select('*').filter('key', 'ilike', 'courtesy_%').order('key'),
                 supabase.from('pricing_config').select('*').limit(1).single(),
-                supabase.from('ai_prompts').select('*').order('genre').order('name')
+                supabase.from('ai_prompts').select('*').order('genre').order('name'),
+                supabase.from('ai_settings').select('value').eq('key', 'primary_model').single()
             ]);
 
             if (userRes.error) throw userRes.error;
@@ -102,6 +106,9 @@ const AdminDashboard: React.FC = () => {
             setSystemPrompts(promptRes.data || []);
             setPricingConfig(pricingRes.data || null);
             setAiPrompts(aiPromptRes.data || []);
+            
+            // Re-fetch model correctly
+            if (aiSettingsRes.data) setActiveModel(aiSettingsRes.data.value);
         } catch (err) {
             console.error("Error fetching admin stats:", err);
             alert("Errore nel caricamento dei dati di amministrazione.");
@@ -240,6 +247,24 @@ const AdminDashboard: React.FC = () => {
             alert("Errore nell'aggiornamento del prompt AI.");
         } finally {
             setSavingAIPrompt(null);
+        }
+    };
+
+    const handleUpdateActiveModel = async (model: string) => {
+        setSavingModel(true);
+        try {
+            const { error } = await supabase
+                .from('ai_settings')
+                .update({ value: model, updated_at: new Date().toISOString() })
+                .eq('key', 'primary_model');
+
+            if (error) throw error;
+            setActiveModel(model);
+        } catch (err: any) {
+            console.error("Error updating model:", err);
+            alert(`Errore nell'aggiornamento del modello: ${err.message}`);
+        } finally {
+            setSavingModel(false);
         }
     };
 
@@ -528,6 +553,66 @@ const AdminDashboard: React.FC = () => {
 
                 {isPromoCodesOpen && (
                     <PromoCodesAdmin />
+                )}
+            </div>
+
+            {/* AI Global Configuration */}
+            <div className="glass-panel" style={{ padding: '2rem', marginBottom: '3rem', transition: 'all 0.3s ease' }}>
+                <h2
+                    style={{ marginBottom: isAIConfigOpen ? '1.5rem' : '0', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setIsAIConfigOpen(!isAIConfigOpen)}
+                >
+                    <Sparkles size={20} color="var(--primary)" /> Configurazione AI Globale
+                    {isAIConfigOpen ? <ChevronUp size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} /> : <ChevronDown size={20} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />}
+                </h2>
+
+                {isAIConfigOpen && (
+                    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'rgba(0, 242, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 242, 255, 0.1)', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            <AlertCircle size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                Seleziona il modello principale che verrà utilizzato per tutte le generazioni del sistema. <br />
+                                <strong>GPT-4o:</strong> Massima qualità e creatività. <br />
+                                <strong>GPT-4o-mini:</strong> Molto più economico e veloce, ideale per bozze o test.
+                            </p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                            {[
+                                { id: 'gpt-4o', name: 'GPT-4o (Standard)', desc: 'High Quality' },
+                                { id: 'gpt-4o-mini', name: 'GPT-4o-mini', desc: 'Fast & Cheap' }
+                            ].map((model) => (
+                                <div 
+                                    key={model.id}
+                                    onClick={() => !savingModel && handleUpdateActiveModel(model.id)}
+                                    style={{
+                                        cursor: savingModel ? 'wait' : 'pointer',
+                                        padding: '1.5rem',
+                                        borderRadius: '12px',
+                                        border: activeModel === model.id ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
+                                        background: activeModel === model.id ? 'rgba(0, 242, 255, 0.05)' : 'rgba(255, 255, 255, 0.02)',
+                                        transition: 'all 0.2s ease',
+                                        position: 'relative',
+                                        overflow: 'hidden'
+                                    }}
+                                >
+                                    {activeModel === model.id && (
+                                        <div style={{ position: 'absolute', top: '10px', right: '10px' }}>
+                                            <UserCheck size={16} color="var(--primary)" />
+                                        </div>
+                                    )}
+                                    <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem', color: activeModel === model.id ? 'var(--primary)' : '#fff' }}>{model.name}</h3>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{model.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {savingModel && (
+                            <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontSize: '0.9rem' }}>
+                                <RefreshCw size={16} className="animate-spin" /> Aggiornamento modello in corso...
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
 
