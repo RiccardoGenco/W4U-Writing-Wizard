@@ -1,0 +1,27 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run Unit & Integration Tests (Vitest)
+        run: npm test
+
+      # Optional: Run E2E tests only on main
+      - name: Run E2E Tests (Playwright)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          npx playwright install --with-deps
+          npx playwright test

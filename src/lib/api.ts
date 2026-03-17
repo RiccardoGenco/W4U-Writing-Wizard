@@ -70,7 +70,7 @@ async function pollForCompletion(
     bookId?: string | null,
     maxAttempts = 60
 ): Promise<any> {
-    const POLL_INTERVAL = 2000; // 2 seconds
+    const POLL_INTERVAL = import.meta.env.NODE_ENV === 'test' ? 1 : 2000;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
@@ -91,7 +91,7 @@ async function pollForCompletion(
                     continue; // Retry with new session
                 }
                 
-                logDebug('frontend', 'polling_error', { requestId, attempt, status: statusResponse.status }, bookId);
+                await logDebug('frontend', 'polling_error', { requestId, attempt, status: statusResponse.status }, bookId);
                 if (statusResponse.status === 404) throw new Error('Request not found');
                 continue; // Retry on other errors
             }
