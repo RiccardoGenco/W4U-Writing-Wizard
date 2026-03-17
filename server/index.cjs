@@ -1041,6 +1041,8 @@ async function forwardToN8n(requestId, userId, payload, token) {
             temperature: payload.temperature ?? 0.2
         };
 
+        console.log(`[AI Proxy Debug] Payload for n8n:`, JSON.stringify(n8nPayload));
+
         const n8nHeaders = {
             'Content-Type': 'application/json',
         };
@@ -1376,8 +1378,9 @@ app.post("/api/ai-agent", async (req, res) => {
 
         // Forward to n8n asynchronously (don't await)
         // Pass the token so `forwardToN8n` can also create a scoped client to update the record
-        const serverUrl = `${req.protocol}://${req.get("host")}`;
+        const serverUrl = process.env.VITE_APP_URL || process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
         const finalPayload = { ...req.body, temperature: finalTemperature, serverUrl };
+        console.log(`[AI Proxy Debug] Dispatching ${action} for book ${bookId}. serverUrl: ${serverUrl}`);
         forwardToN8n(aiRequest.id, user.id, finalPayload, token).catch(err => {
             console.error('[AI Proxy] Background n8n forward error:', err);
         });
