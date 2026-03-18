@@ -1,0 +1,150 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 3093 >>
+stream
+BT
+/F1 18 Tf
+50 760 Td
+(W4U Writing Wizard - App Summary) Tj
+0 -28 Td
+/F1 12 Tf
+(WHAT IT IS) Tj
+0 -20 Td
+/F1 11 Tf
+(Italian-first AI authoring studio that orchestrates an n8n multi-agent pipeline plus a) Tj
+0 -16 Td
+/F1 11 Tf
+(Vite wizard UI to turn an idea into a complete manuscript.) Tj
+0 -16 Td
+0 -4 Td
+/F1 12 Tf
+(WHO IT'S FOR) Tj
+0 -20 Td
+/F1 11 Tf
+(Aspiring and professional fiction or nonfiction authors seeking guided AI scaffolding,) Tj
+0 -16 Td
+/F1 11 Tf
+(structure, and multi-format output while keeping creative control.) Tj
+0 -16 Td
+0 -4 Td
+/F1 12 Tf
+(WHAT IT DOES) Tj
+0 -20 Td
+/F1 11 Tf
+(- Refines raw input through Interviewer and Concept Gen1 agents that capture) Tj
+0 -16 Td
+/F1 11 Tf
+(  blueprint details and surface six structured concept cards for direction.) Tj
+0 -16 Td
+/F1 11 Tf
+(- Generates plot outlines and chapter indexes via Plotter and Architect,) Tj
+0 -16 Td
+/F1 11 Tf
+(  aligning chapter count with the target page budget.) Tj
+0 -16 Td
+/F1 11 Tf
+(- Splits chapters into scenes or sections with the Scaffolder, then tasks the) Tj
+0 -16 Td
+/F1 11 Tf
+(  Writer with drafting guided, approx 250-word paragraphs using the Blueprint,) Tj
+0 -16 Td
+/F1 11 Tf
+(  adjacent context, and RAG vector chunks.) Tj
+0 -16 Td
+/F1 11 Tf
+(- Optionally routes output through the Editor agent to surface incoherencies) Tj
+0 -16 Td
+/F1 11 Tf
+(  before locking a paragraph.) Tj
+0 -16 Td
+/F1 11 Tf
+(- Runs a React wizard made of Blueprint, Concept, Configuration, Production,) Tj
+0 -16 Td
+/F1 11 Tf
+(  Scaffold Revision, Cover, and Export views that hook into n8n flows for each) Tj
+0 -16 Td
+/F1 11 Tf
+(  stage.) Tj
+0 -16 Td
+/F1 11 Tf
+(- Backed by an Express + Supabase backend so users can download PDF, EPUB, or) Tj
+0 -16 Td
+/F1 11 Tf
+(  DOCX files while logging exports and rehydrating chapter data.) Tj
+0 -16 Td
+0 -4 Td
+/F1 12 Tf
+(HOW IT WORKS) Tj
+0 -20 Td
+/F1 11 Tf
+(- The front end \(Concept, Configuration, Blueprint pages\) triggers n8n actions) Tj
+0 -16 Td
+/F1 11 Tf
+(  such as INTERVIEW, GENERATE_CONCEPTS, OUTLINE, and SCAFFOLD_CHAPTER, producing) Tj
+0 -16 Td
+/F1 11 Tf
+(  the Blueprint JSON, plot summary, and chapter targets stored in Postgres.) Tj
+0 -16 Td
+/F1 11 Tf
+(- Scaffolder records numbered scenes or sections in Postgres while Writer pulls) Tj
+0 -16 Td
+/F1 11 Tf
+(  the Blueprint, recent paragraphs, and RAG vector DB chunks to keep tone, then) Tj
+0 -16 Td
+/F1 11 Tf
+(  the optional Editor reviews coherence before finalizing each paragraph.) Tj
+0 -16 Td
+/F1 11 Tf
+(- An Express server \(npm run server\) speaks to Supabase with the service-role) Tj
+0 -16 Td
+/F1 11 Tf
+(  key, records debug logs, and feeds the ExportPage UI so completed books can be) Tj
+0 -16 Td
+/F1 11 Tf
+(  streamed as PDF, EPUB, or DOCX files.) Tj
+0 -16 Td
+0 -4 Td
+/F1 12 Tf
+(HOW TO RUN) Tj
+0 -20 Td
+/F1 11 Tf
+(1. npm install) Tj
+0 -16 Td
+/F1 11 Tf
+(2. npm run dev # starts the Vite UI on localhost:5173) Tj
+0 -16 Td
+/F1 11 Tf
+(3. npm run server # starts the Express backend that uses the .env Supabase / n8n) Tj
+0 -16 Td
+/F1 11 Tf
+(   webhook configuration for exports) Tj
+0 -16 Td
+0 -4 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000003385 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+3455
+%%EOF

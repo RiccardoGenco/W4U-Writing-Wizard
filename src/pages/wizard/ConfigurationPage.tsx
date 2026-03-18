@@ -7,6 +7,14 @@ import { callBookAgent, supabase, logDebug } from '../../lib/api';
 import type { BookContext, BookConfiguration, Chapter } from '../../types';
 import { useToast } from '../../context/ToastContext';
 
+const parseTargetPages = (value: unknown): number | null => {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.round(parsed);
+    }
+    return null;
+};
+
 const ConfigurationPage: React.FC = () => {
     const navigate = useNavigate();
     const { error } = useToast();
@@ -28,11 +36,11 @@ const ConfigurationPage: React.FC = () => {
             if (bookId) {
                 try {
                     const { data } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
-                    const pages = data?.target_pages || parseInt(data?.context_data?.target_pages as any) || 100;
+                    const pages = parseTargetPages(data?.target_pages) ?? parseTargetPages(data?.context_data?.target_pages);
                     setTargetPages(pages);
                 } catch (e) {
                     console.error("Error fetching target pages", e);
-                    setTargetPages(100);
+                    setTargetPages(null);
                 } finally {
                     setLoadingContext(false);
                 }
@@ -43,8 +51,8 @@ const ConfigurationPage: React.FC = () => {
         fetchTargetPages();
     }, []);
 
-    const effectiveTargetPages = targetPages || 100;
-    const numChapters = Math.max(1, Math.floor(effectiveTargetPages / chaptersRate));
+    const effectiveTargetPages = targetPages;
+    const numChapters = effectiveTargetPages ? Math.max(1, Math.floor(effectiveTargetPages / chaptersRate)) : null;
 
     const availableTargets = ['Principianti', 'Appassionati', 'Professionisti', 'Studenti', 'Curiosi', 'Bambini'];
 
@@ -57,19 +65,26 @@ const ConfigurationPage: React.FC = () => {
     };
 
     const handleGenerateOutline = async () => {
+        if (!effectiveTargetPages) {
+            error("Target pagine non disponibile. Torna alla dashboard e riapri il progetto.");
+            return;
+        }
         setLoading(true);
         const config: BookConfiguration = { toneSerious, toneConcise, toneSimple, targets, chaptersRate };
         const bookId = localStorage.getItem('active_book_id');
+        if (!bookId) {
+            error("Progetto non trovato. Torna alla dashboard e riapri il progetto.");
+            setLoading(false);
+            return;
+        }
         let currentContext: BookContext = {};
 
         try {
             // Fetch current context first
             let fetchedTargetPages = effectiveTargetPages;
-            if (bookId) {
-                const { data: currentBook } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
-                currentContext = currentBook?.context_data || {};
-                fetchedTargetPages = currentBook?.target_pages || parseInt(currentContext?.target_pages as any) || effectiveTargetPages;
-            }
+            const { data: currentBook } = await supabase.from('books').select('context_data, target_pages').eq('id', bookId).single();
+            currentContext = currentBook?.context_data || {};
+            fetchedTargetPages = parseTargetPages(currentBook?.target_pages) ?? parseTargetPages(currentContext?.target_pages) ?? effectiveTargetPages;
 
             // 1. Call n8n to generate outline
             const finalTargetPages = fetchedTargetPages;
@@ -156,15 +171,15 @@ const ConfigurationPage: React.FC = () => {
                     <div>
                         <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--primary)', fontWeight: 700 }}>Volume Obiettivo</h3>
                         <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            {loadingContext ? 'Caricamento target...' : `Basato su ${effectiveTargetPages} pagine acquistate`}
+                            {loadingContext ? 'Caricamento target...' : effectiveTargetPages ? `Basato su ${effectiveTargetPages} pagine acquistate` : 'Target pagine non disponibile'}
                         </p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                            {loadingContext ? '--' : `${numChapters} Capitoli`}
+                            {loadingContext || !numChapters ? '--' : `${numChapters} Capitoli`}
                         </div>
                         <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary)' }}>
-                            ~{effectiveTargetPages * 250} Parole Totali
+                            {effectiveTargetPages ? `~${effectiveTargetPages * 250} Parole Totali` : '--'}
                         </div>
                     </div>
                 </div>
@@ -281,7 +296,7 @@ const ConfigurationPage: React.FC = () => {
                     <button
                         className="btn-primary"
                         onClick={handleGenerateOutline}
-                        disabled={loading}
+                        disabled={loading || loadingContext || effectiveTargetPages === null}
                         style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}
                     >
                         {loading ? <><Loader2 className="animate-spin" /> Elaborazione...</> : <>Genera Architettura <ChevronRight size={18} /></>}

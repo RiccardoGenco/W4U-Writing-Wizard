@@ -20,6 +20,26 @@ interface Chapter {
     paragraphs: Paragraph[];
 }
 
+interface AiParagraph {
+    title?: string;
+    description?: string;
+}
+
+interface ScaffoldChapterResponse {
+    paragraphs?: AiParagraph[];
+    data?: {
+        paragraphs?: AiParagraph[];
+    };
+}
+
+const parsePositiveInt = (value: unknown): number | null => {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.round(parsed);
+    }
+    return null;
+};
+
 const ScaffoldRevisionPage: React.FC = () => {
     const navigate = useNavigate();
     const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -110,21 +130,28 @@ const ScaffoldRevisionPage: React.FC = () => {
             // Fetch book configuration for precise scaling
             const { data: book, error: bookError } = await supabase
                 .from('books')
-                .select('target_pages, target_chapters, configuration')
+                .select('target_pages, target_chapters, configuration, context_data')
                 .eq('id', bookId)
                 .single();
 
             if (bookError) throw bookError;
 
-            const targetPages = book.target_pages || 100;
-            const targetChapters = book.target_chapters || chapters.length;
-            const wordsPerPage = book.configuration?.words_per_page || 250;
+            const targetPages = parsePositiveInt(book.target_pages) ?? parsePositiveInt(book.context_data?.target_pages);
+            if (!targetPages) {
+                throw new Error("Target pagine non trovato per questo progetto.");
+            }
+
+            const targetChapters = parsePositiveInt(book.target_chapters) ?? chapters.length;
+            const wordsPerPage =
+                parsePositiveInt(book.configuration?.words_per_page) ??
+                parsePositiveInt(book.context_data?.configuration?.words_per_page) ??
+                250;
             
             const totalWordsTarget = targetPages * wordsPerPage;
             const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
             const paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));
 
-            const scaffoldData: any = await callBookAgent('SCAFFOLD_CHAPTER', {
+            const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
                 chapter: {
                     id: chapter.id,
                     title: chapter.title,
@@ -142,7 +169,7 @@ const ScaffoldRevisionPage: React.FC = () => {
                 await supabase.from('paragraphs').delete().eq('chapter_id', chapter.id);
 
                 // Insert new paragraphs
-                const dbParagraphs = aiParagraphs.map((p: any, pIndex: number) => ({
+                const dbParagraphs = aiParagraphs.map((p: AiParagraph, pIndex: number) => ({
                     chapter_id: chapter.id,
                     paragraph_number: pIndex + 1,
                     title: p.title || `Sottocapitolo ${pIndex + 1}`,
@@ -159,8 +186,17 @@ const ScaffoldRevisionPage: React.FC = () => {
                 if (error) throw error;
 
                 // Update local state by merging the deeply nested structure safely
+                const normalizedParagraphs: Paragraph[] = (newParagraphs || []).map((p) => ({
+                    id: p.id,
+                    chapter_id: p.chapter_id,
+                    paragraph_number: p.paragraph_number,
+                    title: p.title,
+                    description: p.description,
+                    status: p.status
+                }));
+
                 setChapters(prev => prev.map(c =>
-                    c.id === chapterId ? { ...c, paragraphs: newParagraphs || dbParagraphs as any } : c
+                    c.id === chapterId ? { ...c, paragraphs: normalizedParagraphs } : c
                 ));
 
                 // Clear feedback after success

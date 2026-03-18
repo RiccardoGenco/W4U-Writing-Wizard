@@ -1,0 +1,103 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: letter; margin: 0; }
+    body {
+      margin: 0;
+      font-family: "Helvetica", "Arial", sans-serif;
+      background: #fcfcfd;
+    }
+    .page {
+      width: 7.5in;
+      min-height: 10.5in;
+      padding: 0.5in 0.75in;
+    }
+    h1 {
+      font-size: 20pt;
+      margin: 0 0 0.35in;
+      letter-spacing: 0.5px;
+    }
+    h2 {
+      font-size: 12pt;
+      margin: 0 0 0.2in;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+    p {
+      font-size: 10pt;
+      line-height: 1.35;
+      margin: 0 0 0.6in;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 0.6in;
+    }
+    li {
+      font-size: 10pt;
+      line-height: 1.35;
+      margin-bottom: 0.35in;
+    }
+    li::before {
+      content: "- ";
+    }
+    .steps {
+      padding-left: 0;
+      counter-reset: step;
+    }
+    .steps li {
+      margin-bottom: 0.25in;
+    }
+    .steps li::before {
+      content: counter(step) ". ";
+      counter-increment: step;
+      font-weight: bold;
+    }
+    .section {
+      margin-bottom: 0.4in;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>W4U Writing Wizard — App Summary</h1>
+    <div class="section">
+      <h2>What It Is</h2>
+      <p>W4U Writing Wizard is an Italian-first AI authoring studio that orchestrates an n8n-driven, multi-agent pipeline plus a Vite wizard UI to turn a shy idea into a complete manuscript.</p>
+    </div>
+    <div class="section">
+      <h2>Who It's For</h2>
+      <p>Aspiring and professional fiction or nonfiction authors who want guided AI scaffolding, structure, and multi-format output while keeping creative control.</p>
+    </div>
+    <div class="section">
+      <h2>What It Does</h2>
+      <ul>
+        <li>Refines raw input through Interviewer and Concept Gen1 agents that capture blueprint details and surface six structured concept cards for direction.</li>
+        <li>Generates plot outlines and chapter indexes via Plotter and Architect, aligning chapter count with the target page budget.</li>
+        <li>Splits chapters into scenes or sections with the Scaffolder, then tasks the Writer with drafting guided, ~250-word paragraphs using the Blueprint, adjacent context, and RAG vector chunks.</li>
+        <li>Optionally routes output through the Editor agent to surface incoherencies before locking a paragraph.</li>
+        <li>Runs a React wizard made of Blueprint, Concept, Configuration, Production, Scaffold Revision, Cover, and Export views that hook into n8n flows for each stage.</li>
+        <li>Backed by an Express + Supabase backend so users can download PDF, EPUB, or DOCX files while logging exports and rehydrating chapter data.</li>
+      </ul>
+    </div>
+    <div class="section">
+      <h2>How It Works</h2>
+      <ul>
+        <li>The front end (Concept, Configuration, Blueprint pages) triggers n8n actions such as INTERVIEW, GENERATE_CONCEPTS, OUTLINE, and SCAFFOLD_CHAPTER, producing the Blueprint JSON, plot summary, and chapter targets stored in Postgres.</li>
+        <li>Scaffolder records numbered scenes/sections in Postgres while Writer pulls the Blueprint, recent paragraphs, and RAG vector DB chunks to keep tone, then the optional Editor reviews coherence before finalizing each paragraph.</li>
+        <li>An Express server (npm run server) speaks to Supabase with the service-role key, records debug logs, and feeds the ExportPage UI so completed books can be streamed as PDF, EPUB, or DOCX files.</li>
+      </ul>
+    </div>
+    <div class="section">
+      <h2>How to Run</h2>
+      <ul class="steps">
+        <li>npm install</li>
+        <li>npm run dev  # starts the Vite UI on localhost:5173</li>
+        <li>npm run server  # starts the Express backend that uses the .env Supabase / n8n webhook configuration for exports</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

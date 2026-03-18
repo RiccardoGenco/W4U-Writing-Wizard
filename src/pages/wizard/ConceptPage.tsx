@@ -20,6 +20,14 @@ const CONCEPT_LOADING_PHASES = [
     'Rifinitura idee...',
 ];
 
+const parseTargetPages = (value: unknown): number | null => {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.round(parsed);
+    }
+    return null;
+};
+
 const ConceptPage: React.FC = () => {
     const navigate = useNavigate();
     const { success, error: toastError } = useToast();
@@ -37,7 +45,8 @@ const ConceptPage: React.FC = () => {
     const [fileName, setFileName] = useState<string | null>(null);
     const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
     const [fileError, setFileError] = useState<string | null>(null);
-    const [targetPages, setTargetPages] = useState<number>(100);
+    const [targetPages, setTargetPages] = useState<number | null>(null);
+    const [loadingTargetPages, setLoadingTargetPages] = useState(true);
 
     const bookId = localStorage.getItem('active_book_id');
 
@@ -61,23 +70,24 @@ const ConceptPage: React.FC = () => {
 
     const fetchBookData = async () => {
         if (!supabase || !bookId) return;
-        const { data } = await supabase.from('books').select('title, genre, context_data, author, target_pages').eq('id', bookId).single();
-        if (data) {
-            setBookTitle(data.title);
-            setGenre(data.genre);
-            setAuthorName(data.author || '');
-            if (data.context_data?.answers) {
-                setAnswers(data.context_data.answers);
+        try {
+            const { data } = await supabase.from('books').select('title, genre, context_data, author, target_pages').eq('id', bookId).single();
+            if (data) {
+                setBookTitle(data.title);
+                setGenre(data.genre);
+                setAuthorName(data.author || '');
+                if (data.context_data?.answers) {
+                    setAnswers(data.context_data.answers);
+                }
+                if (data.context_data?.pseudonym) {
+                    setPseudonym(data.context_data.pseudonym);
+                }
+                const resolvedTargetPages = parseTargetPages(data.target_pages) ?? parseTargetPages(data.context_data?.target_pages);
+                setTargetPages(resolvedTargetPages);
+                // If we stored file content previously, retrieve (optional, might be too heavy for DB context_data, better to just keep in UI state if navigating back)
             }
-            if (data.context_data?.pseudonym) {
-                setPseudonym(data.context_data.pseudonym);
-            }
-            if (data.target_pages) {
-                setTargetPages(data.target_pages);
-            } else if (data.context_data?.target_pages) {
-                setTargetPages(parseInt(data.context_data.target_pages as any) || 100);
-            }
-            // If we stored file content previously, retrieve (optional, might be too heavy for DB context_data, better to just keep in UI state if navigating back)
+        } finally {
+            setLoadingTargetPages(false);
         }
     };
 
@@ -178,8 +188,35 @@ const ConceptPage: React.FC = () => {
     };
 
     const handleGenerateConcepts = async () => {
-        setLoading(true);
         const bookId = localStorage.getItem('active_book_id');
+        if (!bookId) {
+            toastError("Progetto non trovato. Riapri il progetto dalla dashboard.");
+            return;
+        }
+
+        let effectiveTargetPages = targetPages;
+        try {
+            const { data: latestBook } = await supabase
+                .from('books')
+                .select('target_pages, context_data')
+                .eq('id', bookId)
+                .single();
+
+            const latestTargetPages = parseTargetPages(latestBook?.target_pages) ?? parseTargetPages(latestBook?.context_data?.target_pages);
+            if (latestTargetPages !== null) {
+                effectiveTargetPages = latestTargetPages;
+                setTargetPages(latestTargetPages);
+            }
+        } catch (err) {
+            console.warn('Could not refresh target pages before concept generation', err);
+        }
+
+        if (effectiveTargetPages === null) {
+            toastError("Target pagine non trovato nel progetto. Riprova dalla dashboard.");
+            return;
+        }
+
+        setLoading(true);
 
         const questions = getQuestionsForGenre(genre || '');
         const interviewContext = questions.map((q, i) => `D: ${q}\nR: ${answers[i]}`).join('\n\n');
@@ -213,8 +250,9 @@ const ConceptPage: React.FC = () => {
                 fullContext += `\n\n[NOTA: L'utente ha caricato una bozza molto estesa che è stata salvata nel database vettoriale RAG. Fornisci concept adatti a essere espansi su una struttura esistente.]`;
 
                 await logDebug('frontend', 'rag_upload_started', { length: uploadedFileContent.length }, bookId);
-            } catch (err: any) {
-                console.error("Draft RAG upload failed", err);
+            } catch (err: unknown) {
+                const uploadError = err instanceof Error ? err.message : String(err);
+                console.error("Draft RAG upload failed", uploadError);
                 toastError("Impossibile analizzare il file. Riprova senza file o alleggeriscilo.");
                 setLoading(false);
                 return;
@@ -238,7 +276,7 @@ const ConceptPage: React.FC = () => {
             const data = await callBookAgent('GENERATE_CONCEPTS', { 
                 userInput: fullContext, 
                 title: bookTitle,
-                targetPages: targetPages 
+                targetPages: effectiveTargetPages
             }, bookId);
             const generatedData = data.data || data;
 
@@ -605,7 +643,7 @@ const ConceptPage: React.FC = () => {
                                 whileTap={isComplete ? { scale: 0.95 } : {}}
                                 onClick={handleGenerateConcepts}
                                 className="btn-primary"
-                                disabled={loading || !isComplete}
+                                disabled={loading || !isComplete || loadingTargetPages || targetPages === null}
                                 style={{
                                     padding: '1.5rem 4rem',
                                     fontSize: '1.2rem',
@@ -627,6 +665,11 @@ const ConceptPage: React.FC = () => {
                             {!isComplete && (
                                 <p style={{ color: 'var(--text-muted)', marginTop: '1.5rem', fontSize: '0.9rem' }}>
                                     Rispondi ad almeno 4 domande e inserisci il nome autore per procedere
+                                </p>
+                            )}
+                            {(loadingTargetPages || targetPages === null) && (
+                                <p style={{ color: 'var(--text-muted)', marginTop: '1.5rem', fontSize: '0.9rem' }}>
+                                    Caricamento target pagine del progetto...
                                 </p>
                             )}
                         </div>

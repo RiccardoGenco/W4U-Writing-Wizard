@@ -9,6 +9,26 @@ interface Chapter {
     summary: string;
 }
 
+interface AiParagraph {
+    title?: string;
+    description?: string;
+}
+
+interface ScaffoldChapterResponse {
+    paragraphs?: AiParagraph[];
+    data?: {
+        paragraphs?: AiParagraph[];
+    };
+}
+
+const parsePositiveInt = (value: unknown): number | null => {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.round(parsed);
+    }
+    return null;
+};
+
 
 const BlueprintPage: React.FC = () => {
     const navigate = useNavigate();
@@ -73,8 +93,11 @@ const BlueprintPage: React.FC = () => {
 
             if (bookError) throw bookError;
 
-            const targetPages = book.target_pages || 100;
-            const targetChapters = book.target_chapters || chapters.length;
+            const targetPages = parsePositiveInt(book.target_pages) ?? parsePositiveInt(book.context_data?.target_pages);
+            if (!targetPages) {
+                throw new Error("Target pagine non trovato per questo progetto.");
+            }
+            const targetChapters = parsePositiveInt(book.target_chapters) ?? chapters.length;
             
             // 1 paragraph ≈ 1 page worth of content (approx 250 words)
             // So paragraphs per chapter = targetPages / numChapters
@@ -111,7 +134,7 @@ const BlueprintPage: React.FC = () => {
                 setScaffoldProgress(`Scomposizione Capitolo ${i + 1} di ${insertedChapters.length}...`);
 
                 try {
-                    const scaffoldData: any = await callBookAgent('SCAFFOLD_CHAPTER', {
+                    const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
                         chapter: {
                             id: chapter.id,
                             title: chapter.title,
@@ -123,7 +146,7 @@ const BlueprintPage: React.FC = () => {
                     const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
 
                     if (Array.isArray(aiParagraphs) && aiParagraphs.length > 0) {
-                        aiParagraphs.forEach((p: any, pIndex: number) => {
+                        aiParagraphs.forEach((p: AiParagraph, pIndex: number) => {
                             dbParagraphs.push({
                                 chapter_id: chapter.id,
                                 paragraph_number: pIndex + 1,
