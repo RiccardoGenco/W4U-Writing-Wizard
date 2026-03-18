@@ -77,7 +77,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Refine Prompt with LLM',\n  '{{ $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context1\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
+        "query": "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  '{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}'::uuid,\n  '{{ $node[\"Webhook Router\"].json.body.action }}',\n  'Refine Prompt with LLM',\n  '{{ $node[\"Get Book Context Cover\"].json.primary_model || \"gpt-4o\" }}',\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book Context Cover\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  '{{ JSON.stringify($json.usage || {}) }}'::jsonb\n)",
         "options": {}
       },
       "id": "a55215ac-b76d-4fe4-8034-336958fae546",
@@ -724,7 +724,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO books (id, title, author, genre, status, context_data, target_pages) \nVALUES (\n  $1::uuid, \n  $2, \n  $3, \n  $4, \n  'INTERVIEW', \n  jsonb_build_object(\n    'messages', CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END,\n    'target_pages', COALESCE($6::integer, 100)\n  ),\n  COALESCE($6::integer, 100)\n) \nON CONFLICT (id) DO UPDATE SET \n  title = CASE WHEN EXCLUDED.title IS NOT NULL AND EXCLUDED.title NOT IN ('', 'Nuovo Libro', 'Nuovo Progetto') THEN EXCLUDED.title ELSE books.title END,\n  author = COALESCE(EXCLUDED.author, books.author),\n  genre = COALESCE(EXCLUDED.genre, books.genre),\n  target_pages = COALESCE(EXCLUDED.target_pages, books.target_pages, 100),\n  context_data = jsonb_set(\n    jsonb_set(\n      books.context_data,\n      '{target_pages}',\n      COALESCE(EXCLUDED.context_data->'target_pages', books.context_data->'target_pages', '100'::jsonb)\n    ),\n    '{messages}',\n    COALESCE(books.context_data->'messages', '[]'::jsonb) || \n    CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END\n  )\nRETURNING id;",
+        "query": "INSERT INTO books (id, title, author, genre, status, context_data, target_pages) \nVALUES (\n  $1::uuid, \n  $2, \n  $3, \n  $4, \n  'INTERVIEW', \n  jsonb_build_object(\n    'messages', CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END,\n    'target_pages', to_jsonb(COALESCE($6::integer, (SELECT target_pages FROM books WHERE id = $1::uuid)))\n  ),\n  COALESCE($6::integer, (SELECT target_pages FROM books WHERE id = $1::uuid))\n) \nON CONFLICT (id) DO UPDATE SET \n  title = CASE WHEN EXCLUDED.title IS NOT NULL AND EXCLUDED.title NOT IN ('', 'Nuovo Libro', 'Nuovo Progetto') THEN EXCLUDED.title ELSE books.title END,\n  author = COALESCE(EXCLUDED.author, books.author),\n  genre = COALESCE(EXCLUDED.genre, books.genre),\n  target_pages = COALESCE(EXCLUDED.target_pages, books.target_pages),\n  context_data = jsonb_set(\n    jsonb_set(\n      books.context_data,\n      '{target_pages}',\n      COALESCE(EXCLUDED.context_data->'target_pages', books.context_data->'target_pages', to_jsonb(books.target_pages))\n    ),\n    '{messages}',\n    COALESCE(books.context_data->'messages', '[]'::jsonb) || \n    CASE WHEN $5 IS NOT NULL AND $5 != '' THEN jsonb_build_array(jsonb_build_object('role', 'user', 'content', $5)) ELSE '[]'::jsonb END\n  )\nRETURNING id;",
         "options": {
           "queryReplacement": "={{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Webhook Router\"].json.body.book_id }},{{ $node[\"Webhook Router\"].json.body.title || null }},{{ $node[\"Webhook Router\"].json.body.author || null }},{{ $node[\"Webhook Router\"].json.body.genre || null }},{{ $node[\"Webhook Router\"].json.body.userInput || null }},{{ $node[\"Webhook Router\"].json.body.targetPages || null }}"
         }
@@ -944,7 +944,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const bookData = $node[\"Get Book Context Concept Architect1\"].json;\nconst dbContext = bookData.context_data || {};\nconst config = bookData.configuration || {};\n\nconst targetPagesRaw = $node[\"Webhook Router\"].json.body.targetPages || config.target_pages || dbContext.target_pages;\nconst targetPages = parseInt(targetPagesRaw) || 100;\nconst chaptersRate = $node[\"Webhook Router\"].json.body.configuration?.chaptersRate || config.chaptersRate || 10;\nconst wordsPerPage = config.words_per_page || 250;\n\n// Persistent Chapter Count\nlet numChapters = bookData.target_chapters;\nif (!numChapters || isNaN(numChapters)) {\n  numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));\n}\n\nconst totalWords = targetPages * wordsPerPage;\nconst wordsPerChapter = Math.floor(totalWords / numChapters);\n\nreturn {\n  json: {\n    target_pages: targetPages,\n    total_words_target: totalWords,\n    num_chapters: numChapters,\n    words_per_chapter: wordsPerChapter,\n    paragraphs_per_chapter: config.paragraphs_per_chapter || 5,\n    debug_inputs: { targetPagesRaw, chaptersRate, config }\n  }\n}"
+        "jsCode": "const bookData = $node[\"Get Book Context Concept Architect1\"].json;\nconst dbContext = bookData.context_data || {};\nconst config = bookData.configuration || {};\n\nconst targetPagesRaw = $node[\"Webhook Router\"].json.body.targetPages ?? config.target_pages ?? dbContext.target_pages ?? bookData.target_pages;\nconst parsedTargetPages = Number(targetPagesRaw);\nif (!Number.isFinite(parsedTargetPages) || parsedTargetPages <= 0) {\n  throw new Error(\"targetPages missing/invalid in OUTLINE payload/context\");\n}\nconst targetPages = Math.round(parsedTargetPages);\n\nconst chaptersRateRaw = $node[\"Webhook Router\"].json.body.configuration?.chaptersRate ?? config.chaptersRate ?? 10;\nconst chaptersRate = Number(chaptersRateRaw) > 0 ? Number(chaptersRateRaw) : 10;\nconst wordsPerPage = Number(config.words_per_page) > 0 ? Number(config.words_per_page) : 250;\n\nlet numChapters = Number(bookData.target_chapters);\nif (!Number.isFinite(numChapters) || numChapters <= 0) {\n  numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));\n}\n\nconst totalWords = targetPages * wordsPerPage;\nconst wordsPerChapter = Math.floor(totalWords / numChapters);\n\nreturn {\n  json: {\n    target_pages: targetPages,\n    total_words_target: totalWords,\n    num_chapters: numChapters,\n    words_per_chapter: wordsPerChapter,\n    paragraphs_per_chapter: config.paragraphs_per_chapter || 5,\n    debug_inputs: { targetPagesRaw, chaptersRate, config }\n  }\n};"
       },
       "id": "93c04668-6286-4e6f-aa87-049afe635412",
       "name": "Calculator",
@@ -958,7 +958,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ {\n  \"bookId\": $node[\"Init Book (Optional)\"].json.id,\n  \"aiResponse\": JSON.parse($node[\"Agent: Interviewer\"].json.choices[0].message.content.replace(/```json\\n?|```/g, '').trim()).question.replace(/[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g, '')\n} }}",
+        "responseBody": "={{ {\n  \"bookId\": $node[\"Init Book (Optional)\"].json.id,\n  \"aiResponse\": (($node[\"Agent: Interviewer\"].json.choices?.[0]?.message?.content || \"\")\n    .replace(/```json\\\\n?|```/g, \"\")\n    .replace(/[\\\\uD83C-\\\\uDBFF\\\\uDC00-\\\\uDFFF\\\\u2600-\\\\u26FF\\\\u2700-\\\\u27BF]/g, \"\")\n    .trim())\n} }}",
         "options": {}
       },
       "id": "18d1c843-c4b2-4a58-b2c1-cea31adc040c",
@@ -1386,7 +1386,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ {\n  \"status\": \"completed\",\n  \"data\": {\n    \"chapters\": $node[\"Agent: Scaffolder\"].json.chapters || $node[\"Agent: Scaffolder\"].json.choices[0].message.content.chapters || JSON.parse($node[\"Agent: Scaffolder\"].json.choices[0].message.content).chapters\n  }\n} }}",
+        "responseBody": "={{ (() => {\n  const direct = $node[\"Agent: Scaffolder\"].json.chapters;\n  if (Array.isArray(direct)) {\n    return { status: \"completed\", data: { chapters: direct } };\n  }\n\n  const maybeContent = $node[\"Agent: Scaffolder\"].json.choices?.[0]?.message?.content;\n\n  if (maybeContent && typeof maybeContent === \"object\" && Array.isArray(maybeContent.chapters)) {\n    return { status: \"completed\", data: { chapters: maybeContent.chapters } };\n  }\n\n  if (typeof maybeContent === \"string\") {\n    try {\n      const parsed = JSON.parse(maybeContent.replace(/```json\\\\n?|```/g, \"\").trim());\n      return { status: \"completed\", data: { chapters: Array.isArray(parsed?.chapters) ? parsed.chapters : [] } };\n    } catch (e) {\n      return { status: \"completed\", data: { chapters: [] } };\n    }\n  }\n\n  return { status: \"completed\", data: { chapters: [] } };\n})() }}",
         "options": {}
       },
       "id": "4d18874b-0627-42a4-a583-bcedec0feb9e",
@@ -1818,12 +1818,12 @@
         "bodyParameters": {
           "parameters": [
             {
-              "name": "bookId ",
-              "value": "=={{ $node[\"Webhook Router\"].json.body.bookId }}"
+              "name": "bookId",
+              "value": "={{ $node[\"Webhook Router\"].json.body.bookId }}"
             },
             {
               "name": "imageUrl",
-              "value": "=={{ $json.url }}"
+              "value": "={{ $json.url }}"
             }
           ]
         },
@@ -1920,7 +1920,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.4,
       "position": [
-        -48, 
+        -48,
         640
       ],
       "credentials": {
@@ -2087,11 +2087,6 @@
     "Sanitize Chapters": {
       "main": [
         [
-          {
-            "node": "Update AI Request Status (Outline)",
-            "type": "main",
-            "index": 0
-          },
           {
             "node": "Response Outline",
             "type": "main",
@@ -2522,18 +2517,7 @@
     },
     "Update Paragraph": {
       "main": [
-        [
-          {
-            "node": "Update Request Status (Writer)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Response Write",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Chunk Draft Text": {
@@ -2682,15 +2666,7 @@
       ]
     },
     "Update AI Request Status (Outline)": {
-      "main": [
-        [
-          {
-            "node": "Response Outline",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": []
     },
     "Upload to Supabase Storage": {
       "main": [
