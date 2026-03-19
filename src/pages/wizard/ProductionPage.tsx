@@ -13,6 +13,8 @@ interface DBParagraph {
     description: string;
     content: string | null;
     status: string;
+    actual_word_count?: number | null;
+    target_word_count?: number | null;
 }
 
 interface DBChapter {
@@ -23,6 +25,21 @@ interface DBChapter {
     status: string;
     paragraphs: DBParagraph[];
 }
+
+interface ScaffoldChapterResponse {
+    paragraphs?: Array<{ title?: string; description?: string }>;
+    data?: {
+        paragraphs?: Array<{ title?: string; description?: string }>;
+    };
+}
+
+const parsePositiveInt = (value: unknown): number | null => {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.round(parsed);
+    }
+    return null;
+};
 
 // -------------------------------------------------------------
 // Component: ParagraphEditor
@@ -42,12 +59,6 @@ const ParagraphEditor = ({ paragraph, bookId, chapterId, onUpdate }: { paragraph
         setSaving(true);
         // Update paragraph content and status
         await supabase.from('paragraphs').update({ content: editContent, status: 'COMPLETED' }).eq('id', paragraph.id);
-        
-        // Check if all paragraphs in the chapter are now done to update chapter status
-        const { data: pList } = await supabase.from('paragraphs').select('status, content').eq('chapter_id', chapterId);
-        if (pList && pList.every(p => p.status === 'COMPLETED' || (p.content && p.content.length > 50))) {
-            await supabase.from('chapters').update({ status: 'COMPLETED' }).eq('id', chapterId);
-        }
 
         setIsEditing(false);
         setSaving(false);
@@ -207,6 +218,81 @@ const ProductionPage: React.FC = () => {
 
     const bookId = localStorage.getItem('active_book_id');
 
+    const getExpectedParagraphsPerChapter = useCallback(async (): Promise<number> => {
+        if (!bookId) return 5;
+
+        const { data: book } = await supabase
+            .from('books')
+            .select('target_pages, target_chapters, context_data')
+            .eq('id', bookId)
+            .single();
+
+        const targetPages = parsePositiveInt(book?.target_pages) ?? parsePositiveInt(book?.context_data?.target_pages);
+        const targetChapters = parsePositiveInt(book?.target_chapters);
+
+        if (!targetPages || !targetChapters) {
+            return 5;
+        }
+
+        return Math.max(1, Math.round(targetPages / targetChapters));
+    }, [bookId]);
+
+    const ensureChapterPlanCompleteness = useCallback(async (chapter: DBChapter, chapterParagraphs: DBParagraph[]): Promise<DBParagraph[]> => {
+        if (!bookId) return chapterParagraphs;
+
+        const expectedCount = await getExpectedParagraphsPerChapter();
+        if (chapterParagraphs.length >= expectedCount) {
+            return chapterParagraphs;
+        }
+
+        const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
+            chapter: {
+                id: chapter.id,
+                title: chapter.title,
+                summary: chapter.summary || ''
+            },
+            targetParagraphCount: expectedCount
+        }, bookId);
+
+        const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
+        if (!Array.isArray(aiParagraphs) || aiParagraphs.length === 0) {
+            throw new Error('Scaffold chapter returned no paragraphs');
+        }
+
+        const existingByNumber = new Map<number, DBParagraph>();
+        for (const p of chapterParagraphs) {
+            existingByNumber.set(p.paragraph_number, p);
+        }
+
+        const inserts: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
+        for (let n = 1; n <= expectedCount; n++) {
+            if (existingByNumber.has(n)) continue;
+            const ai = aiParagraphs[n - 1] || {};
+            inserts.push({
+                chapter_id: chapter.id,
+                paragraph_number: n,
+                title: (ai.title && ai.title.trim()) ? ai.title.trim() : `Sottocapitolo ${n}`,
+                description: ai.description || '',
+                status: 'PENDING',
+                target_word_count: 250
+            });
+        }
+
+        if (inserts.length > 0) {
+            const { error } = await supabase.from('paragraphs').insert(inserts);
+            if (error) throw error;
+        }
+
+        const { data: refreshed, error: refreshedErr } = await supabase
+            .from('paragraphs')
+            .select('*')
+            .eq('chapter_id', chapter.id)
+            .order('paragraph_number', { ascending: true });
+        if (refreshedErr) throw refreshedErr;
+
+        return (refreshed || []) as DBParagraph[];
+    }, [bookId, getExpectedParagraphsPerChapter]);
+
     const fetchChapters = useCallback(async () => {
         if (!bookId) return;
 
@@ -266,12 +352,21 @@ const ProductionPage: React.FC = () => {
 
 
     const generateChapter = async (id: string, chapterParagraphs: DBParagraph[]) => {
+        const chapter = chapters.find(c => c.id === id);
+        if (!chapter) return;
+
         // Optimistic update
         setChapters(prev => prev.map(c => c.id === id ? { ...c, status: 'GENERATING' } : c));
 
         try {
+            const expectedParagraphs = await getExpectedParagraphsPerChapter();
+            const targetChapterWords = expectedParagraphs * 250;
+            const minChapterWords = Math.floor(targetChapterWords * 0.85);
+
+            const effectiveParagraphs = await ensureChapterPlanCompleteness(chapter, chapterParagraphs);
+
             // Loop through paragraphs and generate them sequentially to avoid rate limits
-            for (const paragraph of chapterParagraphs) {
+            for (const paragraph of effectiveParagraphs) {
                 if (paragraph.status === 'COMPLETED' || (paragraph.content && paragraph.content.length > 50)) {
                     continue;
                 }
@@ -279,8 +374,7 @@ const ProductionPage: React.FC = () => {
                 await supabase.from('paragraphs').update({ status: 'GENERATING' }).eq('id', paragraph.id);
                 fetchChapters(); // Trigger UI update to show 'Scrittura in corso' on the specific paragraph
 
-                await callBookAgent('WRITE_PARAGRAPH', {
-                    paragraphId: paragraph.id,
+                await callBookAgent('WRITE_CHAPTER_FROM_PLAN', {
                     chapterId: id
                 }, bookId);
 
@@ -304,7 +398,26 @@ const ProductionPage: React.FC = () => {
                 }
             }
 
-            // After all paragraphs are done, mark chapter as COMPLETED
+            const { data: finalParagraphs } = await supabase
+                .from('paragraphs')
+                .select('content, actual_word_count, target_word_count')
+                .eq('chapter_id', id);
+
+            const totalWords = (finalParagraphs || []).reduce((acc, p) => {
+                if (Number.isFinite(p.actual_word_count) && (p.actual_word_count || 0) > 0) {
+                    return acc + Number(p.actual_word_count);
+                }
+                const text = p.content || '';
+                const wc = text.split(/\s+/).filter(w => w.length > 0).length;
+                return acc + wc;
+            }, 0);
+
+            if (totalWords < minChapterWords) {
+                await supabase.from('chapters').update({ status: 'PENDING' }).eq('id', id);
+                throw new Error(`Capitolo sotto target qualitativo: ${totalWords} parole, minimo richiesto ${minChapterWords}`);
+            }
+
+            // After all paragraphs are done and quality threshold is satisfied, mark chapter as COMPLETED
             await supabase.from('chapters').update({ status: 'COMPLETED' }).eq('id', id);
 
             fetchChapters();
@@ -315,8 +428,7 @@ const ProductionPage: React.FC = () => {
     };
 
     const checkChapterCompletion = (c: DBChapter) => {
-        const allDone = c.paragraphs.length > 0 && c.paragraphs.every(p => p.status === 'COMPLETED' || (p.content && p.content.length > 50));
-        return allDone;
+        return c.status === 'COMPLETED';
     };
 
     const generateAll = async () => {

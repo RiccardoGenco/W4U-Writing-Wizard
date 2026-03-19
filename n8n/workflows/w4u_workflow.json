@@ -828,7 +828,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": $node[\"Get Book\"].json.primary_model || \"gpt-4o\", \"messages\": [ { \"role\": \"system\", \"content\": ($node[\"Get Book\"].json.prompts.WRITER || \"Scrivi il libro.\") }, { \"role\": \"user\", \"content\": \"DATA:\\nBLUEPRINT: \" + JSON.stringify($node[\"Get Book\"].json.context_data || {}) + \"\\nPLOT SUMMARY: \" + ($node[\"Get Book\"].json.plot_summary || \"\") + \"\\n\\nTITOLO LIBRO: \" + $node[\"Get Book\"].json.title + \"\\nCAPITOLO: \" + ($node[\"Webhook Router\"].json.body.chapter?.title || \"Senza Titolo\") + \" - \" + ($node[\"Webhook Router\"].json.body.chapter?.summary || \"\") + \"\\nPARAGRAPH: \" + ($node[\"Webhook Router\"].json.body.paragraphTitle || \"\") } ] } }}",
+        "jsonBody": "={{ (() => {\n  const book = $node[\"Get Book\"].json || {};\n  const paragraph = $node[\"Get Paragraph\"].json || {};\n  const prevCtx = ($node[\"Get Previous Paragraphs Context\"].json?.combined_content || \"\").slice(-6000);\n  const ragChunks = $(\"RAG: Query Draft Chunks\").all().map(i => i.json?.content || \"\").filter(Boolean).join(\"\\n\\n\").slice(0, 5000);\n\n  const wordsPerPage = Number(book?.configuration?.words_per_page || 250);\n  const targetWordCount = Number(paragraph?.target_word_count || wordsPerPage);\n  const minWords = Math.max(120, Math.floor(targetWordCount * 0.85));\n  const maxWords = Math.max(minWords + 30, Math.ceil(targetWordCount * 1.15));\n\n  const chapterTitle = paragraph.chapter_title || $node[\"Webhook Router\"].json.body.chapter?.title || \"Senza Titolo\";\n  const chapterSummary = paragraph.chapter_summary || $node[\"Webhook Router\"].json.body.chapter?.summary || \"\";\n  const paragraphTitle = paragraph.title || $node[\"Webhook Router\"].json.body.paragraphTitle || \"\";\n  const paragraphBrief = paragraph.description || \"\";\n\n  return {\n    model: book.primary_model || \"gpt-4o\",\n    temperature: book?.temps?.WRITER || 0.5,\n    messages: [\n      { role: \"system\", content: (book?.prompts?.WRITER || \"Scrivi contenuti coerenti, chiari e di alta qualita.\") },\n      { role: \"user\", content:\n`DATA:\nBLUEPRINT: ${JSON.stringify(book.context_data || {})}\nPLOT SUMMARY: ${book.plot_summary || \"\"}\n\nTITOLO LIBRO: ${book.title || \"\"}\nCAPITOLO: ${chapterTitle} - ${chapterSummary}\nPARAGRAFO: ${paragraphTitle}\nOBIETTIVO PARAGRAFO: ${paragraphBrief}\n\nCONTINUITA CAPITOLO (gia scritto):\n${prevCtx || \"(vuoto)\"}\n\nRAG CONTESTO:\n${ragChunks || \"(vuoto)\"}\n\nVINCOLI QUALITA:\n- Mantieni coerenza narrativa e logica con blueprint e testo precedente.\n- Non ripetere concetti gia espressi salvo raccordi necessari.\n- Testo naturale, concreto, senza filler o meta-commenti.\n- Lunghezza target circa ${targetWordCount} parole (range ${minWords}-${maxWords}).\n- Restituisci solo il testo finale del paragrafo, senza markdown code fence.` }\n    ]\n  };\n})() }}",
         "options": {}
       },
       "id": "1e7fcb48-4258-43bc-9953-bc5cf44c0964",
@@ -872,9 +872,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT p.*, c.title AS chapter_title, c.summary AS chapter_summary, c.book_id FROM paragraphs p JOIN chapters c ON p.chapter_id = c.id WHERE p.id = $1::uuid",
+        "query": "SELECT p.*, c.title AS chapter_title, c.summary AS chapter_summary, c.book_id FROM paragraphs p JOIN chapters c ON p.chapter_id = c.id WHERE ( ('{{ $node[\\\"Webhook Router\\\"].json.body.action }}' = 'WRITE_CHAPTER_FROM_PLAN' AND p.chapter_id = $1::uuid AND COALESCE(p.status,'PENDING') != 'COMPLETED') OR ('{{ $node[\\\"Webhook Router\\\"].json.body.action }}' != 'WRITE_CHAPTER_FROM_PLAN' AND p.id = $1::uuid) ) ORDER BY p.paragraph_number ASC LIMIT 1",
         "options": {
-          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.paragraphId || $node[\"Webhook Router\"].json.body.chapterId] }}"
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId || $node[\"Webhook Router\"].json.body.paragraphId] }}"
         }
       },
       "id": "ecf7baed-881a-46c2-afb5-ec4b182859db",
@@ -1225,6 +1225,28 @@
                       "operation": "equals"
                     },
                     "id": "index-draft-rule-001"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "WRITE_CHAPTER_FROM_PLAN",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "write-chapter-from-plan-rule-001"
                   }
                 ],
                 "combinator": "and"
@@ -1784,6 +1806,28 @@
                     "id": "index-cond",
                     "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
                     "rightValue": "INDEX_DRAFT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "write-chapter-plan-cond",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "WRITE_CHAPTER_FROM_PLAN",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -2394,6 +2438,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Respond Started",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -2678,6 +2729,13 @@
         [
           {
             "node": "Chunk Draft Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Paragraph",
             "type": "main",
             "index": 0
           }
