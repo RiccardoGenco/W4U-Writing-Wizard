@@ -872,9 +872,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT p.*, c.title AS chapter_title, c.summary AS chapter_summary, c.book_id FROM paragraphs p JOIN chapters c ON p.chapter_id = c.id WHERE ( ('{{ $node[\\\"Webhook Router\\\"].json.body.action }}' = 'WRITE_CHAPTER_FROM_PLAN' AND p.chapter_id = $1::uuid AND COALESCE(p.status,'PENDING') != 'COMPLETED') OR ('{{ $node[\\\"Webhook Router\\\"].json.body.action }}' != 'WRITE_CHAPTER_FROM_PLAN' AND p.id = $1::uuid) ) ORDER BY p.paragraph_number ASC LIMIT 1",
+        "query": "SELECT p.*, c.title AS chapter_title, c.summary AS chapter_summary, c.book_id FROM paragraphs p JOIN chapters c ON p.chapter_id = c.id WHERE ( ($2 = 'WRITE_CHAPTER_FROM_PLAN' AND p.chapter_id = $1::uuid AND COALESCE(p.status,'PENDING') != 'COMPLETED') OR ($2 <> 'WRITE_CHAPTER_FROM_PLAN' AND p.id = $1::uuid) ) ORDER BY p.paragraph_number ASC LIMIT 1",
         "options": {
-          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId || $node[\"Webhook Router\"].json.body.paragraphId] }}"
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId || $node[\"Webhook Router\"].json.body.paragraphId, $node[\"Webhook Router\"].json.body.action] }}"
         }
       },
       "id": "ecf7baed-881a-46c2-afb5-ec4b182859db",
@@ -1993,6 +1993,148 @@
         }
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
+        }
+      },
+      "id": "8b4414cd-4e38-46b8-b897-b7a1475bbf3b",
+      "name": "Get Book Context Chapter Writer",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1600
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM paragraphs WHERE chapter_id = $1::uuid ORDER BY paragraph_number ASC",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId] }}"
+        }
+      },
+      "id": "8a4662d4-f079-4a98-acfd-f719ade6b00e",
+      "name": "Get Chapter Paragraphs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1600
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": $node[\"Get Book Context Chapter Writer\"].json.primary_model || \"gpt-4o\", \"temperature\": $node[\"Get Book Context Chapter Writer\"].json.temps.CHAPTER_WRITER || 0.7, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Get Book Context Chapter Writer\"].json.prompts.CHAPTER_WRITER || \"Sei un autore.\" }, { \"role\": \"user\", \"content\": \"BLUEPRINT: \" + JSON.stringify($node[\"Get Book Context Chapter Writer\"].json.context_data.blueprint || {}) + \"\\n\\nOUTLINE SOTTOCAPITOLI PREVISTI:\\n\" + JSON.stringify($json.map(p => ({ number: p.paragraph_number, title: p.title, description: p.description }))) + \"\\n\\nOBIETTIVO PAROLE: DEVI raggiungere un target prestabilito di pagine. Per fare questo, assicurati di generare ALMENO \" + ($node[\"Webhook Router\"].json.body.targetWordCount || 2500) + \" parole combinando tutti i sottocapitoli formattati appropriatamente. Sii super dettagliato narrativamente per estendere la lunghezza del testo.\" } ] } }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "8c363214-46fe-4c06-a464-034637fd8dc6",
+      "name": "Agent: Chapter Writer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        400,
+        1600
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "lIvnrEKrZKxdIRLJ",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let rawContent = $node['Agent: Chapter Writer'].json.choices[0].message.content;\nrawContent = rawContent.replace(/```json\\n?|```/g, '').replace(/<think>[\\\\s\\\\S]*?<\\/think>/g, '').trim();\ntry { return { json: JSON.parse(rawContent) }; } catch(e) { throw new Error('Invalid JSON: ' + rawContent); }"
+      },
+      "id": "66dab439-e2fe-4626-b39b-a03f4aa31448",
+      "name": "Sanitize Chapter JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE paragraphs p SET content = j.content, status = 'COMPLETED', actual_word_count = array_length(regexp_split_to_array(j.content, '\\\\s+'), 1) FROM jsonb_to_recordset($1::jsonb) AS j(paragraph_number int, content text) WHERE p.chapter_id = $2::uuid AND p.paragraph_number = j.paragraph_number",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json.paragraphs || []), $node[\"Webhook Router\"].json.body.chapterId] }}"
+        }
+      },
+      "id": "579205e6-013e-4b08-adc6-8db28fb37c7b",
+      "name": "Update Chapter Paragraphs Bulk",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        800,
+        1600
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE chapters SET status = 'COMPLETED' WHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId] }}"
+        }
+      },
+      "id": "992494c7-6599-4ec5-90ba-dc65e7511d8e",
+      "name": "Mark Chapter Completed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        1600
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -2735,7 +2877,7 @@
         ],
         [
           {
-            "node": "Get Paragraph",
+            "node": "Get Book Context Chapter Writer",
             "type": "main",
             "index": 0
           }
@@ -2772,6 +2914,61 @@
         [
           {
             "node": "Response Cover Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book Context Chapter Writer": {
+      "main": [
+        [
+          {
+            "node": "Get Chapter Paragraphs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Chapter Paragraphs": {
+      "main": [
+        [
+          {
+            "node": "Agent: Chapter Writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Chapter Writer": {
+      "main": [
+        [
+          {
+            "node": "Sanitize Chapter JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize Chapter JSON": {
+      "main": [
+        [
+          {
+            "node": "Update Chapter Paragraphs Bulk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Chapter Paragraphs Bulk": {
+      "main": [
+        [
+          {
+            "node": "Mark Chapter Completed",
             "type": "main",
             "index": 0
           }
