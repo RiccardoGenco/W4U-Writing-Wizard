@@ -198,6 +198,7 @@ const ProductionPage: React.FC = () => {
     const [currentRunChapterId, setCurrentRunChapterId] = useState<string | null>(null);
     const [currentRunChapterNumber, setCurrentRunChapterNumber] = useState<number | null>(null);
     const [startingRun, setStartingRun] = useState(false);
+    const [runPollErrors, setRunPollErrors] = useState(0);
 
     // Overlay feedback
     const [loadingMessage, setLoadingMessage] = useState("Scrittura del libro...");
@@ -232,6 +233,7 @@ const ProductionPage: React.FC = () => {
             setRunError(null);
             setCurrentRunChapterId(null);
             setCurrentRunChapterNumber(null);
+            setRunPollErrors(0);
             persistRunId(null);
             return;
         }
@@ -242,6 +244,7 @@ const ProductionPage: React.FC = () => {
         setRunError(run.last_error || null);
         setCurrentRunChapterId(run.current_chapter_id || null);
         setCurrentRunChapterNumber(run.current_chapter_number || null);
+        setRunPollErrors(0);
         persistRunId(run.id);
     }, [persistRunId]);
 
@@ -350,6 +353,14 @@ const ProductionPage: React.FC = () => {
             } catch (error) {
                 if (!cancelled) {
                     console.error('Failed to poll book generation run:', error);
+                    setRunPollErrors(prev => {
+                        const next = prev + 1;
+                        if (next >= 3) {
+                            setRunError('Stato generazione non raggiungibile. Se il job è bloccato, riprova o rigenera.');
+                            syncRunState(null);
+                        }
+                        return next;
+                    });
                 }
             }
         };
