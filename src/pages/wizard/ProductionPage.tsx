@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, CheckCircle2, Loader2, FileText, ChevronRight, Edit2, RefreshCw, Save, X } from 'lucide-react';
 import { marked } from 'marked';
-import { callBookAgent, supabase } from '../../lib/api';
+import { BookGenerationRunStatus, callBookAgent, getBookGenerationStatus, startBookGeneration, supabase } from '../../lib/api';
 
 // Types
 interface DBParagraph {
@@ -26,20 +26,8 @@ interface DBChapter {
     paragraphs: DBParagraph[];
 }
 
-interface ScaffoldChapterResponse {
-    paragraphs?: Array<{ title?: string; description?: string }>;
-    data?: {
-        paragraphs?: Array<{ title?: string; description?: string }>;
-    };
-}
-
-const parsePositiveInt = (value: unknown): number | null => {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed > 0) {
-        return Math.round(parsed);
-    }
-    return null;
-};
+type RunPhase = BookGenerationRunStatus['phase'];
+type RunStatus = BookGenerationRunStatus['status'];
 
 // -------------------------------------------------------------
 // Component: ParagraphEditor
@@ -202,7 +190,13 @@ const ProductionPage: React.FC = () => {
 
     const [chapters, setChapters] = useState<DBChapter[]>([]);
     const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
-    const [globalGenerating, setGlobalGenerating] = useState(false);
+    const [runId, setRunId] = useState<string | null>(null);
+    const [runStatus, setRunStatus] = useState<RunStatus | null>(null);
+    const [runPhase, setRunPhase] = useState<RunPhase | null>(null);
+    const [runError, setRunError] = useState<string | null>(null);
+    const [currentRunChapterId, setCurrentRunChapterId] = useState<string | null>(null);
+    const [currentRunChapterNumber, setCurrentRunChapterNumber] = useState<number | null>(null);
+    const [startingRun, setStartingRun] = useState(false);
 
     // Overlay feedback
     const [loadingMessage, setLoadingMessage] = useState("Scrittura del libro...");
@@ -217,81 +211,38 @@ const ProductionPage: React.FC = () => {
     ], []);
 
     const bookId = localStorage.getItem('active_book_id');
+    const isRunActive = runStatus === 'pending' || runStatus === 'planning' || runStatus === 'writing' || runStatus === 'review';
 
-    const getExpectedParagraphsPerChapter = useCallback(async (): Promise<number> => {
-        if (!bookId) return 5;
-
-        const { data: book } = await supabase
-            .from('books')
-            .select('target_pages, target_chapters, context_data')
-            .eq('id', bookId)
-            .single();
-
-        const targetPages = parsePositiveInt(book?.target_pages) ?? parsePositiveInt(book?.context_data?.target_pages);
-        const targetChapters = parsePositiveInt(book?.target_chapters);
-
-        if (!targetPages || !targetChapters) {
-            return 5;
+    const persistRunId = useCallback((nextRunId: string | null) => {
+        if (!bookId) return;
+        const storageKey = `book_generation_run_${bookId}`;
+        if (nextRunId) {
+            localStorage.setItem(storageKey, nextRunId);
+        } else {
+            localStorage.removeItem(storageKey);
         }
-
-        return Math.max(1, Math.round(targetPages / targetChapters));
     }, [bookId]);
 
-    const ensureChapterPlanCompleteness = useCallback(async (chapter: DBChapter, chapterParagraphs: DBParagraph[]): Promise<DBParagraph[]> => {
-        if (!bookId) return chapterParagraphs;
-
-        const expectedCount = await getExpectedParagraphsPerChapter();
-        if (chapterParagraphs.length >= expectedCount) {
-            return chapterParagraphs;
+    const syncRunState = useCallback((run: BookGenerationRunStatus | null) => {
+        if (!run) {
+            setRunId(null);
+            setRunStatus(null);
+            setRunPhase(null);
+            setRunError(null);
+            setCurrentRunChapterId(null);
+            setCurrentRunChapterNumber(null);
+            persistRunId(null);
+            return;
         }
 
-        const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
-            chapter: {
-                id: chapter.id,
-                title: chapter.title,
-                summary: chapter.summary || ''
-            },
-            targetParagraphCount: expectedCount
-        }, bookId);
-
-        const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
-        if (!Array.isArray(aiParagraphs) || aiParagraphs.length === 0) {
-            throw new Error('Scaffold chapter returned no paragraphs');
-        }
-
-        const existingByNumber = new Map<number, DBParagraph>();
-        for (const p of chapterParagraphs) {
-            existingByNumber.set(p.paragraph_number, p);
-        }
-
-        const inserts: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
-        for (let n = 1; n <= expectedCount; n++) {
-            if (existingByNumber.has(n)) continue;
-            const ai = aiParagraphs[n - 1] || {};
-            inserts.push({
-                chapter_id: chapter.id,
-                paragraph_number: n,
-                title: (ai.title && ai.title.trim()) ? ai.title.trim() : `Sottocapitolo ${n}`,
-                description: ai.description || '',
-                status: 'PENDING',
-                target_word_count: 250
-            });
-        }
-
-        if (inserts.length > 0) {
-            const { error } = await supabase.from('paragraphs').insert(inserts);
-            if (error) throw error;
-        }
-
-        const { data: refreshed, error: refreshedErr } = await supabase
-            .from('paragraphs')
-            .select('*')
-            .eq('chapter_id', chapter.id)
-            .order('paragraph_number', { ascending: true });
-        if (refreshedErr) throw refreshedErr;
-
-        return (refreshed || []) as DBParagraph[];
-    }, [bookId, getExpectedParagraphsPerChapter]);
+        setRunId(run.id);
+        setRunStatus(run.status);
+        setRunPhase(run.phase);
+        setRunError(run.last_error || null);
+        setCurrentRunChapterId(run.current_chapter_id || null);
+        setCurrentRunChapterNumber(run.current_chapter_number || null);
+        persistRunId(run.id);
+    }, [persistRunId]);
 
     const fetchChapters = useCallback(async () => {
         if (!bookId) return;
@@ -332,138 +283,161 @@ const ProductionPage: React.FC = () => {
         }
     }, [bookId, selectedChapterId]);
 
+    const fetchActiveRun = useCallback(async () => {
+        if (!bookId) return;
+
+        const storedRunId = localStorage.getItem(`book_generation_run_${bookId}`);
+
+        if (storedRunId) {
+            try {
+                const run = await getBookGenerationStatus(storedRunId);
+                syncRunState(run);
+                return;
+            } catch (error) {
+                console.warn('Stored generation run is no longer available:', error);
+                persistRunId(null);
+            }
+        }
+
+        const activeStatuses: RunStatus[] = ['pending', 'planning', 'writing', 'review'];
+        const { data: run, error } = await supabase
+            .from('book_generation_runs')
+            .select('*')
+            .eq('book_id', bookId)
+            .in('status', activeStatuses)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        syncRunState((run as BookGenerationRunStatus | null) || null);
+    }, [bookId, persistRunId, syncRunState]);
+
     useEffect(() => {
         fetchChapters();
+        fetchActiveRun();
 
         // Polling if Realtime falls back. Keeping it simple via polling every 8s is safer for mass updates.
         const interval = setInterval(fetchChapters, 8000);
         return () => clearInterval(interval);
-    }, [fetchChapters]);
+    }, [fetchActiveRun, fetchChapters]);
 
     useEffect(() => {
-        if (!globalGenerating) return;
+        if (!isRunActive) return;
         let phaseIndex = 0;
         const interval = setInterval(() => {
             setLoadingMessage(loadingPhases[phaseIndex]);
             phaseIndex = (phaseIndex + 1) % loadingPhases.length;
         }, 3000);
         return () => clearInterval(interval);
-    }, [globalGenerating, loadingPhases]);
+    }, [isRunActive, loadingPhases]);
 
+    useEffect(() => {
+        if (!runId || !isRunActive) return;
 
-    const generateChapter = async (id: string, chapterParagraphs: DBParagraph[]) => {
-        const chapter = chapters.find(c => c.id === id);
-        if (!chapter) return;
-
-        // Optimistic update
-        setChapters(prev => prev.map(c => c.id === id ? { ...c, status: 'GENERATING' } : c));
-
-        try {
-            const expectedParagraphs = await getExpectedParagraphsPerChapter();
-            const targetChapterWords = expectedParagraphs * 250;
-            const minChapterWords = Math.floor(targetChapterWords * 0.85);
-
-            const effectiveParagraphs = await ensureChapterPlanCompleteness(chapter, chapterParagraphs);
-
-            // Check if any paragraphs actually need generating
-            const needsGeneration = effectiveParagraphs.some(p => p.status !== 'COMPLETED' && (!p.content || p.content.length < 50));
-            
-            if (needsGeneration) {
-                // Mark all incomplete paragraphs as GENERATING
-                const pendingIds = effectiveParagraphs.filter(p => p.status !== 'COMPLETED').map(p => p.id);
-                if (pendingIds.length > 0) {
-                    await supabase.from('paragraphs').update({ status: 'GENERATING' }).in('id', pendingIds);
-                    fetchChapters();
-                }
-
-                // Call the agent once for the FULL CHAPTER
-                await callBookAgent('WRITE_CHAPTER_FROM_PLAN', {
-                    chapterId: id,
-                    targetWordCount: targetChapterWords
-                }, bookId);
-
-                // Wait for ALL paragraphs to be completed
-                let isDone = false;
-                let attempts = 0;
-                while (!isDone && attempts < 120) { // Can take up to 10 minutes for a huge chapter
-                    await new Promise(r => setTimeout(r, 5000));
-                    const { data: checks } = await supabase.from('paragraphs')
-                        .select('status, content')
-                        .eq('chapter_id', id);
-                    
-                    if (checks && checks.every(c => c.status === 'COMPLETED' || (c.content && c.content.length > 50))) {
-                        isDone = true;
-                    }
-                    attempts++;
-                }
-
-                // Compile chapter
-                const { data: latestParagraphs } = await supabase.from('paragraphs').select('content').eq('chapter_id', id).order('paragraph_number', { ascending: true });
-                if (latestParagraphs) {
-                    const compiled = latestParagraphs.filter(p => p.content).map(p => p.content).join('\n\n');
-                    await supabase.from('chapters').update({ content: compiled }).eq('id', id);
+        let cancelled = false;
+        const poll = async () => {
+            try {
+                const run = await getBookGenerationStatus(runId);
+                if (cancelled) return;
+                syncRunState(run);
+                await fetchChapters();
+            } catch (error) {
+                if (!cancelled) {
+                    console.error('Failed to poll book generation run:', error);
                 }
             }
+        };
 
-            const { data: finalParagraphs } = await supabase
-                .from('paragraphs')
-                .select('content, actual_word_count, target_word_count')
-                .eq('chapter_id', id);
+        poll();
+        const interval = setInterval(poll, 5000);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [fetchChapters, isRunActive, runId, syncRunState]);
 
-            const totalWords = (finalParagraphs || []).reduce((acc, p) => {
-                if (Number.isFinite(p.actual_word_count) && (p.actual_word_count || 0) > 0) {
-                    return acc + Number(p.actual_word_count);
-                }
-                const text = p.content || '';
-                const wc = text.split(/\s+/).filter((w: string) => w.length > 0).length;
-                return acc + wc;
-            }, 0);
-
-            if (totalWords < minChapterWords) {
-                await supabase.from('chapters').update({ status: 'PENDING' }).eq('id', id);
-                throw new Error(`Capitolo sotto target qualitativo: ${totalWords} parole, minimo richiesto ${minChapterWords}`);
-            }
-
-            // After all paragraphs are done and quality threshold is satisfied, mark chapter as COMPLETED
-            await supabase.from('chapters').update({ status: 'COMPLETED' }).eq('id', id);
-
-            fetchChapters();
-        } catch (e) {
-            console.error("Error generating chapter paragraphs:", e);
-            setChapters(prev => prev.map(c => c.id === id ? { ...c, status: 'PENDING' } : c));
+    useEffect(() => {
+        if (!runPhase) {
+            setLoadingSubMessage('');
+            return;
         }
-    };
+
+        const chapterLabel = currentRunChapterNumber ? `Capitolo ${currentRunChapterNumber}` : 'capitolo corrente';
+
+        if (runPhase === 'outline') {
+            setLoadingSubMessage("Verifica struttura capitoli e blueprint...");
+            return;
+        }
+
+        if (runPhase === 'scaffold') {
+            setLoadingSubMessage("Controllo e completamento delle tracce dei sottocapitoli...");
+            return;
+        }
+
+        if (runPhase === 'write_chapter') {
+            setLoadingSubMessage(`L'orchestratore sta scrivendo ${chapterLabel} in modo sequenziale...`);
+            return;
+        }
+
+        if (runPhase === 'final_review') {
+            setLoadingSubMessage("Controllo finale di completezza e target pagine...");
+            return;
+        }
+
+        setLoadingSubMessage('');
+    }, [currentRunChapterNumber, runPhase]);
 
     const checkChapterCompletion = (c: DBChapter) => {
         return c.status === 'COMPLETED';
     };
 
     const generateAll = async () => {
-        setGlobalGenerating(true);
+        if (!bookId) return;
+
+        setStartingRun(true);
+        setRunError(null);
         setLoadingMessage(loadingPhases[0]);
 
-        const toGenerate = chapters.filter(c => !checkChapterCompletion(c));
-
-        for (const chap of toGenerate) {
-            setLoadingSubMessage(`L'IA sta scrivendo il Capitolo: ${chap.title}...`);
-            await generateChapter(chap.id, chap.paragraphs);
-
-            // Wait until it's really fully updated in state
+        try {
+            const result = await startBookGeneration(bookId);
+            setRunId(result.runId);
+            setRunStatus('pending');
+            setRunPhase('outline');
+            persistRunId(result.runId);
             await fetchChapters();
+        } catch (error) {
+            const err = error as Error & { runId?: string; status?: RunStatus; phase?: RunPhase };
+            if (err.runId) {
+                setRunId(err.runId);
+                setRunStatus(err.status || 'pending');
+                setRunPhase(err.phase || 'outline');
+                persistRunId(err.runId);
+            } else {
+                setRunError(err.message || 'Avvio della generazione fallito');
+            }
+        } finally {
+            setStartingRun(false);
         }
-
-        setGlobalGenerating(false);
-        fetchChapters();
     };
 
     const currentChapter = chapters.find(c => c.id === selectedChapterId);
+    const activeRunChapter = currentRunChapterId
+        ? chapters.find(c => c.id === currentRunChapterId) || null
+        : (currentRunChapterNumber
+            ? chapters.find((chapter, index) => index + 1 === currentRunChapterNumber) || null
+            : null);
     const completedCount = chapters.filter(c => checkChapterCompletion(c)).length;
     const progress = (completedCount / Math.max(chapters.length, 1)) * 100;
 
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', height: '100%', gap: '1rem', overflow: 'hidden' }}>
 
-            {globalGenerating && (
+            {isRunActive && (
                 <div style={{
                     position: 'fixed', inset: 0, background: 'rgba(5, 5, 8, 0.95)', backdropFilter: 'blur(20px)',
                     zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2rem'
@@ -478,6 +452,11 @@ const ProductionPage: React.FC = () => {
                             {loadingMessage}
                         </h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', fontWeight: 500 }}>{loadingSubMessage}</p>
+                        {activeRunChapter && (
+                            <p style={{ color: 'var(--text-primary)', fontSize: '0.95rem', marginTop: '0.75rem' }}>
+                                In lavorazione: {activeRunChapter.title}
+                            </p>
+                        )}
                     </div>
                 </div>
             )}
@@ -489,14 +468,32 @@ const ProductionPage: React.FC = () => {
                     <div className="progress-container">
                         <div className="progress-bar" style={{ width: `${progress}%` }}></div>
                     </div>
+                    {runError && (
+                        <div style={{
+                            marginTop: '0.9rem',
+                            padding: '0.75rem 0.9rem',
+                            borderRadius: '12px',
+                            background: 'rgba(255, 99, 132, 0.08)',
+                            border: '1px solid rgba(255, 99, 132, 0.25)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.85rem'
+                        }}>
+                            {runError}
+                        </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', gap: '0.5rem' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{completedCount} / {chapters.length} capitoli completati</span>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
-                            <button onClick={generateAll} disabled={globalGenerating || completedCount === chapters.length} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
-                                <Play size={14} /> Elabora Tutto
+                            <button onClick={generateAll} disabled={startingRun || isRunActive || completedCount === chapters.length} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+                                {startingRun ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Elabora Tutto
                             </button>
                         </div>
                     </div>
+                    {runId && (
+                        <div style={{ marginTop: '0.8rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            Run: {runPhase || 'n/d'} · Stato: {runStatus || 'n/d'}
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>

@@ -183,4 +183,61 @@ export const callBookAgent = async (action: string, body: any, bookId?: string |
     }
 };
 
+export interface BookGenerationRunStatus {
+    id: string;
+    book_id: string;
+    status: 'pending' | 'planning' | 'writing' | 'review' | 'completed' | 'failed';
+    phase: 'outline' | 'scaffold' | 'write_chapter' | 'final_review';
+    current_chapter_id: string | null;
+    current_chapter_number: number | null;
+    target_total_words: number;
+    actual_total_words: number;
+    expected_chapters: number | null;
+    completed_chapters: number | null;
+    last_error: string | null;
+    metadata: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export const startBookGeneration = async (bookId: string): Promise<{ runId: string; status: string }> => {
+    const authHeaders = await getAuthHeaders();
+    const response = await fetch('/api/book-generation/start', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ bookId })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const error = new Error(payload?.error || 'Failed to start book generation') as Error & {
+            runId?: string;
+            status?: string;
+            phase?: string;
+        };
+
+        if (payload?.runId) error.runId = payload.runId;
+        if (payload?.status) error.status = payload.status;
+        if (payload?.phase) error.phase = payload.phase;
+        throw error;
+    }
+
+    return payload;
+};
+
+export const getBookGenerationStatus = async (runId: string): Promise<BookGenerationRunStatus> => {
+    const authHeaders = await getAuthHeaders();
+    const response = await fetch(`/api/book-generation/status/${runId}`, {
+        method: 'GET',
+        headers: authHeaders
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to fetch book generation status');
+    }
+
+    return payload as BookGenerationRunStatus;
+};
+
 export { supabase };

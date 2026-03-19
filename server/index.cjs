@@ -75,6 +75,471 @@ const logDebug = async (source, eventType, payload, bookId = null) => {
     }
 };
 
+const createScopedSupabaseFromToken = (token) => createClient(
+    process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+    process.env.VITE_SUPABASE_ANON_KEY || "",
+    {
+        global: {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        }
+    }
+);
+
+const getWordsPerPage = (book) => {
+    const fromConfig = Number(book?.configuration?.words_per_page);
+    const fromContext = Number(book?.context_data?.configuration?.words_per_page);
+    if (Number.isFinite(fromConfig) && fromConfig > 0) return Math.round(fromConfig);
+    if (Number.isFinite(fromContext) && fromContext > 0) return Math.round(fromContext);
+    return 250;
+};
+
+const getExpectedParagraphsPerChapter = (book) => {
+    const targetPages = Number(book?.target_pages || book?.context_data?.target_pages);
+    const targetChapters = Number(book?.target_chapters || 0);
+    if (!Number.isFinite(targetPages) || targetPages <= 0) return null;
+    if (!Number.isFinite(targetChapters) || targetChapters <= 0) return null;
+    return Math.max(1, Math.round(targetPages / targetChapters));
+};
+
+const getTargetWordsPerChapter = (book) => {
+    const targetPages = Number(book?.target_pages || book?.context_data?.target_pages);
+    const targetChapters = Number(book?.target_chapters || 0);
+    const wordsPerPage = getWordsPerPage(book);
+
+    if (!Number.isFinite(targetPages) || targetPages <= 0) {
+        return Math.round(wordsPerPage * 5);
+    }
+
+    if (!Number.isFinite(targetChapters) || targetChapters <= 0) {
+        return Math.round(targetPages * wordsPerPage);
+    }
+
+    return Math.max(250, Math.round((targetPages * wordsPerPage) / targetChapters));
+};
+
+const countWords = (text) => {
+    if (!text || typeof text !== 'string') return 0;
+    return text.split(/\s+/).filter(word => word.length > 0).length;
+};
+
+async function failBookGenerationRun(runId, phase, lastError, extra = {}) {
+    await supabase.from('book_generation_runs')
+        .update({
+            status: 'failed',
+            phase,
+            last_error: lastError,
+            updated_at: new Date().toISOString(),
+            ...extra
+        })
+        .eq('id', runId);
+}
+
+async function refreshBookGenerationRunState(runId, book) {
+    try {
+        const targetPages = Number(book?.target_pages || book?.context_data?.target_pages);
+        const targetChapters = Number(book?.target_chapters || 0);
+        const expectedParagraphsPerChapter = getExpectedParagraphsPerChapter(book);
+
+        if (!Number.isFinite(targetPages) || targetPages <= 0) {
+            await failBookGenerationRun(runId, 'outline', 'Missing or invalid target_pages');
+            return;
+        }
+
+        const { data: chapters, error: chaptersError } = await supabase
+            .from('chapters')
+            .select('id, chapter_number, title, status')
+            .eq('book_id', book.id)
+            .order('chapter_number', { ascending: true });
+
+        if (chaptersError) {
+            await failBookGenerationRun(runId, 'outline', `Failed to load chapters: ${chaptersError.message}`);
+            return;
+        }
+
+        const chaptersCount = chapters?.length || 0;
+        const targetTotalWords = Math.round(targetPages * getWordsPerPage(book));
+        if (chaptersCount === 0) {
+            await failBookGenerationRun(runId, 'outline', 'Outline missing: no chapters found for book');
+            return;
+        }
+
+        if (Number.isFinite(targetChapters) && targetChapters > 0 && chaptersCount !== Math.round(targetChapters)) {
+            await failBookGenerationRun(runId, 'outline', `Outline mismatch: expected ${Math.round(targetChapters)} chapters, found ${chaptersCount}`);
+            return;
+        }
+
+        const chapterIds = chapters.map(ch => ch.id);
+        const { data: paragraphs, error: paragraphsError } = await supabase
+            .from('paragraphs')
+            .select('id, chapter_id, paragraph_number, status, actual_word_count, content')
+            .in('chapter_id', chapterIds);
+
+        if (paragraphsError) {
+            await failBookGenerationRun(runId, 'scaffold', `Failed to load paragraphs: ${paragraphsError.message}`);
+            return;
+        }
+
+        const paragraphsByChapter = new Map();
+        for (const chapter of chapters) {
+            paragraphsByChapter.set(chapter.id, []);
+        }
+        for (const paragraph of paragraphs || []) {
+            if (!paragraphsByChapter.has(paragraph.chapter_id)) {
+                paragraphsByChapter.set(paragraph.chapter_id, []);
+            }
+            paragraphsByChapter.get(paragraph.chapter_id).push(paragraph);
+        }
+
+        const firstIncompleteScaffold = expectedParagraphsPerChapter
+            ? chapters.find(ch => (paragraphsByChapter.get(ch.id) || []).length < expectedParagraphsPerChapter)
+            : chapters.find(ch => (paragraphsByChapter.get(ch.id) || []).length === 0);
+
+        if (firstIncompleteScaffold) {
+            await failBookGenerationRun(
+                runId,
+                'scaffold',
+                expectedParagraphsPerChapter
+                    ? `Scaffold incomplete for chapter ${firstIncompleteScaffold.chapter_number}: expected ${expectedParagraphsPerChapter} paragraphs`
+                    : `Scaffold missing for chapter ${firstIncompleteScaffold.chapter_number}`,
+                {
+                    current_chapter_id: firstIncompleteScaffold.id,
+                    current_chapter_number: firstIncompleteScaffold.chapter_number,
+                    target_total_words: targetTotalWords,
+                    expected_chapters: Number.isFinite(targetChapters) && targetChapters > 0 ? Math.round(targetChapters) : chaptersCount,
+                    metadata: {
+                        expected_paragraphs_per_chapter: expectedParagraphsPerChapter,
+                        scaffold_ready_chapters: chapters.filter(ch => (paragraphsByChapter.get(ch.id) || []).length >= (expectedParagraphsPerChapter || 1)).length,
+                        chapters_count: chaptersCount
+                    }
+                }
+            );
+            return;
+        }
+
+        const actualTotalWords = (paragraphs || []).reduce((acc, paragraph) => {
+            if (Number.isFinite(paragraph.actual_word_count) && paragraph.actual_word_count > 0) {
+                return acc + Number(paragraph.actual_word_count);
+            }
+            return acc + countWords(paragraph.content);
+        }, 0);
+
+        const nextChapter = chapters.find(ch => ch.status !== 'COMPLETED') || null;
+
+        const { error } = await supabase.from('book_generation_runs')
+            .update({
+                status: nextChapter ? 'writing' : 'review',
+                phase: nextChapter ? 'write_chapter' : 'final_review',
+                current_chapter_id: nextChapter?.id || null,
+                current_chapter_number: nextChapter?.chapter_number || null,
+                target_total_words: targetTotalWords,
+                actual_total_words: actualTotalWords,
+                expected_chapters: Number.isFinite(targetChapters) && targetChapters > 0 ? Math.round(targetChapters) : null,
+                completed_chapters: chapters.filter(ch => ch.status === 'COMPLETED').length,
+                last_error: null,
+                metadata: {
+                    book_status: book?.status || null,
+                    chapters_count: chaptersCount,
+                    expected_paragraphs_per_chapter: expectedParagraphsPerChapter
+                },
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', runId);
+
+        if (error) {
+            console.error(`[Book Generation] Failed to refresh run ${runId}:`, error.message);
+        }
+    } catch (error) {
+        console.error(`[Book Generation] Planning gate failed for run ${runId}:`, error.message);
+        await failBookGenerationRun(runId, 'outline', error.message);
+    }
+}
+
+async function getBookGenerationRun(runId) {
+    const { data, error } = await supabase
+        .from('book_generation_runs')
+        .select('*')
+        .eq('id', runId)
+        .single();
+
+    if (error || !data) {
+        throw new Error(`Run not found: ${runId}`);
+    }
+
+    return data;
+}
+
+async function getBookForGeneration(bookId) {
+    const { data, error } = await supabase
+        .from('books')
+        .select('id, title, status, target_pages, target_chapters, context_data, configuration')
+        .eq('id', bookId)
+        .single();
+
+    if (error || !data) {
+        throw new Error(`Book not found: ${bookId}`);
+    }
+
+    return data;
+}
+
+async function getChapterWithParagraphs(chapterId) {
+    const { data: chapter, error: chapterError } = await supabase
+        .from('chapters')
+        .select('*')
+        .eq('id', chapterId)
+        .single();
+
+    if (chapterError || !chapter) {
+        throw new Error(`Chapter not found: ${chapterId}`);
+    }
+
+    const { data: paragraphs, error: paragraphsError } = await supabase
+        .from('paragraphs')
+        .select('*')
+        .eq('chapter_id', chapterId)
+        .order('paragraph_number', { ascending: true });
+
+    if (paragraphsError) {
+        throw new Error(`Failed to load paragraphs for chapter ${chapterId}: ${paragraphsError.message}`);
+    }
+
+    return { chapter, paragraphs: paragraphs || [] };
+}
+
+async function createAiRequestAndWait({ userId, bookId, action, payload, timeoutMs = 6 * 60 * 1000 }) {
+    const { data: aiRequest, error: insertError } = await supabase
+        .from('ai_requests')
+        .insert({
+            user_id: userId,
+            book_id: bookId,
+            action,
+            status: 'pending',
+            request_payload: payload
+        })
+        .select()
+        .single();
+
+    if (insertError || !aiRequest) {
+        throw new Error(`Failed to create ai_request for ${action}`);
+    }
+
+    forwardToN8n(aiRequest.id, userId, { ...payload, action, bookId }, null).catch(async (err) => {
+        console.error(`[Book Generation] Worker dispatch failed for ${action}:`, err.message);
+        await supabase.from('ai_requests')
+            .update({
+                status: 'failed',
+                error_message: err.message,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', aiRequest.id);
+    });
+
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const { data: current, error } = await supabase
+            .from('ai_requests')
+            .select('*')
+            .eq('id', aiRequest.id)
+            .single();
+
+        if (error || !current) {
+            throw new Error(`ai_request disappeared while waiting for ${action}`);
+        }
+
+        if (current.status === 'completed') {
+            return current;
+        }
+
+        if (current.status === 'failed') {
+            throw new Error(current.error_message || `${action} failed`);
+        }
+    }
+
+    await supabase.from('ai_requests')
+        .update({
+            status: 'failed',
+            error_message: `Timeout waiting for ${action}`,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', aiRequest.id);
+
+    throw new Error(`Timeout waiting for ${action}`);
+}
+
+async function finalizeChapterIfReady(chapterId) {
+    const { chapter, paragraphs } = await getChapterWithParagraphs(chapterId);
+    const allDone = paragraphs.length > 0 && paragraphs.every(p => p.status === 'COMPLETED' && p.content && p.content.length > 20);
+    if (!allDone) {
+        return false;
+    }
+
+    const compiledContent = paragraphs.map(p => p.content || '').filter(Boolean).join('\n\n');
+    const actualWordCount = paragraphs.reduce((acc, p) => {
+        if (Number.isFinite(p.actual_word_count) && p.actual_word_count > 0) {
+            return acc + Number(p.actual_word_count);
+        }
+        return acc + countWords(p.content);
+    }, 0);
+
+    await supabase.from('chapters')
+        .update({
+            content: compiledContent,
+            actual_word_count: actualWordCount,
+            status: 'COMPLETED',
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', chapter.id);
+
+    return true;
+}
+
+async function processCurrentChapter(run, book) {
+    if (!run.current_chapter_id) {
+        throw new Error('Run missing current_chapter_id');
+    }
+
+    const expectedParagraphsPerChapter = getExpectedParagraphsPerChapter(book);
+    const targetWordsPerChapter = getTargetWordsPerChapter(book);
+    const { chapter, paragraphs } = await getChapterWithParagraphs(run.current_chapter_id);
+
+    if (paragraphs.length === 0) {
+        throw new Error(`Chapter ${chapter.chapter_number} has no scaffold paragraphs`);
+    }
+
+    if (expectedParagraphsPerChapter && paragraphs.length < expectedParagraphsPerChapter) {
+        throw new Error(`Chapter ${chapter.chapter_number} scaffold incomplete`);
+    }
+
+    const hasPendingParagraphs = paragraphs.some(p => p.status !== 'COMPLETED' || !p.content || p.content.length <= 20);
+    if (!hasPendingParagraphs) {
+        const finalizedAlready = await finalizeChapterIfReady(chapter.id);
+        if (!finalizedAlready) {
+            throw new Error(`Chapter ${chapter.chapter_number} is marked complete but cannot be finalized`);
+        }
+        return;
+    }
+
+    await supabase.from('book_generation_runs')
+        .update({
+            status: 'writing',
+            phase: 'write_chapter',
+            current_chapter_id: chapter.id,
+            current_chapter_number: chapter.chapter_number,
+            metadata: {
+                ...(run.metadata || {}),
+                active_paragraph_id: null,
+                active_paragraph_number: null,
+                expected_paragraphs_in_chapter: paragraphs.length,
+                target_words_for_chapter: targetWordsPerChapter
+            },
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', run.id);
+
+    await createAiRequestAndWait({
+        userId: run.created_by,
+        bookId: book.id,
+        action: 'WRITE_CHAPTER_FROM_PLAN',
+        payload: {
+            chapterId: chapter.id,
+            bookId: book.id,
+            targetWordCount: targetWordsPerChapter
+        }
+    });
+
+    const finalized = await finalizeChapterIfReady(chapter.id);
+    if (!finalized) {
+        throw new Error(`Chapter ${chapter.chapter_number} is still incomplete after chapter generation`);
+    }
+}
+
+async function finalizeBookGenerationRun(runId, book) {
+    const { data: chapters, error: chaptersError } = await supabase
+        .from('chapters')
+        .select('id, status, actual_word_count, content')
+        .eq('book_id', book.id)
+        .order('chapter_number', { ascending: true });
+
+    if (chaptersError) {
+        throw new Error(`Failed to load chapters during final review: ${chaptersError.message}`);
+    }
+
+    const totalWords = (chapters || []).reduce((acc, chapter) => {
+        if (Number.isFinite(chapter.actual_word_count) && chapter.actual_word_count > 0) {
+            return acc + Number(chapter.actual_word_count);
+        }
+        return acc + countWords(chapter.content);
+    }, 0);
+
+    const targetTotalWords = Math.round(Number(book.target_pages) * getWordsPerPage(book));
+    const minAllowed = Math.floor(targetTotalWords * 0.9);
+    const maxAllowed = Math.ceil(targetTotalWords * 1.1);
+    const allCompleted = (chapters || []).length > 0 && chapters.every(ch => ch.status === 'COMPLETED');
+
+    if (!allCompleted) {
+        throw new Error('Final review failed: not all chapters are completed');
+    }
+
+    if (totalWords < minAllowed || totalWords > maxAllowed) {
+        throw new Error(`Final review failed: total words ${totalWords} outside allowed range ${minAllowed}-${maxAllowed}`);
+    }
+
+    await supabase.from('book_generation_runs')
+        .update({
+            status: 'completed',
+            phase: 'final_review',
+            actual_total_words: totalWords,
+            current_chapter_id: null,
+            current_chapter_number: null,
+            last_error: null,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', runId);
+}
+
+async function continueBookGenerationRun(runId) {
+    try {
+        let iterations = 0;
+        while (iterations < 50) {
+            iterations += 1;
+            const run = await getBookGenerationRun(runId);
+            const book = await getBookForGeneration(run.book_id);
+
+            if (run.status === 'completed' || run.status === 'failed') {
+                return;
+            }
+
+            await refreshBookGenerationRunState(runId, book);
+            const refreshedRun = await getBookGenerationRun(runId);
+
+            if (refreshedRun.status === 'failed') {
+                return;
+            }
+
+            if (refreshedRun.phase === 'write_chapter' && refreshedRun.current_chapter_id) {
+                await processCurrentChapter(refreshedRun, book);
+                continue;
+            }
+
+            if (refreshedRun.phase === 'final_review') {
+                await finalizeBookGenerationRun(runId, book);
+                return;
+            }
+
+            return;
+        }
+
+        await failBookGenerationRun(runId, 'write_chapter', 'Run iteration guard exceeded');
+    } catch (error) {
+        console.error(`[Book Generation] Run ${runId} failed during orchestration:`, error.message);
+        await failBookGenerationRun(runId, 'write_chapter', error.message);
+    }
+}
+
 // --- EDITORIAL PIPELINE UTILS ---
 
 const removeEmojis = (text) => {
@@ -1015,6 +1480,169 @@ app.post("/api/auth/verify-invite", (req, res) => {
     }
 
     return res.json({ success: true });
+});
+
+/**
+ * POST /api/book-generation/start
+ * Creates a backend-orchestrated book generation run.
+ */
+app.post("/api/book-generation/start", async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        }
+
+        const token = authHeader.substring(7);
+        const scopedSupabase = createScopedSupabaseFromToken(token);
+
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
+        if (authError || !user) {
+            return res.status(401).json({ error: "Invalid or expired token" });
+        }
+
+        const { bookId } = req.body;
+        if (!bookId) {
+            return res.status(400).json({ error: "Missing 'bookId' parameter" });
+        }
+
+        const { data: book, error: bookError } = await scopedSupabase
+            .from('books')
+            .select('id, title, status, target_pages, target_chapters, context_data, configuration')
+            .eq('id', bookId)
+            .single();
+
+        if (bookError || !book) {
+            return res.status(404).json({ error: "Book not found or access denied" });
+        }
+
+        const { count: chaptersCount, error: chaptersCountError } = await scopedSupabase
+            .from('chapters')
+            .select('id', { count: 'exact', head: true })
+            .eq('book_id', bookId);
+
+        if (chaptersCountError) {
+            console.error('[Book Generation] Failed to count chapters:', chaptersCountError.message);
+            return res.status(500).json({ error: 'Failed to inspect book chapters' });
+        }
+
+        const activeStatuses = ['pending', 'planning', 'writing', 'review'];
+        const { data: existingRun, error: existingRunError } = await scopedSupabase
+            .from('book_generation_runs')
+            .select('id, status, phase, updated_at')
+            .eq('book_id', bookId)
+            .in('status', activeStatuses)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (existingRunError) {
+            console.error('[Book Generation] Failed to check existing run:', existingRunError.message);
+            return res.status(500).json({ error: 'Failed to check active runs' });
+        }
+
+        if (existingRun) {
+            return res.status(409).json({
+                error: 'A generation run is already active for this book',
+                runId: existingRun.id,
+                status: existingRun.status,
+                phase: existingRun.phase
+            });
+        }
+
+        const targetPages = Number(book?.target_pages || book?.context_data?.target_pages);
+        if (!Number.isFinite(targetPages) || targetPages <= 0) {
+            return res.status(400).json({ error: 'Book is missing a valid target_pages value' });
+        }
+
+        const targetTotalWords = Math.round(targetPages * getWordsPerPage(book));
+
+        const { data: run, error: runInsertError } = await scopedSupabase
+            .from('book_generation_runs')
+            .insert({
+                book_id: bookId,
+                created_by: user.id,
+                status: 'pending',
+                phase: 'outline',
+                target_total_words: targetTotalWords,
+                expected_chapters: Number.isFinite(Number(book?.target_chapters)) ? Number(book.target_chapters) : null,
+                metadata: {
+                    source: 'api/book-generation/start',
+                    book_status: book.status || null
+                }
+            })
+            .select()
+            .single();
+
+        if (runInsertError || !run) {
+            console.error('[Book Generation] Failed to create run:', runInsertError?.message);
+            return res.status(500).json({ error: 'Failed to create generation run' });
+        }
+
+        res.json({
+            status: 'started',
+            runId: run.id
+        });
+
+        continueBookGenerationRun(run.id).catch(err => {
+            console.error('[Book Generation] Async orchestration error:', err.message);
+        });
+    } catch (err) {
+        console.error('[Book Generation] Start error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
+ * GET /api/book-generation/status/:runId
+ * Returns orchestrator run state.
+ */
+app.get("/api/book-generation/status/:runId", async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.split('Bearer ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
+        const scopedSupabase = createScopedSupabaseFromToken(token);
+        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
+        if (authError || !user) {
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        const runId = req.params.runId;
+        const { data: run, error } = await scopedSupabase
+            .from('book_generation_runs')
+            .select('*')
+            .eq('id', runId)
+            .single();
+
+        if (error || !run) {
+            return res.status(404).json({ error: 'Run not found' });
+        }
+
+        res.json({
+            id: run.id,
+            status: run.status,
+            phase: run.phase,
+            book_id: run.book_id,
+            current_chapter_id: run.current_chapter_id,
+            current_chapter_number: run.current_chapter_number,
+            target_total_words: run.target_total_words,
+            actual_total_words: run.actual_total_words,
+            expected_chapters: run.expected_chapters,
+            completed_chapters: run.completed_chapters,
+            last_error: run.last_error,
+            metadata: run.metadata,
+            created_at: run.created_at,
+            updated_at: run.updated_at
+        });
+    } catch (err) {
+        console.error('[Book Generation] Status error:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // --- AI AGENT PROXY (ASYNC WITH POLLING) ---

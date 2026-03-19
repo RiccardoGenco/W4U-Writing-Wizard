@@ -2002,7 +2002,7 @@
           "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
         }
       },
-      "id": "8b4414cd-4e38-46b8-b897-b7a1475bbf3b",
+      "id": "624474ea-ce58-44ad-ae59-5dde5399bb3e",
       "name": "Get Book Context Chapter Writer",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
@@ -2020,12 +2020,12 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT * FROM paragraphs WHERE chapter_id = $1::uuid ORDER BY paragraph_number ASC",
+        "query": "SELECT p.*, c.title AS chapter_title, c.summary AS chapter_summary FROM paragraphs p JOIN chapters c ON p.chapter_id = c.id WHERE p.chapter_id = $1::uuid ORDER BY p.paragraph_number ASC",
         "options": {
           "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId] }}"
         }
       },
-      "id": "8a4662d4-f079-4a98-acfd-f719ade6b00e",
+      "id": "09b42fd8-d66b-4bb4-babd-b1f563b64c0d",
       "name": "Get Chapter Paragraphs",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
@@ -2039,6 +2039,20 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const paragraphs = $items(\"Get Chapter Paragraphs\").map(i => i.json);\nconst context = $node[\"Get Book Context Chapter Writer\"].json || {};\nconst webhook = $node[\"Webhook Router\"].json.body || {};\n\nif (!Array.isArray(paragraphs) || paragraphs.length === 0) {\n  throw new Error('No scaffold paragraphs found for chapter writer');\n}\n\nconst model = context.primary_model || 'gpt-4o';\nconst temperature = context.temps.CHAPTER_WRITER || 0.5;\nconst systemPrompt = context.prompts.CHAPTER_WRITER || 'Sei un autore professionale. Scrivi testi coerenti, specifici e narrativamente solidi.';\nconst chapter = paragraphs[0] || {};\nconst chapterTitle = chapter.chapter_title || webhook.chapterTitle || 'Capitolo senza titolo';\nconst chapterSummary = chapter.chapter_summary || webhook.chapterSummary || '';\nconst targetWordCount = Number(webhook.targetWordCount);\nconst safeTargetWordCount = Number.isFinite(targetWordCount) && targetWordCount > 0 ? Math.round(targetWordCount) : Math.max(1200, paragraphs.length * 250);\nconst minWordCount = Math.max(800, Math.floor(safeTargetWordCount * 0.9));\nconst outlineStr = paragraphs.map((p) => `- ${p.paragraph_number}. ${p.title}\\n  Obiettivo: ${p.description || '(non specificato)'}`).join('\\n');\nconst continuity = (context.context_data?.messages || []).slice(-12).map((m) => `${m.role}: ${m.content}`).join('\\n');\n\nconst userPrompt = [\n  `TITOLO LIBRO: ${context.title || ''}`,\n  `PLOT SUMMARY: ${context.plot_summary || ''}`,\n  `BLUEPRINT: ${JSON.stringify(context.context_data || {})}`,\n  `CAPITOLO: ${chapterTitle}`,\n  `SINTESI CAPITOLO: ${chapterSummary}`,\n  '',\n  'TRACCIA DEI SOTTOCAPITOLI DA COPRIRE IN ORDINE:',\n  outlineStr,\n  '',\n  'CONTINUITA DALLA FASE PRECEDENTE:',\n  continuity || '(non disponibile)',\n  '',\n  `VINCOLO LUNGHEZZA: scrivi l'intero capitolo con almeno ${minWordCount} parole e obiettivo ${safeTargetWordCount} parole complessive.`,\n  'REGOLE:',\n  '- Copri tutti i sottocapitoli nell ordine dato, senza saltarne nessuno.',\n  '- Mantieni coerenza narrativa, evita ripetizioni e filler.',\n  '- Ogni contenuto deve essere testo finale, non scalette o note metatestuali.',\n  '- Restituisci SOLO JSON valido con questa forma:',\n  '{\"paragraphs\":[{\"paragraph_number\":1,\"content\":\"...\"}]}',\n  '- L array paragraphs deve contenere esattamente un elemento per ogni sottocapitolo previsto.',\n  '- Usa gli stessi paragraph_number della traccia.'\n].join('\\n');\n\nreturn [{\n  json: {\n    model,\n    temperature,\n    systemPrompt,\n    userPrompt,\n    expectedParagraphs: paragraphs.length,\n    targetWordCount: safeTargetWordCount\n  }\n}];"
+      },
+      "id": "e274782e-b444-47eb-8af6-6cfeac44a21a",
+      "name": "Prepare Writer Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        1600
+      ]
     },
     {
       "parameters": {
@@ -2057,17 +2071,17 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": $node[\"Get Book Context Chapter Writer\"].json.primary_model || \"gpt-4o\", \"temperature\": $node[\"Get Book Context Chapter Writer\"].json.temps.CHAPTER_WRITER || 0.7, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Get Book Context Chapter Writer\"].json.prompts.CHAPTER_WRITER || \"Sei un autore.\" }, { \"role\": \"user\", \"content\": \"BLUEPRINT: \" + JSON.stringify($node[\"Get Book Context Chapter Writer\"].json.context_data.blueprint || {}) + \"\\n\\nOUTLINE SOTTOCAPITOLI PREVISTI:\\n\" + JSON.stringify($json.map(p => ({ number: p.paragraph_number, title: p.title, description: p.description }))) + \"\\n\\nOBIETTIVO PAROLE: DEVI raggiungere un target prestabilito di pagine. Per fare questo, assicurati di generare ALMENO \" + ($node[\"Webhook Router\"].json.body.targetWordCount || 2500) + \" parole combinando tutti i sottocapitoli formattati appropriatamente. Sii super dettagliato narrativamente per estendere la lunghezza del testo.\" } ] } }}",
+        "jsonBody": "={{ { \"model\": $node[\"Prepare Writer Payload\"].json.model, \"temperature\": $node[\"Prepare Writer Payload\"].json.temperature, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Prepare Writer Payload\"].json.systemPrompt }, { \"role\": \"user\", \"content\": $node[\"Prepare Writer Payload\"].json.userPrompt } ] } }}",
         "options": {
           "timeout": 300000
         }
       },
-      "id": "8c363214-46fe-4c06-a464-034637fd8dc6",
+      "id": "0ec777b8-193f-4c12-aba5-d91ecb185acb",
       "name": "Agent: Chapter Writer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        400,
+        600,
         1600
       ],
       "credentials": {
@@ -2079,14 +2093,15 @@
     },
     {
       "parameters": {
-        "jsCode": "let rawContent = $node['Agent: Chapter Writer'].json.choices[0].message.content;\nrawContent = rawContent.replace(/```json\\n?|```/g, '').replace(/<think>[\\\\s\\\\S]*?<\\/think>/g, '').trim();\ntry { return { json: JSON.parse(rawContent) }; } catch(e) { throw new Error('Invalid JSON: ' + rawContent); }"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const expectedParagraphs = Number($node['Prepare Writer Payload'].json.expectedParagraphs || 0);\nlet rawContent = $items('Agent: Chapter Writer')[0].json.choices[0].message.content;\nrawContent = rawContent.replace(/```json\\n?|```/g, '').replace(/<think>[\\\\s\\\\S]*?<\\/think>/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(rawContent);\n} catch (e) {\n  throw new Error('Invalid JSON from chapter writer: ' + rawContent);\n}\n\nconst paragraphs = Array.isArray(parsed?.paragraphs) ? parsed.paragraphs : [];\nif (!Array.isArray(paragraphs) || paragraphs.length === 0) {\n  throw new Error('Chapter writer returned no paragraphs');\n}\n\nconst normalized = paragraphs\n  .map((paragraph) => ({\n    paragraph_number: Number(paragraph?.paragraph_number),\n    content: typeof paragraph?.content === 'string' ? paragraph.content.replace(/```markdown\\n?|```/g, '').trim() : ''\n  }))\n  .filter((paragraph) => Number.isFinite(paragraph.paragraph_number) && paragraph.paragraph_number > 0 && paragraph.content.length > 0)\n  .sort((a, b) => a.paragraph_number - b.paragraph_number);\n\nif (expectedParagraphs > 0 && normalized.length !== expectedParagraphs) {\n  throw new Error(`Chapter writer returned ${normalized.length} paragraphs, expected ${expectedParagraphs}`);\n}\n\nconst uniqueNumbers = new Set(normalized.map((paragraph) => paragraph.paragraph_number));\nif (uniqueNumbers.size !== normalized.length) {\n  throw new Error('Chapter writer returned duplicate paragraph_number values');\n}\n\nreturn [{ json: { paragraphs: normalized } }];"
       },
-      "id": "66dab439-e2fe-4626-b39b-a03f4aa31448",
+      "id": "fa997b06-9094-488e-a1b4-6da2908e95c1",
       "name": "Sanitize Chapter JSON",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        600,
+        800,
         1600
       ]
     },
@@ -2098,31 +2113,8 @@
           "queryReplacement": "={{ [JSON.stringify($json.paragraphs || []), $node[\"Webhook Router\"].json.body.chapterId] }}"
         }
       },
-      "id": "579205e6-013e-4b08-adc6-8db28fb37c7b",
+      "id": "d9d0e5e4-45e4-43dd-b016-5b54b8d66db4",
       "name": "Update Chapter Paragraphs Bulk",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
-      "position": [
-        800,
-        1600
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "0AsoTCNHEls3AaYu",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE chapters SET status = 'COMPLETED' WHERE id = $1::uuid",
-        "options": {
-          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId] }}"
-        }
-      },
-      "id": "992494c7-6599-4ec5-90ba-dc65e7511d8e",
-      "name": "Mark Chapter Completed",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
       "position": [
@@ -2135,6 +2127,44 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE chapters c SET content = chapter_data.compiled_content, actual_word_count = chapter_data.actual_word_count, status = 'COMPLETED', updated_at = NOW() FROM ( SELECT p.chapter_id, string_agg(COALESCE(p.content, ''), E'\\n\\n' ORDER BY p.paragraph_number ASC) AS compiled_content, COALESCE(SUM(COALESCE(p.actual_word_count, array_length(regexp_split_to_array(COALESCE(p.content, ''), '\\\\s+'), 1))), 0) AS actual_word_count FROM paragraphs p WHERE p.chapter_id = $1::uuid GROUP BY p.chapter_id ) AS chapter_data WHERE c.id = chapter_data.chapter_id",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.chapterId] }}"
+        }
+      },
+      "id": "7ec8f78d-4d75-4f1e-baff-122df65fc9d2",
+      "name": "Mark Chapter Completed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1600
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"completed\", \"data\": { \"chapterId\": $node[\"Webhook Router\"].json.body.chapterId, \"paragraphs\": $node[\"Sanitize Chapter JSON\"].json.paragraphs, \"targetWordCount\": $node[\"Prepare Writer Payload\"].json.targetWordCount } } }}",
+        "options": {}
+      },
+      "id": "96dbfb1b-bd95-4c4d-8392-3d59b650b0c1",
+      "name": "Response Chapter Writer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        1600
+      ]
     }
   ],
   "pinData": {},
@@ -2583,7 +2613,7 @@
         ],
         [
           {
-            "node": "Respond Started",
+            "node": "Get Book Context Chapter Writer",
             "type": "main",
             "index": 0
           }
@@ -2935,7 +2965,7 @@
       "main": [
         [
           {
-            "node": "Agent: Chapter Writer",
+            "node": "Prepare Writer Payload",
             "type": "main",
             "index": 0
           }
@@ -2969,6 +2999,28 @@
         [
           {
             "node": "Mark Chapter Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Writer Payload": {
+      "main": [
+        [
+          {
+            "node": "Agent: Chapter Writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Chapter Completed": {
+      "main": [
+        [
+          {
+            "node": "Response Chapter Writer",
             "type": "main",
             "index": 0
           }
