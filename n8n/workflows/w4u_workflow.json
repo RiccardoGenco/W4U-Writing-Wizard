@@ -2383,14 +2383,14 @@
         ],
         [
           {
-            "node": "Get Book Context (Scaffolder)",
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Chunk Draft Text",
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }
