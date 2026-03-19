@@ -36,7 +36,7 @@ const EXPORT_OPTIONS: ExportOption[] = [
         title: 'EPUB eBook',
         label: 'EPUB senza copertina',
         filename: (bookId) => `libro_${bookId}.epub`,
-        progress: 'Il server sta preparando l’EPUB senza copertina...'
+        progress: "Il server sta preparando l'EPUB senza copertina..."
     },
     {
         id: 'PDF_EBOOK',

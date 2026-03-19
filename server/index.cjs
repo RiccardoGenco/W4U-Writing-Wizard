@@ -50,6 +50,22 @@ app.get("/api/health", (req, res) => {
     });
 });
 
+app.get("/api/db/schema-health", async (req, res) => {
+    try {
+        const checks = await Promise.all(REQUIRED_SUPABASE_TABLES.map((table) => checkSupabaseTableExists(table)));
+        const missing = checks.filter((check) => !check.exists);
+
+        res.status(missing.length > 0 ? 500 : 200).json({
+            status: missing.length > 0 ? 'incomplete' : 'ok',
+            checks,
+            missing_tables: missing.map((item) => item.table)
+        });
+    } catch (error) {
+        console.error('[DB Schema Health] Error:', error);
+        res.status(500).json({ status: 'error', error: error.message });
+    }
+});
+
 
 const supabase = createClient(
     process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
@@ -690,6 +706,49 @@ const renderTemplate = (template, data) => {
     return rendered;
 };
 
+const REQUIRED_SUPABASE_TABLES = [
+    'books',
+    'chapters',
+    'paragraphs',
+    'ai_requests',
+    'debug_logs',
+    'book_generation_runs'
+];
+
+const checkSupabaseTableExists = async (tableName) => {
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || "";
+
+    if (!supabaseUrl || !serviceRoleKey) {
+        return {
+            table: tableName,
+            exists: false,
+            status: 500,
+            error: 'Missing Supabase URL or service role key'
+        };
+    }
+
+    const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?select=*&limit=1`, {
+        method: 'GET',
+        headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`
+        }
+    });
+
+    if (response.ok) {
+        return { table: tableName, exists: true, status: response.status, error: null };
+    }
+
+    const errorText = await response.text().catch(() => '');
+    return {
+        table: tableName,
+        exists: false,
+        status: response.status,
+        error: errorText || `HTTP ${response.status}`
+    };
+};
+
 const createScopedSupabaseForRequest = async (req) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -733,17 +792,24 @@ const buildRenderableChapters = (chapters, paragraphs) => {
         .map((chapter) => {
             const chapterParagraphs = (paragraphsByChapter.get(chapter.id) || [])
                 .sort((a, b) => a.paragraph_number - b.paragraph_number);
+            
             const compiledContent = typeof chapter.content === 'string' ? chapter.content.trim() : '';
-            const hasRenderableContent = chapterParagraphs.length > 0 || compiledContent.length > 0;
+            
+            // Se abbiamo dei paragrafi, usiamo quelli. 
+            // Ma se il chapter.content (intro legacy) è diverso dalla concatenazione dei paragrafi, lo includiamo come intro.
+            const paragraphsText = chapterParagraphs.map(p => p.content || '').join('\n\n').trim();
+            const isDifferentFromParagraphs = compiledContent !== '' && compiledContent !== paragraphsText;
+
+            const exportCompiledContent = (chapterParagraphs.length === 0 || isDifferentFromParagraphs) ? compiledContent : '';
+            const hasRenderableContent = chapterParagraphs.length > 0 || exportCompiledContent.length > 0;
 
             return {
                 ...chapter,
                 exportParagraphs: chapterParagraphs,
-                exportCompiledContent: chapterParagraphs.length > 0 ? '' : compiledContent,
+                exportCompiledContent,
                 hasRenderableContent
             };
-        })
-        .filter((chapter) => chapter.hasRenderableContent);
+        });
 };
 
 const loadExportBundle = async (scopedSupabase, bookId) => {
@@ -775,8 +841,12 @@ const loadExportBundle = async (scopedSupabase, bookId) => {
     if (paragraphsError) throw new Error("Paragraphs not found");
 
     const renderableChapters = buildRenderableChapters(chapters, paragraphs || []);
-    if (renderableChapters.length === 0) {
-        throw new Error("No renderable chapters found for export");
+    
+    // Verifica che TUTTI i capitoli abbiano contenuto. Se filter ridurrebbe la lunghezza, significa che qualcuno è vuoto.
+    const emptyChapters = renderableChapters.filter(ch => !ch.hasRenderableContent);
+    if (emptyChapters.length > 0) {
+        const chapterNumbers = emptyChapters.map(ch => ch.chapter_number).join(', ');
+        throw new Error(`Export blocked: Chapters [${chapterNumbers}] have no renderable content (please generate them first).`);
     }
 
     const { data: promptData } = await scopedSupabase
@@ -995,9 +1065,18 @@ app.post("/export/docx", async (req, res) => {
         const docxDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
         const backCoverBlurb = getBackCoverBlurb(book);
-        const coverBuffer = normalizedEdition === 'paperback' && book.cover_url
-            ? await fetchRemoteBuffer(book.cover_url).catch(() => null)
-            : null;
+        
+        let coverBuffer = null;
+        if (normalizedEdition === 'paperback') {
+            if (!book.cover_url) {
+                throw new Error("Paperback export requires a book cover. Please generate one first.");
+            }
+            try {
+                coverBuffer = await fetchRemoteBuffer(book.cover_url);
+            } catch (err) {
+                throw new Error("Failed to download book cover for paperback export. Please check the cover image or retry.");
+            }
+        }
 
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
             Header, Footer, PageNumber, convertInchesToTwip,
@@ -1615,7 +1694,10 @@ app.post("/api/book-generation/start", async (req, res) => {
 
         if (existingRunError) {
             console.error('[Book Generation] Failed to check existing run:', existingRunError.message);
-            return res.status(500).json({ error: 'Failed to check active runs' });
+            const message = /book_generation_runs|relation|404/i.test(existingRunError.message || '')
+                ? 'Database schema incomplete: missing table book_generation_runs. Apply the latest Supabase migration before starting generation.'
+                : 'Failed to check active runs';
+            return res.status(500).json({ error: message });
         }
 
         if (existingRun) {
