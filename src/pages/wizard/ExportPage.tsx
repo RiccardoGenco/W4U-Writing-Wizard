@@ -3,6 +3,65 @@ import { Download, FileText, Smartphone, CheckCircle, Loader2 } from 'lucide-rea
 import { motion } from 'framer-motion';
 import { supabase, logDebug } from '../../lib/api';
 
+type ExportOption = {
+    id: string;
+    endpoint: '/export/pdf' | '/export/epub' | '/export/docx';
+    format: 'PDF' | 'EPUB' | 'DOCX';
+    edition: 'ebook' | 'paperback';
+    icon: typeof FileText;
+    title: string;
+    label: string;
+    filename: (bookId: string) => string;
+    progress: string;
+};
+
+const EXPORT_OPTIONS: ExportOption[] = [
+    {
+        id: 'DOCX_EBOOK',
+        endpoint: '/export/docx',
+        format: 'DOCX',
+        edition: 'ebook',
+        icon: FileText,
+        title: 'Word eBook',
+        label: 'Word per eBook',
+        filename: (bookId) => `libro_${bookId}_ebook.docx`,
+        progress: 'Il server sta preparando il Word per eBook...'
+    },
+    {
+        id: 'EPUB_EBOOK',
+        endpoint: '/export/epub',
+        format: 'EPUB',
+        edition: 'ebook',
+        icon: Smartphone,
+        title: 'EPUB eBook',
+        label: 'EPUB senza copertina',
+        filename: (bookId) => `libro_${bookId}.epub`,
+        progress: 'Il server sta preparando l’EPUB senza copertina...'
+    },
+    {
+        id: 'PDF_EBOOK',
+        endpoint: '/export/pdf',
+        format: 'PDF',
+        edition: 'ebook',
+        icon: FileText,
+        title: 'PDF eBook',
+        label: 'PDF con copertina front, senza numeri pagina',
+        filename: (bookId) => `libro_${bookId}_ebook.pdf`,
+        progress: 'Il server sta impaginando il PDF eBook...'
+    },
+    {
+        id: 'DOCX_PAPERBACK',
+        endpoint: '/export/docx',
+        format: 'DOCX',
+        edition: 'paperback',
+        icon: FileText,
+        title: 'Word Cartaceo',
+        label: 'Word con blank page, numeri pagina, front e back cover',
+        filename: (bookId) => `libro_${bookId}_cartaceo.docx`,
+        progress: 'Il server sta preparando il Word per il cartaceo...'
+    }
+];
+
 const ExportPage: React.FC = () => {
     const [exporting, setExporting] = useState(false);
     const [finished, setFinished] = useState(false);
@@ -14,6 +73,12 @@ const ExportPage: React.FC = () => {
         if (!selectedFormat) return;
         setErrorMsg(null);
 
+        const selectedOption = EXPORT_OPTIONS.find((option) => option.id === selectedFormat);
+        if (!selectedOption) {
+            setErrorMsg("Formato export non valido.");
+            return;
+        }
+
         const bookId = localStorage.getItem('active_book_id');
         if (!bookId) {
             setErrorMsg("Errore: ID libro non trovato. Torna alla dashboard e riapri il progetto.");
@@ -22,9 +87,12 @@ const ExportPage: React.FC = () => {
 
         setExporting(true);
         try {
-            await logDebug('frontend', `export_start_${selectedFormat.toLowerCase()}`, { bookId, format: selectedFormat }, bookId);
+            await logDebug('frontend', `export_start_${selectedOption.id.toLowerCase()}`, {
+                bookId,
+                format: selectedOption.format,
+                edition: selectedOption.edition
+            }, bookId);
 
-            // Get current session token for Auth
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
 
@@ -37,101 +105,37 @@ const ExportPage: React.FC = () => {
                 'Authorization': `Bearer ${token}`
             };
 
-            if (selectedFormat === 'PDF') {
-                setProgress("Il server sta impaginando il tuo libro (Richiede circa 10-30 secondi)...");
+            setProgress(selectedOption.progress);
 
-                const NODE_BACKEND_URL = '';
-                const response = await fetch(
-                    `${NODE_BACKEND_URL}/export/pdf`,
-                    {
-                        method: 'POST',
-                        headers: authHeaders,
-                        body: JSON.stringify({ bookId })
-                    }
-                );
+            const response = await fetch(selectedOption.endpoint, {
+                method: 'POST',
+                headers: authHeaders,
+                body: JSON.stringify({
+                    bookId,
+                    edition: selectedOption.edition
+                })
+            });
 
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
-                    throw new Error(error.error || "Errore durante la generazione del PDF");
-                }
-
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `libro_${bookId}.pdf`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                await logDebug('frontend', 'export_pdf_success', { bookId }, bookId);
-
-            } else if (selectedFormat === 'EPUB') {
-                setProgress("Il server Node sta preparando il file EPUB 3 (Richiede circa 10-20 secondi)...");
-
-                // Use relative path (handled by Vite proxy in dev, Vercel rewrites in prod)
-                const NODE_BACKEND_URL = '';
-                const response = await fetch(
-                    `${NODE_BACKEND_URL}/export/epub`,
-                    {
-                        method: 'POST',
-                        headers: authHeaders,
-                        body: JSON.stringify({ bookId })
-                    }
-                );
-
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
-                    throw new Error(error.error || "Errore durante la generazione dell'EPUB");
-                }
-
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `libro_${bookId}.epub`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                await logDebug('frontend', 'export_epub_success', { bookId }, bookId);
-
-            } else if (selectedFormat === 'DOCX') {
-                setProgress("Il server Node sta preparando il documento Word (Richiede circa 10-20 secondi)...");
-
-                // Use relative path (handled by Vite proxy in dev, Vercel rewrites in prod)
-                const NODE_BACKEND_URL = '';
-                const response = await fetch(
-                    `${NODE_BACKEND_URL}/export/docx`,
-                    {
-                        method: 'POST',
-                        headers: authHeaders,
-                        body: JSON.stringify({ bookId })
-                    }
-                );
-
-                if (!response.ok) {
-                    const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
-                    throw new Error(error.error || "Errore durante la generazione del DOCX");
-                }
-
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `libro_${bookId}.docx`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-                await logDebug('frontend', 'export_docx_success', { bookId }, bookId);
-
-            } else {
-                throw new Error(`Formato non supportato: ${selectedFormat}`);
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: "Errore sconosciuto" }));
+                throw new Error(error.error || `Errore durante la generazione del file ${selectedOption.title}`);
             }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = selectedOption.filename(bookId);
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            await logDebug('frontend', `export_${selectedOption.id.toLowerCase()}_success`, {
+                bookId,
+                format: selectedOption.format,
+                edition: selectedOption.edition
+            }, bookId);
 
             setFinished(true);
         } catch (err: any) {
@@ -140,7 +144,8 @@ const ExportPage: React.FC = () => {
             await logDebug('frontend', 'export_failed', {
                 error: err.message,
                 stack: err.stack,
-                format: selectedFormat
+                format: selectedOption.format,
+                edition: selectedOption.edition
             }, bookId);
         } finally {
             setExporting(false);
@@ -154,7 +159,7 @@ const ExportPage: React.FC = () => {
                 <>
                     <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Il tuo libro è pronto.</h1>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '3rem', fontSize: '1.2rem' }}>
-                        Scegli il formato e scarica il tuo capolavoro.
+                        Scegli il tipo di export giusto per eBook o stampa.
                     </p>
 
                     {errorMsg && (
@@ -165,7 +170,7 @@ const ExportPage: React.FC = () => {
                             borderRadius: '8px',
                             color: 'var(--error)',
                             marginBottom: '2rem',
-                            maxWidth: '600px',
+                            maxWidth: '700px',
                             marginLeft: 'auto',
                             marginRight: 'auto'
                         }}>
@@ -174,11 +179,7 @@ const ExportPage: React.FC = () => {
                     )}
 
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginBottom: '3rem', flexWrap: 'wrap' }}>
-                        {[
-                            { id: 'PDF', icon: FileText, label: 'Documento PDF (Qualità Stampa)' },
-                            { id: 'DOCX', icon: FileText, label: 'Documento Word (Editabile)' },
-                            { id: 'EPUB', icon: Smartphone, label: 'ePub (E-reader)' },
-                        ].map((fmt) => (
+                        {EXPORT_OPTIONS.map((fmt) => (
                             <motion.div
                                 key={fmt.id}
                                 whileHover={{ scale: 1.05 }}
@@ -189,12 +190,12 @@ const ExportPage: React.FC = () => {
                                     padding: '2rem',
                                     cursor: 'pointer',
                                     border: selectedFormat === fmt.id ? '2px solid var(--primary)' : '1px solid var(--glass-border)',
-                                    width: '240px',
+                                    width: '260px',
                                     background: selectedFormat === fmt.id ? 'rgba(79, 70, 229, 0.1)' : 'transparent'
                                 }}
                             >
                                 <fmt.icon size={48} color={selectedFormat === fmt.id ? 'var(--primary)' : 'var(--text-muted)'} style={{ marginBottom: '1rem' }} />
-                                <h3 style={{ fontSize: '1.1rem' }}>{fmt.id}</h3>
+                                <h3 style={{ fontSize: '1.1rem' }}>{fmt.title}</h3>
                                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{fmt.label}</p>
                             </motion.div>
                         ))}
@@ -225,7 +226,7 @@ const ExportPage: React.FC = () => {
                     </div>
                     <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Download Completato!</h2>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>
-                        Il tuo file {selectedFormat} è stato scaricato correttamente.
+                        Il tuo file è stato scaricato correttamente.
                     </p>
                     <div style={{
                         width: '200px',
@@ -242,7 +243,7 @@ const ExportPage: React.FC = () => {
                         fontSize: '1.5rem',
                         border: '1px solid rgba(255,255,255,0.2)'
                     }}>
-                        COPERTINA
+                        EXPORT
                     </div>
                 </motion.div>
             )}

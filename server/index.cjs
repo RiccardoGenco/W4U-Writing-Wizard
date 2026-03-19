@@ -690,6 +690,129 @@ const renderTemplate = (template, data) => {
     return rendered;
 };
 
+const createScopedSupabaseForRequest = async (req) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new Error("Missing or invalid Authorization header");
+    }
+
+    const token = authHeader.split('Bearer ')[1];
+    const scopedSupabase = createClient(
+        process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
+        process.env.VITE_SUPABASE_ANON_KEY || "",
+        {
+            global: {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            }
+        }
+    );
+
+    const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
+    if (authError || !user) {
+        throw new Error("Invalid token or user not found");
+    }
+
+    return { scopedSupabase, user };
+};
+
+const buildRenderableChapters = (chapters, paragraphs) => {
+    const paragraphsByChapter = new Map();
+    for (const paragraph of paragraphs || []) {
+        const key = paragraph.chapter_id;
+        if (!paragraphsByChapter.has(key)) {
+            paragraphsByChapter.set(key, []);
+        }
+        if (paragraph.content && paragraph.content.trim().length > 0) {
+            paragraphsByChapter.get(key).push(paragraph);
+        }
+    }
+
+    return (chapters || [])
+        .map((chapter) => {
+            const chapterParagraphs = (paragraphsByChapter.get(chapter.id) || [])
+                .sort((a, b) => a.paragraph_number - b.paragraph_number);
+            const compiledContent = typeof chapter.content === 'string' ? chapter.content.trim() : '';
+            const hasRenderableContent = chapterParagraphs.length > 0 || compiledContent.length > 0;
+
+            return {
+                ...chapter,
+                exportParagraphs: chapterParagraphs,
+                exportCompiledContent: chapterParagraphs.length > 0 ? '' : compiledContent,
+                hasRenderableContent
+            };
+        })
+        .filter((chapter) => chapter.hasRenderableContent);
+};
+
+const loadExportBundle = async (scopedSupabase, bookId) => {
+    const { data: book, error: bookError } = await scopedSupabase
+        .from("books")
+        .select("*")
+        .eq("id", bookId)
+        .single();
+
+    if (bookError || !book) throw new Error("Book not found or access denied");
+
+    const { data: chapters, error: chaptersError } = await scopedSupabase
+        .from("chapters")
+        .select("*")
+        .eq("book_id", bookId)
+        .order("chapter_number", { ascending: true });
+
+    if (chaptersError || !chapters || chapters.length === 0) {
+        throw new Error("Chapters not found");
+    }
+
+    const chapterIds = chapters.map((chapter) => chapter.id);
+    const { data: paragraphs, error: paragraphsError } = await scopedSupabase
+        .from("paragraphs")
+        .select("*")
+        .in("chapter_id", chapterIds)
+        .order("paragraph_number", { ascending: true });
+
+    if (paragraphsError) throw new Error("Paragraphs not found");
+
+    const renderableChapters = buildRenderableChapters(chapters, paragraphs || []);
+    if (renderableChapters.length === 0) {
+        throw new Error("No renderable chapters found for export");
+    }
+
+    const { data: promptData } = await scopedSupabase
+        .from("system_prompts")
+        .select("*")
+        .filter('key', 'ilike', 'courtesy_%');
+
+    const prompts = (promptData || []).reduce((acc, curr) => ({ ...acc, [curr.key]: curr.prompt_text }), {});
+
+    return {
+        book,
+        chapters: renderableChapters,
+        paragraphs: paragraphs || [],
+        prompts
+    };
+};
+
+const getBackCoverBlurb = (book) => {
+    const summary = normalizeText(removeEmojis(book?.plot_summary || ""));
+    if (summary) {
+        return summary.length > 900 ? `${summary.slice(0, 897)}...` : summary;
+    }
+
+    return `Preparati a immergerti tra le pagine di ${book?.title || 'questo libro'}. Un progetto costruito per offrire una lettura coinvolgente, coerente e curata in ogni dettaglio.`;
+};
+
+const fetchRemoteBuffer = async (url) => {
+    if (!url) return null;
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch remote asset: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+};
+
 
 // --- EPUB EXPORT ENDPOINT ---
 
@@ -701,68 +824,11 @@ app.post("/export/epub", async (req, res) => {
         const Epub = require("epub-gen-memory").default || require("epub-gen-memory"); // Lazy load
 
         const { marked } = await import("marked");
-
-        // Extract and validate Auth Token
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: "Missing or invalid Authorization header" });
-        }
-        const token = authHeader.split('Bearer ')[1];
-
-        // Create Scoped Client
-        const scopedSupabase = createClient(
-            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
-            process.env.VITE_SUPABASE_ANON_KEY || "",
-            {
-                global: {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            }
-        );
-
-        // Fetch User (Verify Token Validity)
-        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
-        if (authError || !user) return res.status(401).json({ error: "Invalid token or user not found" });
-
-        // Fetch Book using Scoped Client (Respects RLS)
-        const { data: book, error: bookError } = await scopedSupabase
-            .from("books")
-            .select("*")
-            .eq("id", bookId)
-            .single();
-
-        if (bookError || !book) throw new Error("Book not found or access denied");
-
-        // Fetch Chapters using Scoped Client
-        const { data: chapters, error: chaptersError } = await scopedSupabase
-            .from("chapters")
-            .select("*")
-            .eq("book_id", bookId)
-            .eq("status", "COMPLETED")
-            .order("chapter_number", { ascending: true });
-
-        if (chaptersError || !chapters) throw new Error("Chapters not found");
-
-        const { data: paragraphs, error: paragraphsError } = await scopedSupabase
-            .from("paragraphs")
-            .select("*")
-            .in("chapter_id", chapters.map(c => c.id))
-            .order("paragraph_number", { ascending: true });
-
-        if (paragraphsError) throw new Error("Paragraphs not found");
+        const { scopedSupabase } = await createScopedSupabaseForRequest(req);
+        const { book, chapters, prompts } = await loadExportBundle(scopedSupabase, bookId);
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
-
-        // Fetch Courtesy Templates
-        const { data: promptData } = await scopedSupabase
-            .from("system_prompts")
-            .select("*")
-            .filter('key', 'ilike', 'courtesy_%');
-
-        const prompts = (promptData || []).reduce((acc, curr) => ({ ...acc, [curr.key]: curr.prompt_text }), {});
         const epubDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const epubDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
 
@@ -778,19 +844,14 @@ app.post("/export/epub", async (req, res) => {
         const content = chapters.map((ch, index) => {
             const fullTitle = formatChapterTitle(index, ch.title || "Senza titolo");
 
-            // Compile paragraphs for this chapter
-            const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-
             // Build semantic HTML content
             let chapterHtml = `<div lang="it"><h1>${fullTitle}</h1>`;
 
-            // 1. Add Chapter Intro if exists
-            if (ch.content && ch.content.trim() !== "") {
-                chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.content)))}</div>`;
+            if (ch.exportCompiledContent) {
+                chapterHtml += `<div class="chapter-content">${marked.parse(normalizeText(removeEmojis(ch.exportCompiledContent)))}</div>`;
             }
 
-            // 2. Add Subchapters (Paragraphs)
-            chParagraphs.forEach(p => {
+            ch.exportParagraphs.forEach(p => {
                 const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
                 const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
                 chapterHtml += `<section class="subchapter">${subTitle}${subContent}</section>`;
@@ -916,94 +977,38 @@ app.post('/api/upload-draft', async (req, res) => {
 // --- DOCX EXPORT ENDPOINT ---
 
 app.post("/export/docx", async (req, res) => {
-    const { bookId } = req.body;
+    const { bookId, edition = 'ebook' } = req.body;
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
         const docx = require("docx"); // Lazy load
 
         const { marked } = await import("marked");
-
-        // Extract and validate Auth Token
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: "Missing or invalid Authorization header" });
-        }
-        const token = authHeader.split('Bearer ')[1];
-
-        // Create Scoped Client
-        const scopedSupabase = createClient(
-            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
-            process.env.VITE_SUPABASE_ANON_KEY || "",
-            {
-                global: {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            }
-        );
-
-        // Fetch User (Verify Token Validity)
-        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
-        if (authError || !user) return res.status(401).json({ error: "Invalid token or user not found" });
-
-        // Fetch Book using Scoped Client
-        const { data: book, error: bookError } = await scopedSupabase
-            .from("books")
-            .select("*")
-            .eq("id", bookId)
-            .single();
-
-        if (bookError || !book) throw new Error("Book not found or access denied");
-
-        const { data: chapters, error: chaptersError } = await scopedSupabase
-            .from("chapters")
-            .select("*")
-            .eq("book_id", bookId)
-            .eq("status", "COMPLETED")
-            .order("chapter_number", { ascending: true });
-
-        if (chaptersError || !chapters) throw new Error("Chapters not found");
-
-        const { data: paragraphs, error: paragraphsError } = await scopedSupabase
-            .from("paragraphs")
-            .select("*")
-            .in("chapter_id", chapters.map(c => c.id))
-            .order("paragraph_number", { ascending: true });
-
-        if (paragraphsError) throw new Error("Paragraphs not found");
+        const normalizedEdition = edition === 'paperback' ? 'paperback' : 'ebook';
+        const { scopedSupabase } = await createScopedSupabaseForRequest(req);
+        const { book, chapters, prompts } = await loadExportBundle(scopedSupabase, bookId);
 
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "W4U Writing Wizard";
         const publisher = "W4U";
-
-        // Fetch Courtesy Templates
-        const { data: promptData } = await scopedSupabase
-            .from("system_prompts")
-            .select("*")
-            .filter('key', 'ilike', 'courtesy_%');
-
-        const prompts = (promptData || []).reduce((acc, curr) => ({ ...acc, [curr.key]: curr.prompt_text }), {});
         const docxDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+        const backCoverBlurb = getBackCoverBlurb(book);
+        const coverBuffer = normalizedEdition === 'paperback' && book.cover_url
+            ? await fetchRemoteBuffer(book.cover_url).catch(() => null)
+            : null;
 
         const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
             Header, Footer, PageNumber, convertInchesToTwip,
-            InternalHyperlink } = docx;
+            InternalHyperlink, ImageRun } = docx;
 
         const processedChapters = chapters.map((ch, index) => {
             const rawTitle = ch.title || "Senza titolo";
             const fullTitle = formatChapterTitle(index, rawTitle);
 
-            // Fetch chapter introduction
-            const introHtml = ch.content ? marked.parse(normalizeText(removeEmojis(ch.content))) : "";
-
-            // Compile paragraphs for this chapter
-            const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-
-            const subchapters = chParagraphs.map(p => ({
+            const introHtml = ch.exportCompiledContent ? marked.parse(normalizeText(removeEmojis(ch.exportCompiledContent))) : "";
+            const subchapters = ch.exportParagraphs.map(p => ({
                 title: p.title ? editorialCasing(normalizeText(removeEmojis(p.title))) : "",
                 htmlContent: p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : ""
             }));
@@ -1020,6 +1025,23 @@ app.post("/export/docx", async (req, res) => {
         const children = [];
 
         // --- CONSTANTS ---
+
+        if (normalizedEdition === 'paperback' && coverBuffer) {
+            children.push(
+                new Paragraph({
+                    children: [
+                        new ImageRun({
+                            data: coverBuffer,
+                            transformation: { width: 500, height: 750 }
+                        })
+                    ],
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 200 }
+                }),
+                new Paragraph({ text: "", pageBreakBefore: true }),
+                new Paragraph({ text: "", pageBreakBefore: true })
+            );
+        }
 
         // --- TITLE PAGE ---
         children.push(
@@ -1045,7 +1067,7 @@ app.post("/export/docx", async (req, res) => {
                 font: { name: "Georgia", size: 20 },
                 italics: true
             }),
-            new Paragraph({ text: "", pageBreakBefore: true }) // End of Title Page
+            new Paragraph({ text: "", pageBreakBefore: true })
         );
 
         // --- COPYRIGHT PAGE ---
@@ -1091,7 +1113,7 @@ app.post("/export/docx", async (req, res) => {
                 font: { name: "Georgia", size: 20 },
                 spacing: { line: 360 }
             }),
-            new Paragraph({ text: "", pageBreakBefore: true }) // End of Copyright Page
+            new Paragraph({ text: "", pageBreakBefore: true })
         );
 
         // --- TABLE OF CONTENTS ---
@@ -1176,6 +1198,32 @@ app.post("/export/docx", async (req, res) => {
             children.push(new Paragraph({ text: "", pageBreakBefore: true }));
         });
 
+        if (normalizedEdition === 'paperback') {
+            children.push(
+                new Paragraph({
+                    text: "Quarta di Copertina",
+                    heading: HeadingLevel.HEADING_1,
+                    alignment: AlignmentType.CENTER,
+                    spacing: { after: 400 }
+                }),
+                new Paragraph({
+                    text: backCoverBlurb,
+                    alignment: AlignmentType.BOTH,
+                    spacing: { line: 360, after: 400 }
+                }),
+                new Paragraph({
+                    text: `${cleanAuthor}`,
+                    alignment: AlignmentType.CENTER,
+                    spacing: { before: 600, after: 300 }
+                }),
+                new Paragraph({
+                    text: "AREA BARCODE",
+                    alignment: AlignmentType.RIGHT,
+                    spacing: { before: 1000 }
+                })
+            );
+        }
+
         function parseHtmlToParagraphs(html) {
             const paragraphs = [];
             const textContent = html
@@ -1236,19 +1284,21 @@ app.post("/export/docx", async (req, res) => {
                     })
                 },
                 footers: {
-                    default: new Footer({
-                        children: [
-                            new Paragraph({
-                                children: [
-                                    new TextRun({
-                                        children: [PageNumber.CURRENT],
-                                        font: { name: "Georgia", size: 20 }
-                                    })
-                                ],
-                                alignment: AlignmentType.CENTER
-                            })
-                        ]
-                    })
+                    default: normalizedEdition === 'paperback'
+                        ? new Footer({
+                            children: [
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            children: [PageNumber.CURRENT],
+                                            font: { name: "Georgia", size: 20 }
+                                        })
+                                    ],
+                                    alignment: AlignmentType.CENTER
+                                })
+                            ]
+                        })
+                        : undefined
                 },
                 children: children
             }]
@@ -1260,7 +1310,8 @@ app.post("/export/docx", async (req, res) => {
         const buffer = await Packer.toBuffer(doc);
         fs.writeFileSync(outputPath, buffer);
 
-        res.download(outputPath, `${cleanBookTitle.replace(/[^a-zA-Z0-9]/g, '_')}.docx`, (err) => {
+        const fileSuffix = normalizedEdition === 'paperback' ? 'cartaceo' : 'ebook';
+        res.download(outputPath, `${cleanBookTitle.replace(/[^a-zA-Z0-9]/g, '_')}_${fileSuffix}.docx`, (err) => {
             if (err) console.error("Download error:", err);
             try {
                 if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
@@ -1275,7 +1326,7 @@ app.post("/export/docx", async (req, res) => {
 
 // --- PDF EXPORT ENDPOINT ---
 app.post("/export/pdf", async (req, res) => {
-    const { bookId } = req.body;
+    const { bookId, edition = 'ebook' } = req.body;
     if (!bookId) return res.status(400).json({ error: "bookId is required" });
 
     try {
@@ -1303,63 +1354,16 @@ app.post("/export/pdf", async (req, res) => {
         }
 
 
-        // Extract and validate Auth Token
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: "Missing or invalid Authorization header" });
+        const normalizedEdition = edition === 'paperback' ? 'paperback' : 'ebook';
+        if (normalizedEdition !== 'ebook') {
+            return res.status(400).json({ error: "PDF export is available only for ebook edition" });
         }
-        const token = authHeader.split('Bearer ')[1];
 
-        // Create Scoped Client
-        const scopedSupabase = createClient(
-            process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "",
-            process.env.VITE_SUPABASE_ANON_KEY || "",
-            {
-                global: {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
-                }
-            }
-        );
-
-        // Fetch User (Verify Token Validity)
-        const { data: { user }, error: authError } = await scopedSupabase.auth.getUser();
-        if (authError || !user) return res.status(401).json({ error: "Invalid token or user not found" });
-
-        const { data: book, error: bookError } = await scopedSupabase
-            .from("books")
-            .select("*")
-            .eq("id", bookId)
-            .single();
-        if (bookError || !book) throw new Error("Book not found or access denied");
-
-        const { data: chapters, error: chaptersError } = await scopedSupabase
-            .from("chapters")
-            .select("*")
-            .eq("book_id", bookId)
-            .eq("status", "COMPLETED")
-            .order("chapter_number", { ascending: true });
-        if (chaptersError || !chapters) throw new Error("Chapters not found");
-
-        const { data: paragraphs, error: paragraphsError } = await scopedSupabase
-            .from("paragraphs")
-            .select("*")
-            .in("chapter_id", chapters.map(c => c.id))
-            .order("paragraph_number", { ascending: true });
-
-        if (paragraphsError) throw new Error("Paragraphs not found");
+        const { scopedSupabase } = await createScopedSupabaseForRequest(req);
+        const { book, chapters, prompts } = await loadExportBundle(scopedSupabase, bookId);
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
-
-        // Fetch Courtesy Templates
-        const { data: promptData } = await scopedSupabase
-            .from("system_prompts")
-            .select("*")
-            .filter('key', 'ilike', 'courtesy_%');
-
-        const prompts = (promptData || []).reduce((acc, curr) => ({ ...acc, [curr.key]: curr.prompt_text }), {});
         const pdfDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const pdfDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
 
@@ -1383,7 +1387,9 @@ app.post("/export/pdf", async (req, res) => {
                     size: A4;
                 }
                 body { font-family: 'Georgia', serif; line-height: 1.8; color: #1a1a1a; }
-                .title-page { text-align: center; margin-top: 35%; page-break-after: always; }
+                .cover-page { page-break-after: always; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+                .cover-page img { width: 100%; max-height: 100vh; object-fit: contain; }
+                .title-page { text-align: center; margin-top: 18%; page-break-after: always; }
                 h1.book-title { font-size: 3.5em; margin-bottom: 0.2em; color: #000; }
                 h2.author { font-size: 1.6em; font-weight: normal; color: #444; margin-bottom: 3em; }
                 
@@ -1406,6 +1412,10 @@ app.post("/export/pdf", async (req, res) => {
             </style>
         </head>
         <body>
+            ${book.cover_url ? `
+            <div class="cover-page">
+                <img src="${book.cover_url}" alt="Copertina frontale" />
+            </div>` : ''}
             <div class="title-page">
                 ${renderTemplate(prompts['courtesy_title_page'], templateData) || `
                 <h1 class="book-title">${cleanBookTitle}</h1>
@@ -1440,20 +1450,16 @@ app.post("/export/pdf", async (req, res) => {
             const fullTitle = formatChapterTitle(i, ch.title || "Senza titolo");
 
             // Compile paragraphs for this chapter
-            const chParagraphs = paragraphs.filter(p => p.chapter_id === ch.id);
-
             let chapterHtml = `
                 <div class="chapter" id="ch${i + 1}">
                     <h1 class="chapter-title">${fullTitle}</h1>
                     <div class="content">`;
 
-            // 1. Intro
-            if (ch.content) {
-                chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.content)))}</div>`;
+            if (ch.exportCompiledContent) {
+                chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.exportCompiledContent)))}</div>`;
             }
 
-            // 2. Subchapters
-            chParagraphs.forEach(p => {
+            ch.exportParagraphs.forEach(p => {
                 const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
                 const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
                 chapterHtml += `<div class="subchapter">${subTitle}${subContent}</div>`;
@@ -1491,22 +1497,14 @@ app.post("/export/pdf", async (req, res) => {
         await page.pdf({
             path: outputPath,
             format: 'A4',
-            displayHeaderFooter: true,
-            headerTemplate: `
-                <div style="font-size: 10px; text-align: center; width: 100%; color: #888; letter-spacing: 1px;">
-                    ${cleanAuthor} &mdash; ${cleanBookTitle}
-                </div>`,
-            footerTemplate: `
-                <div style="font-size: 10px; text-align: center; width: 100%; color: #888;">
-                    <span class="pageNumber"></span>
-                </div>`,
-            margin: { top: '3cm', bottom: '3cm', right: '2cm', left: '2cm' },
+            displayHeaderFooter: false,
+            margin: { top: '2cm', bottom: '2cm', right: '2cm', left: '2cm' },
             printBackground: true
         });
 
         await browser.close();
 
-        res.download(outputPath, `libro_${bookId}.pdf`, (err) => {
+        res.download(outputPath, `libro_${bookId}_ebook.pdf`, (err) => {
             if (err) console.error("Download error:", err);
             try {
                 if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
