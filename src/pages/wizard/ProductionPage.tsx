@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, CheckCircle2, Loader2, FileText, ChevronRight, Edit2, RefreshCw, Save, X } from 'lucide-react';
 import { marked } from 'marked';
-import { BookGenerationRunStatus, callBookAgent, getBookGenerationStatus, startBookGeneration, supabase } from '../../lib/api';
+import type { BookGenerationRunStatus } from '../../lib/api';
+import { callBookAgent, getBookGenerationStatus, startBookGeneration, supabase } from '../../lib/api';
 
 // Types
 interface DBParagraph {
@@ -429,7 +430,7 @@ const ProductionPage: React.FC = () => {
     const activeRunChapter = currentRunChapterId
         ? chapters.find(c => c.id === currentRunChapterId) || null
         : (currentRunChapterNumber
-            ? chapters.find((chapter, index) => index + 1 === currentRunChapterNumber) || null
+            ? chapters.find((_, index) => index + 1 === currentRunChapterNumber) || null
             : null);
     const completedCount = chapters.filter(c => checkChapterCompletion(c)).length;
     const progress = (completedCount / Math.max(chapters.length, 1)) * 100;
