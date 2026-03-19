@@ -408,7 +408,7 @@ const ProductionPage: React.FC = () => {
                     return acc + Number(p.actual_word_count);
                 }
                 const text = p.content || '';
-                const wc = text.split(/\s+/).filter(w => w.length > 0).length;
+                const wc = text.split(/\s+/).filter((w: string) => w.length > 0).length;
                 return acc + wc;
             }, 0);
 
