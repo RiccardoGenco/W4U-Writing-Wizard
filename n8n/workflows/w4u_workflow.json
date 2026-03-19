@@ -657,7 +657,7 @@
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": $node[\"Get Book Context Concept Architect1\"].json.primary_model || \"gpt-4o\", \"temperature\": $node[\"Get Book Context Concept Architect1\"].json.temps.PLOT_ARCHITECT || 0.3, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Get Book Context Concept Architect1\"].json.prompts.PLOT_ARCHITECT || \"Prompt non trovato.\" }, { \"role\": \"user\", \"content\": \"BLUEPRINT:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data?.blueprint || {}) } ] } }}",
+        "jsonBody": "={{ { \"model\": $node[\"Get Book Context Concept Architect1\"].json.primary_model || \"gpt-4o\", \"temperature\": $node[\"Get Book Context Concept Architect1\"].json.temps.PLOT_ARCHITECT || 0.3, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Get Book Context Concept Architect1\"].json.prompts.PLOT_ARCHITECT || \"Prompt non trovato.\" }, { \"role\": \"user\", \"content\": \"BLUEPRINT & CONCEPT:\\n\" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data || {}) } ] } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -828,7 +828,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": $node[\"Get Book\"].json.primary_model || \"gpt-4o\", \"messages\": [ { \"role\": \"system\", \"content\": ($node[\"Get Book\"].json.prompts.WRITER || \"Scrivi il libro.\") }, { \"role\": \"user\", \"content\": \"TITOLO: \" + $node[\"Get Book\"].json.title + \"\\nCAPITOLO: \" + ($node[\"Webhook Router\"].json.body.chapter?.title || \"Senza Titolo\") + \"\\nSINTESI: \" + ($node[\"Webhook Router\"].json.body.chapter?.summary || \"\") } ] } }}",
+        "jsonBody": "={{ { \"model\": $node[\"Get Book\"].json.primary_model || \"gpt-4o\", \"messages\": [ { \"role\": \"system\", \"content\": ($node[\"Get Book\"].json.prompts.WRITER || \"Scrivi il libro.\") }, { \"role\": \"user\", \"content\": \"DATA:\\nBLUEPRINT: \" + JSON.stringify($node[\"Get Book\"].json.context_data || {}) + \"\\nPLOT SUMMARY: \" + ($node[\"Get Book\"].json.plot_summary || \"\") + \"\\n\\nTITOLO LIBRO: \" + $node[\"Get Book\"].json.title + \"\\nCAPITOLO: \" + ($node[\"Webhook Router\"].json.body.chapter?.title || \"Senza Titolo\") + \" - \" + ($node[\"Webhook Router\"].json.body.chapter?.summary || \"\") + \"\\nPARAGRAPH: \" + ($node[\"Webhook Router\"].json.body.paragraphTitle || \"\") } ] } }}",
         "options": {}
       },
       "id": "1e7fcb48-4258-43bc-9953-bc5cf44c0964",
@@ -924,7 +924,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"model\": $node[\"Get Book Context Concept Architect1\"].json.primary_model || \"gpt-4o\", \"temperature\": $node[\"Get Book Context Concept Architect1\"].json.temps.ARCHITECT || 0.3, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Get Book Context Concept Architect1\"].json.prompts.ARCHITECT || \"Prompt non trovato.\" }, { \"role\": \"user\", \"content\": ($node[\"Webhook Router\"].json.body.feedback ? \"FEEDBACK: \" + $node[\"Webhook Router\"].json.body.feedback : \"Genera indice da zero.\") } ] } }}",
+        "jsonBody": "={{ { \"model\": $node[\"Get Book Context Concept Architect1\"].json.primary_model || \"gpt-4o\", \"temperature\": $node[\"Get Book Context Concept Architect1\"].json.temps.ARCHITECT || 0.3, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Get Book Context Concept Architect1\"].json.prompts.ARCHITECT || \"Prompt non trovato.\" }, { \"role\": \"user\", \"content\": \"DATA:\\nBLUEPRINT: \" + JSON.stringify($node[\"Get Book Context Concept Architect1\"].json.context_data || {}) + \"\\nPLOT: \" + ($node[\"Sanitize Plot\"].json.content || \"\") + \"\\nTARGETS: \" + JSON.stringify($node[\"Calculator\"].json || {}) + \"\\n\\nFEEDBACK/INPUT: \" + ($node[\"Webhook Router\"].json.body.feedback ? $node[\"Webhook Router\"].json.body.feedback : \"Genera indice da zero.\") } ] } }}",
         "options": {}
       },
       "id": "349a4d1d-82f7-4c46-bd4d-3ca74b9e9f73",
@@ -1385,18 +1385,37 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ (() => {\n  const direct = $node[\"Agent: Scaffolder\"].json.chapters;\n  if (Array.isArray(direct)) {\n    return { status: \"completed\", data: { chapters: direct } };\n  }\n\n  const maybeContent = $node[\"Agent: Scaffolder\"].json.choices?.[0]?.message?.content;\n\n  if (maybeContent && typeof maybeContent === \"object\" && Array.isArray(maybeContent.chapters)) {\n    return { status: \"completed\", data: { chapters: maybeContent.chapters } };\n  }\n\n  if (typeof maybeContent === \"string\") {\n    try {\n      const parsed = JSON.parse(maybeContent.replace(/```json\\\\n?|```/g, \"\").trim());\n      return { status: \"completed\", data: { chapters: Array.isArray(parsed?.chapters) ? parsed.chapters : [] } };\n    } catch (e) {\n      return { status: \"completed\", data: { chapters: [] } };\n    }\n  }\n\n  return { status: \"completed\", data: { chapters: [] } };\n})() }}",
-        "options": {}
+        "jsCode": "const reqId = $('Webhook Router').first().json?.body?.requestId;\nconst rawTargetCount = Number($('Webhook Router').first().json?.body?.targetParagraphCount);\nconst targetCount = Number.isFinite(rawTargetCount) && rawTargetCount > 0 ? Math.min(25, Math.max(1, Math.round(rawTargetCount))) : null;\nif (!reqId) {\n  throw new Error('Missing requestId in SCAFFOLD_CHAPTER payload');\n}\n\nconst extractParagraphs = (payload) => {\n  if (!payload) return [];\n  if (Array.isArray(payload)) return payload;\n  if (Array.isArray(payload.paragraphs)) return payload.paragraphs;\n  if (Array.isArray(payload.chapters)) return payload.chapters;\n  if (payload.data && Array.isArray(payload.data.paragraphs)) return payload.data.paragraphs;\n  if (payload.result && Array.isArray(payload.result.paragraphs)) return payload.result.paragraphs;\n  return [];\n};\n\nlet paras = [];\nlet parseError = null;\n\nconst direct = extractParagraphs($node['Agent: Scaffolder'].json);\nif (direct.length > 0) {\n  paras = direct;\n} else {\n  const maybeContent = $node['Agent: Scaffolder'].json?.choices?.[0]?.message?.content;\n  if (typeof maybeContent === 'string') {\n    try {\n      const parsed = JSON.parse(maybeContent.replace(/```json\\n?|```/g, '').trim());\n      paras = extractParagraphs(parsed);\n    } catch (e) {\n      parseError = e?.message || 'Invalid JSON from Scaffolder';\n    }\n  } else if (maybeContent && typeof maybeContent === 'object') {\n    paras = extractParagraphs(maybeContent);\n  }\n}\n\nparas = Array.isArray(paras)\n  ? paras.map((p, i) => ({\n      title: (p && typeof p.title === 'string' && p.title.trim()) ? p.title.trim() : 'Sottocapitolo ' + (i + 1),\n      description: (p && typeof p.description === 'string')\n        ? p.description\n        : ((p && typeof p.summary === 'string') ? p.summary : '')\n    }))\n  : [];\n\nif (targetCount && paras.length > targetCount) {\n  paras = paras.slice(0, targetCount);\n}\n\nconst hasParagraphs = paras.length > 0;\nconst status = hasParagraphs ? 'completed' : 'failed';\nconst responseData = hasParagraphs ? { paragraphs: paras } : null;\nconst errorMessage = hasParagraphs\n  ? null\n  : (parseError || 'Scaffolder produced no valid paragraphs');\n\nconst escapedResponse = responseData ? JSON.stringify(responseData).replace(/'/g, \"''\") : null;\nconst escapedError = errorMessage ? String(errorMessage).replace(/'/g, \"''\") : null;\n\nconst query = hasParagraphs\n  ? \"UPDATE ai_requests SET status = 'completed', response_data = '\" + escapedResponse + \"'::jsonb, error_message = NULL, updated_at = NOW() WHERE id = '\" + reqId + \"'::uuid;\"\n  : \"UPDATE ai_requests SET status = 'failed', response_data = NULL, error_message = '\" + escapedError + \"', updated_at = NOW() WHERE id = '\" + reqId + \"'::uuid;\";\n\nreturn { json: { query, status, requestId: reqId, paragraphs_count: paras.length } };"
       },
-      "id": "4d18874b-0627-42a4-a583-bcedec0feb9e",
-      "name": "Response Scaffold",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
+      "id": "new-id-build-log-query",
+      "name": "Build Scaffold Log Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         -32,
         640
       ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}",
+        "options": {}
+      },
+      "id": "4d18874b-0627-42a4-a583-bcedec0feb9e",
+      "name": "Response Scaffold",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        160,
+        640
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1459,7 +1478,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Safely build the OpenAI JSON payload for the Scaffolder.\n// Using JS string templates here avoids n8n expression injection bugs\n// when chapter titles/summaries contain apostrophes or special chars.\nconst webhookBody = $('Webhook Router').first().json?.body || {};\nconst context = $('Get Book Context (Scaffolder)').first().json || {};\nconst primaryModel = context.primary_model || 'gpt-4o';\nconst prompts = context.prompts || {};\nconst temps = context.temps || {};\n\nconst genre = webhookBody.genre || context.genre || 'Narrativa';\nconst chapterTitle = webhookBody.chapter?.title || 'Capitolo Sconosciuto';\nconst chapterSummary = webhookBody.chapter?.summary || '';\nconst feedback = webhookBody.feedback || 'Nessun feedback. Genera da zero.';\nconst targetCount = webhookBody.targetParagraphCount || 5;\n\n// Extracted materials from RAG (if any)\nconst ragChunks = $('RAG: Query Scaffold').all().map(item => item.json && item.json.content ? item.json.content : \"\").filter(x => x).join(\"  \");\n\nconst systemPrompt = prompts.SCAFFOLDER || \"Sei l'Architetto Letterario W4U.\";\n\nconst openaiPayload = {\n    model: primaryModel,\n    max_tokens: 4000,\n    temperature: temps.SCAFFOLDER || 0.7,\n    response_format: { type: 'json_object' },\n    messages: [\n        { role: 'system', content: systemPrompt }\n    ]\n};\n\nreturn { json: openaiPayload };"
+        "jsCode": "// Build a robust OpenAI payload for SCAFFOLD_CHAPTER with explicit JSON schema instructions.\nconst webhookBody = $('Webhook Router').first().json?.body || {};\nconst context = $('Get Book Context (Scaffolder)').first().json || {};\nconst primaryModel = context.primary_model || 'gpt-4o';\nconst prompts = context.prompts || {};\nconst temps = context.temps || {};\n\nconst chapterTitle = webhookBody.chapter?.title || 'Capitolo Sconosciuto';\nconst chapterSummary = webhookBody.chapter?.summary || '';\nconst feedback = webhookBody.feedback || 'Nessun feedback. Genera da zero.';\nconst rawTargetCount = Number(webhookBody.targetParagraphCount);\nconst targetCount = Number.isFinite(rawTargetCount) && rawTargetCount > 0 ? Math.min(25, Math.max(1, Math.round(rawTargetCount))) : 5;\n\nconst ragChunks = $('RAG: Query Scaffold').all()\n  .map(item => (item?.json?.content ? String(item.json.content) : ''))\n  .filter(Boolean)\n  .join('  ');\n\nconst systemPrompt = prompts.SCAFFOLDER || \"Sei l'Architetto Letterario W4U.\";\n\nconst schemaInstruction = [\n  'Rispondi SOLO con JSON valido, senza markdown e senza testo extra.',\n  'Schema obbligatorio:',\n  '{\"paragraphs\":[{\"title\":\"string\",\"description\":\"string\"}]}',\n  'Genera ESATTAMENTE ' + targetCount + ' elementi in paragraphs.'\n].join('\\n');\n\nconst userContent = [\n  'DATA:',\n  'BLUEPRINT: ' + JSON.stringify(context.context_data || {}),\n  'PLOT SUMMARY: ' + (context.plot_summary || ''),\n  'CURRENT CHAPTER: ' + chapterTitle + ' - ' + chapterSummary,\n  'RAG CONTEXT: ' + ragChunks,\n  'FEEDBACK/INSTRUCTION: ' + feedback,\n  schemaInstruction\n].join('\\n\\n');\n\nconst openaiPayload = {\n  model: primaryModel,\n  max_tokens: 4000,\n  temperature: temps.SCAFFOLDER || 0.7,\n  response_format: { type: 'json_object' },\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userContent }\n  ]\n};\n\nreturn { json: openaiPayload };"
       },
       "id": "cadb080d-3a13-41bc-a86c-4cba0570b3b0",
       "name": "Build Scaffolder Payload",
@@ -2364,14 +2383,14 @@
         ],
         [
           {
-            "node": "Respond Started",
+            "node": "Get Book Context (Scaffolder)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Get Book Context (Scaffolder)",
+            "node": "Chunk Draft Text",
             "type": "main",
             "index": 0
           }
@@ -2456,6 +2475,17 @@
       ]
     },
     "Log AI Usage: Scaffolder": {
+      "main": [
+        [
+          {
+            "node": "Build Scaffold Log Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scaffold Log Query": {
       "main": [
         [
           {
