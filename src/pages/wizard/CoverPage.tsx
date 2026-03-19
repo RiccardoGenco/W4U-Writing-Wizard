@@ -162,21 +162,39 @@ const CoverPage: React.FC = () => {
     };
 
     const downloadCombinedCover = async () => {
-        const coverElement = document.getElementById('cover-export-node');
-        if (!coverElement) return;
+        const ebookElement = document.getElementById('ebook-export-node');
+        const paperbackElement = document.getElementById('paperback-export-node');
+        if (!ebookElement || !paperbackElement) return;
+
+        if (!confirm('Verranno scaricati due file ad alta risoluzione (eBook e Cartaceo). Il processo potrebbe richiedere alcuni secondi, procedere?')) return;
 
         try {
-            const canvas = await html2canvas(coverElement, {
+            // Genera eBook
+            const canvasEbook = await html2canvas(ebookElement, {
                 useCORS: true,
-                scale: 2 // High resolution for download
+                scale: 1 // Già ad alta risoluzione in px assoluti (1749x2481)
             });
-            const link = document.createElement('a');
-            link.download = `${bookTitle.replace(/\\s+/g, '_')}_Cover.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
+            const linkEbook = document.createElement('a');
+            linkEbook.download = `${bookTitle.replace(/\\s+/g, '_')}_Ebook.png`;
+            linkEbook.href = canvasEbook.toDataURL('image/png');
+            linkEbook.click();
+
+            // Attesa minima per browser stress
+            await new Promise(res => setTimeout(res, 1000));
+
+            // Genera Cartaceo (3688x2556)
+            const canvasPaperback = await html2canvas(paperbackElement, {
+                useCORS: true,
+                scale: 1 
+            });
+            const linkPaperback = document.createElement('a');
+            linkPaperback.download = `${bookTitle.replace(/\\s+/g, '_')}_Cartaceo.png`;
+            linkPaperback.href = canvasPaperback.toDataURL('image/png');
+            linkPaperback.click();
+
         } catch (err) {
-            console.error('Error generating cover image:', err);
-            alert('Errore durante il salvataggio della copertina completata.');
+            console.error('Error generating cover images:', err);
+            alert('Errore durante il salvataggio delle copertine. Prova a scaricare da un PC con più memoria RAM.');
         }
     };
 
@@ -366,6 +384,143 @@ const CoverPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* OFF-SCREEN NODES FOR HIGH-RES EXPORT */}
+            {coverUrl && (
+                <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', zIndex: -1 }}>
+                    {/* EBOOK EXPORT NODE */}
+                    <div id="ebook-export-node" style={{
+                        width: '1749px',
+                        height: '2481px',
+                        position: 'relative',
+                        backgroundColor: '#000'
+                    }}>
+                        <img src={coverUrl} crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Background" />
+                        <div style={{
+                            position: 'absolute',
+                            top: 0, left: 0, right: 0, bottom: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            padding: '200px 150px',
+                            background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.8) 100%)',
+                            color: 'white',
+                            textAlign: 'center'
+                        }}>
+                            <h1 style={{ fontSize: '150px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '5px', textShadow: '10px 10px 20px rgba(0,0,0,0.8)', margin: 0 }}>
+                                {bookTitle}
+                            </h1>
+                            <p style={{ fontSize: '80px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '10px', textShadow: '5px 5px 15px rgba(0,0,0,0.8)', margin: 0 }}>
+                                {bookAuthor}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* PAPERBACK EXPORT NODE */}
+                    <div id="paperback-export-node" style={{
+                        width: '3688px',
+                        height: '2556px',
+                        position: 'relative',
+                        backgroundColor: '#1a1a2e', // Tinta unita scura per il retro e il dorso
+                        fontFamily: 'sans-serif'
+                    }}>
+                        {/* Front Cover Area (Lato Destro) */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '37.5px', // Bleed top
+                            left: '1901.5px', // Spine end (37.5 + 1749 + 115)
+                            width: '1749px',
+                            height: '2481px'
+                        }}>
+                            <img src={coverUrl} crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Front" />
+                            <div style={{
+                                position: 'absolute',
+                                top: 0, left: 0, right: 0, bottom: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                padding: '200px 150px',
+                                background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.8) 100%)',
+                                color: 'white',
+                                textAlign: 'center'
+                            }}>
+                                <h1 style={{ fontSize: '150px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '5px', textShadow: '10px 10px 20px rgba(0,0,0,0.8)', margin: 0 }}>
+                                    {bookTitle}
+                                </h1>
+                                <p style={{ fontSize: '80px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '10px', textShadow: '5px 5px 15px rgba(0,0,0,0.8)', margin: 0 }}>
+                                    {bookAuthor}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Dorso (Spine) Centrale */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '37.5px',
+                            left: '1786.5px',
+                            width: '115px',
+                            height: '2481px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: 'rgba(0,0,0,0.2)', // Opzionale ombreggiatura
+                        }}>
+                            <span style={{ 
+                                color: 'white', 
+                                fontSize: '60px', 
+                                fontWeight: 'bold', 
+                                textTransform: 'uppercase',
+                                letterSpacing: '8px',
+                                transform: 'rotate(90deg)',
+                                whiteSpace: 'nowrap'
+                            }}>
+                                {bookTitle} • {bookAuthor}
+                            </span>
+                        </div>
+
+                        {/* Back Cover Area (Lato Sinistro) */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '37.5px',
+                            left: '37.5px',
+                            width: '1749px',
+                            height: '2481px',
+                            padding: '200px 150px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            color: 'white',
+                            boxSizing: 'border-box'
+                        }}>
+                            <div style={{ textAlign: 'center', opacity: 0.85 }}>
+                                <p style={{ fontStyle: 'italic', fontSize: '70px', marginBottom: '80px', fontWeight: '300' }}>
+                                    Un'opera straordinaria ti attende...
+                                </p>
+                                <p style={{ fontSize: '50px', lineHeight: '1.6', textAlign: 'left', fontWeight: '400' }}>
+                                    {/* Testo segnaposto per blurb, eventualmente l'utente può inserire la trama reale in futuro */}
+                                    Preparati a immergerti tra le pagine di `{bookTitle}`. Un'avventura che esplora, tra le righe, temi profondi con uno stile inimitabile. 
+                                    Scopri i dettagli che rendono questo libro una lettura assolutamente imperdibile per gli appassionati del genere.
+                                </p>
+                            </div>
+
+                            {/* Barcode Placeholder (2.000" x 1.200" => 600px x 360px) in basso a destra del retro copertina */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto' }}>
+                                <div style={{
+                                    width: '600px',
+                                    height: '360px',
+                                    backgroundColor: 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: '8px'
+                                }}>
+                                    <span style={{ color: 'black', fontSize: '40px', fontWeight: 'bold' }}>BARCODE AREA</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
