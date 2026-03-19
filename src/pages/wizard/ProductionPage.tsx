@@ -365,32 +365,39 @@ const ProductionPage: React.FC = () => {
 
             const effectiveParagraphs = await ensureChapterPlanCompleteness(chapter, chapterParagraphs);
 
-            // Loop through paragraphs and generate them sequentially to avoid rate limits
-            for (const paragraph of effectiveParagraphs) {
-                if (paragraph.status === 'COMPLETED' || (paragraph.content && paragraph.content.length > 50)) {
-                    continue;
+            // Check if any paragraphs actually need generating
+            const needsGeneration = effectiveParagraphs.some(p => p.status !== 'COMPLETED' && (!p.content || p.content.length < 50));
+            
+            if (needsGeneration) {
+                // Mark all incomplete paragraphs as GENERATING
+                const pendingIds = effectiveParagraphs.filter(p => p.status !== 'COMPLETED').map(p => p.id);
+                if (pendingIds.length > 0) {
+                    await supabase.from('paragraphs').update({ status: 'GENERATING' }).in('id', pendingIds);
+                    fetchChapters();
                 }
 
-                await supabase.from('paragraphs').update({ status: 'GENERATING' }).eq('id', paragraph.id);
-                fetchChapters(); // Trigger UI update to show 'Scrittura in corso' on the specific paragraph
-
+                // Call the agent once for the FULL CHAPTER
                 await callBookAgent('WRITE_CHAPTER_FROM_PLAN', {
-                    chapterId: id
+                    chapterId: id,
+                    targetWordCount: targetChapterWords
                 }, bookId);
 
-                // Wait for this paragraph to be completed before starting the next one
+                // Wait for ALL paragraphs to be completed
                 let isDone = false;
                 let attempts = 0;
-                while (!isDone && attempts < 40) {
+                while (!isDone && attempts < 120) { // Can take up to 10 minutes for a huge chapter
                     await new Promise(r => setTimeout(r, 5000));
-                    const { data: check } = await supabase.from('paragraphs').select('status, content').eq('id', paragraph.id).single();
-                    if (check?.status === 'COMPLETED' || (check?.content && check.content.length > 50)) {
+                    const { data: checks } = await supabase.from('paragraphs')
+                        .select('status, content')
+                        .eq('chapter_id', id);
+                    
+                    if (checks && checks.every(c => c.status === 'COMPLETED' || (c.content && c.content.length > 50))) {
                         isDone = true;
                     }
                     attempts++;
                 }
 
-                // Compile chapter immediately after a paragraph finishes so it saves progress
+                // Compile chapter
                 const { data: latestParagraphs } = await supabase.from('paragraphs').select('content').eq('chapter_id', id).order('paragraph_number', { ascending: true });
                 if (latestParagraphs) {
                     const compiled = latestParagraphs.filter(p => p.content).map(p => p.content).join('\n\n');
