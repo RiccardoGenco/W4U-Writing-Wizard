@@ -9,7 +9,9 @@ Il sintomo tipico e:
 
 ## File da applicare
 - [20260319000002_create_book_generation_runs.sql](/C:/Users/genco/Desktop/lavoro/w4uN8N/supabase/migrations/20260319000002_create_book_generation_runs.sql)
+- [20260319000003_add_actual_word_count_to_chapters.sql](/C:/Users/genco/Desktop/lavoro/w4uN8N/supabase/migrations/20260319000003_add_actual_word_count_to_chapters.sql)
 - [bootstrap_book_generation_runs.sql](/C:/Users/genco/Desktop/lavoro/w4uN8N/supabase/sql/bootstrap_book_generation_runs.sql)
+- [bootstrap_chapters_actual_word_count.sql](/C:/Users/genco/Desktop/lavoro/w4uN8N/supabase/sql/bootstrap_chapters_actual_word_count.sql)
 
 Il secondo file e idempotente ed e pensato come fallback rapido.
 
@@ -28,6 +30,7 @@ Tabelle controllate:
 ## Procedura consigliata
 1. Applicare le migration Supabase del repo sul database remoto.
 2. Se serve un fix rapido, eseguire il contenuto di `supabase/sql/bootstrap_book_generation_runs.sql` nello SQL editor Supabase.
+   Se ricevi errori su `actual_word_count`, esegui anche `supabase/sql/bootstrap_chapters_actual_word_count.sql`.
 3. Attendere refresh della schema cache di Supabase/PostgREST.
 4. Verificare `GET /api/db/schema-health`.
 5. Rilanciare `Genera Tutto`.
