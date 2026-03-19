@@ -374,7 +374,7 @@ async function finalizeChapterIfReady(chapterId) {
     const { chapter, paragraphs } = await getChapterWithParagraphs(chapterId);
     const allDone = paragraphs.length > 0 && paragraphs.every(p => p.status === 'COMPLETED' && p.content && p.content.length > 20);
     if (!allDone) {
-        return false;
+        return null;
     }
 
     const compiledContent = paragraphs.map(p => p.content || '').filter(Boolean).join('\n\n');
@@ -394,7 +394,66 @@ async function finalizeChapterIfReady(chapterId) {
         })
         .eq('id', chapter.id);
 
-    return true;
+    return {
+        chapterId: chapter.id,
+        chapterNumber: chapter.chapter_number,
+        paragraphsCount: paragraphs.length,
+        actualWordCount,
+        contentLength: compiledContent.length
+    };
+}
+
+async function validateCompletedChapter(chapterId, book) {
+    const { chapter, paragraphs } = await getChapterWithParagraphs(chapterId);
+    const targetWordsPerChapter = getTargetWordsPerChapter(book);
+    const minAllowedWords = Math.max(800, Math.floor(targetWordsPerChapter * 0.85));
+    const maxAllowedWords = Math.ceil(targetWordsPerChapter * 1.35);
+    const expectedParagraphsPerChapter = getExpectedParagraphsPerChapter(book);
+    const actualWordCount = paragraphs.reduce((acc, p) => {
+        if (Number.isFinite(p.actual_word_count) && p.actual_word_count > 0) {
+            return acc + Number(p.actual_word_count);
+        }
+        return acc + countWords(p.content);
+    }, 0);
+
+    const invalidParagraph = paragraphs.find((paragraph) => !paragraph.content || paragraph.content.length <= 20);
+    if (invalidParagraph) {
+        await supabase.from('chapters')
+            .update({ status: 'PENDING', updated_at: new Date().toISOString() })
+            .eq('id', chapter.id);
+        throw new Error(`Chapter ${chapter.chapter_number} validation failed: paragraph ${invalidParagraph.paragraph_number} is empty`);
+    }
+
+    if (expectedParagraphsPerChapter && paragraphs.length !== expectedParagraphsPerChapter) {
+        await supabase.from('chapters')
+            .update({ status: 'PENDING', updated_at: new Date().toISOString() })
+            .eq('id', chapter.id);
+        throw new Error(`Chapter ${chapter.chapter_number} validation failed: expected ${expectedParagraphsPerChapter} paragraphs, found ${paragraphs.length}`);
+    }
+
+    if (actualWordCount < minAllowedWords) {
+        await supabase.from('chapters')
+            .update({ status: 'PENDING', updated_at: new Date().toISOString() })
+            .eq('id', chapter.id);
+        throw new Error(`Chapter ${chapter.chapter_number} validation failed: ${actualWordCount} words is below minimum ${minAllowedWords}`);
+    }
+
+    if (actualWordCount > maxAllowedWords) {
+        await supabase.from('chapters')
+            .update({ status: 'PENDING', updated_at: new Date().toISOString() })
+            .eq('id', chapter.id);
+        throw new Error(`Chapter ${chapter.chapter_number} validation failed: ${actualWordCount} words exceeds maximum ${maxAllowedWords}`);
+    }
+
+    return {
+        chapterId: chapter.id,
+        chapterNumber: chapter.chapter_number,
+        actualWordCount,
+        targetWordsPerChapter,
+        minAllowedWords,
+        maxAllowedWords,
+        paragraphsCount: paragraphs.length
+    };
 }
 
 async function processCurrentChapter(run, book) {
@@ -420,6 +479,7 @@ async function processCurrentChapter(run, book) {
         if (!finalizedAlready) {
             throw new Error(`Chapter ${chapter.chapter_number} is marked complete but cannot be finalized`);
         }
+        await validateCompletedChapter(chapter.id, book);
         return;
     }
 
@@ -455,6 +515,25 @@ async function processCurrentChapter(run, book) {
     if (!finalized) {
         throw new Error(`Chapter ${chapter.chapter_number} is still incomplete after chapter generation`);
     }
+
+    const chapterValidation = await validateCompletedChapter(chapter.id, book);
+    await supabase.from('book_generation_runs')
+        .update({
+            actual_total_words: (Number(run.actual_total_words) || 0) + chapterValidation.actualWordCount,
+            metadata: {
+                ...(run.metadata || {}),
+                last_completed_chapter_id: chapter.id,
+                last_completed_chapter_number: chapter.chapter_number,
+                last_completed_chapter_words: chapterValidation.actualWordCount,
+                target_words_for_chapter: targetWordsPerChapter,
+                chapter_word_range: {
+                    min: chapterValidation.minAllowedWords,
+                    max: chapterValidation.maxAllowedWords
+                }
+            },
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', run.id);
 }
 
 async function finalizeBookGenerationRun(runId, book) {
