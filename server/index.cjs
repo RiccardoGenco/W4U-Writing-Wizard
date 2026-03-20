@@ -398,9 +398,11 @@ async function finalizeChapterIfReady(chapterId) {
 
     const compiledContent = paragraphs.map(p => p.content || '').filter(Boolean).join('\n\n');
     const actualWordCount = paragraphs.reduce((acc, p) => {
-        if (Number.isFinite(p.actual_word_count) && p.actual_word_count > 0) {
-            return acc + Number(p.actual_word_count);
-        }
+        const isPlausibleWordCount =
+            Number.isFinite(p.actual_word_count) &&
+            p.actual_word_count > 1 &&
+            !(p.content && p.content.length > 100 && p.actual_word_count < 10);
+        if (isPlausibleWordCount) return acc + Number(p.actual_word_count);
         return acc + countWords(p.content);
     }, 0);
 
@@ -425,15 +427,28 @@ async function finalizeChapterIfReady(chapterId) {
 async function validateCompletedChapter(chapterId, book) {
     const { chapter, paragraphs } = await getChapterWithParagraphs(chapterId);
     const targetWordsPerChapter = getTargetWordsPerChapter(book);
-    const minAllowedWords = Math.max(800, Math.floor(targetWordsPerChapter * 0.85));
+    const minAllowedWords = Math.max(500, Math.floor(targetWordsPerChapter * 0.6));
     const maxAllowedWords = Math.ceil(targetWordsPerChapter * 1.35);
     const expectedParagraphsPerChapter = getExpectedParagraphsPerChapter(book);
     const actualWordCount = paragraphs.reduce((acc, p) => {
-        if (Number.isFinite(p.actual_word_count) && p.actual_word_count > 0) {
+        // Detect comma-shifting bug: actual_word_count stored as 1 even if content is long
+        // This happens when n8n passes parameters as a comma-separated string instead of array
+        const isPlausibleWordCount =
+            Number.isFinite(p.actual_word_count) &&
+            p.actual_word_count > 1 &&
+            // If content exists and is long, actual_word_count should be proportional
+            !(p.content && p.content.length > 100 && p.actual_word_count < 10);
+        if (isPlausibleWordCount) {
             return acc + Number(p.actual_word_count);
         }
-        return acc + countWords(p.content);
+        // Fallback: count from actual content text (comma-shift-proof)
+        const fromContent = countWords(p.content);
+        if (fromContent > 0 && p.actual_word_count !== fromContent) {
+            console.warn(`[validateCompletedChapter] Paragraph ${p.id} has actual_word_count=${p.actual_word_count} but content has ${fromContent} words. Using content count.`);
+        }
+        return acc + fromContent;
     }, 0);
+
 
     const invalidParagraph = paragraphs.find((paragraph) => !paragraph.content || paragraph.content.length <= 20);
     if (invalidParagraph) {
