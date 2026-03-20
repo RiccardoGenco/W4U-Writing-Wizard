@@ -198,7 +198,7 @@ const ProductionPage: React.FC = () => {
     const [currentRunChapterId, setCurrentRunChapterId] = useState<string | null>(null);
     const [currentRunChapterNumber, setCurrentRunChapterNumber] = useState<number | null>(null);
     const [startingRun, setStartingRun] = useState(false);
-    const [runPollErrors, setRunPollErrors] = useState(0);
+    const [_runPollErrors, setRunPollErrors] = useState(0);
 
     // Overlay feedback
     const [loadingMessage, setLoadingMessage] = useState("Scrittura del libro...");
