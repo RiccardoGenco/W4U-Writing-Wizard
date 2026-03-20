@@ -77,6 +77,9 @@ const N8N_WEBHOOK_URL = n8nWebhookUrlRaw?.startsWith('/')
     ? `https://auto.mamadev.org${n8nWebhookUrlRaw}`
     : n8nWebhookUrlRaw;
 
+// Idempotency for orchestration
+const activeRuns = new Set();
+
 // Centralized logger for backend
 const logDebug = async (source, eventType, payload, bookId = null) => {
     try {
@@ -597,6 +600,12 @@ async function finalizeBookGenerationRun(runId, book) {
 }
 
 async function continueBookGenerationRun(runId) {
+    if (activeRuns.has(runId)) {
+        console.log(`[Book Generation] Run ${runId} is already active, skipping duplicate orchestration`);
+        return;
+    }
+
+    activeRuns.add(runId);
     try {
         let iterations = 0;
         while (iterations < 50) {
@@ -632,6 +641,8 @@ async function continueBookGenerationRun(runId) {
     } catch (error) {
         console.error(`[Book Generation] Run ${runId} failed during orchestration:`, error.message);
         await failBookGenerationRun(runId, 'write_chapter', error.message);
+    } finally {
+        activeRuns.delete(runId);
     }
 }
 
@@ -1811,6 +1822,9 @@ app.get("/api/book-generation/status/:runId", async (req, res) => {
  * Updates ai_requests table with results when complete.
  */
 async function forwardToN8n(requestId, userId, payload, token) {
+    const bookId = payload.bookId;
+    await logDebug('server', 'ai_proxy_start', { requestId, action: payload.action, payload: { ...payload, token: 'REDACTED' } }, bookId);
+
     try {
         // Create client: usage scoped if token provided, otherwise global (which is anon - likely to fail if RLS blocks update)
         // If we don't have service_role, we MUST use the user token and have RLS "Users can update own"
@@ -1872,7 +1886,16 @@ async function forwardToN8n(requestId, userId, payload, token) {
             method: 'POST',
             headers: n8nHeaders,
             body: JSON.stringify(n8nPayload)
+        }).catch(err => {
+            console.error(`[AI Proxy] Fetch to n8n failed for ${requestId}:`, err.message);
+            throw new Error(`Network error connecting to n8n: ${err.message}`);
         });
+
+        await logDebug('server', 'ai_proxy_n8n_response', { 
+            requestId, 
+            status: n8nResponse.status, 
+            statusText: n8nResponse.statusText 
+        }, bookId);
 
         const contentType = n8nResponse.headers.get('content-type') || '';
         let responseData = null;
