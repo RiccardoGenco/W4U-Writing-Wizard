@@ -126,6 +126,14 @@ const BlueprintPage: React.FC = () => {
 
             // Dynamic Scaffolding: Loop through each inserted chapter and call N8N to get paragraphs
             // paragraphsPerChapter already calculated above from the first book fetch
+            // Calculate target words per paragraph proportionally to the book's target
+            const wordsPerPage = Number(book.context_data?.configuration?.words_per_page) > 0
+                ? Number(book.context_data.configuration.words_per_page)
+                : 250;
+            const totalBookWords = targetPages * wordsPerPage;
+            const wordsPerChapter = Math.round(totalBookWords / targetChapters);
+            const targetWordCountPerParagraph = Math.max(200, Math.round(wordsPerChapter / paragraphsPerChapter));
+
             const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
 
             for (let i = 0; i < insertedChapters.length; i++) {
@@ -140,7 +148,8 @@ const BlueprintPage: React.FC = () => {
                             title: chapter.title,
                             summary: originalChapter?.summary || ''
                         },
-                        targetParagraphCount: paragraphsPerChapter
+                        targetParagraphCount: paragraphsPerChapter,
+                        targetWordCount: targetWordCountPerParagraph
                     }, bookId);
 
                     const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
@@ -153,7 +162,7 @@ const BlueprintPage: React.FC = () => {
                                 title: p.title || `Sottocapitolo ${pIndex + 1}`,
                                 description: p.description || '',
                                 status: 'PENDING',
-                                target_word_count: 250 // Standard target per paragraph
+                                target_word_count: targetWordCountPerParagraph
                             });
                         });
                     } else {
@@ -168,7 +177,7 @@ const BlueprintPage: React.FC = () => {
                         title: `Sottocapitolo Generico`,
                         description: `L'AI non ha risposto per questo capitolo. Modifica manuale necessaria.`,
                         status: 'PENDING',
-                        target_word_count: 250
+                        target_word_count: targetWordCountPerParagraph
                     });
                 }
             }

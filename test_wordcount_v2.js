@@ -1,0 +1,7 @@
+const rawContent = "La porta di casa Rossi si aprì con un tintinnio di eccitazione, mentre i bambini correvano freneticamente avanti e indietro, lanciando sguardi incuriositi verso il trasportino da cui provenivano lievi guaiti. Max, un cucciolo di Labrador dal mantello dorato e dagli occhi vispi, era finalmente arrivato. La famiglia aveva atteso questo momento con impazienza, e ora, mentre l'aria era pervasa da un misto di emozione e aspettativa, i Rossi si preparavano ad accogliere il loro nuovo amico a quattro zampe. L'entusiasmo era palpabile: Anna, la madre, si era premurata di sistemare un angolo accogliente nella cucina, con una morbida coperta e una ciotola d'acqua fresca. Marco, il padre, si era dedicato a montare un piccolo recinto nel giardino, immaginando pomeriggi di gioco e corse spensierate. I bambini, Giulia e Tommaso, si erano fatti in quattro per raccogliere i loro giocattoli sparsi e creare uno spazio sicuro per il nuovo arrivato. Tuttavia, con l'arrivo di Max, sorgevano anche le prime sfide: la gestione dei suoi bisogni, dall'alimentazione alle necessità fisiologiche, e la comprensione del suo comportamento, un territorio ancora inesplorato per la famiglia.";
+const emojiRegex = /[\uD83C-\uDBFF\uDC00-\uDFFF\u2600-\u26FF\u2700-\u27BF]/g;
+const cleanContent = rawContent.replace(emojiRegex, '');
+const words = cleanContent.split(/\s+/).filter(w => w.length > 0);
+const wordCount = words.length;
+console.log('Word count:', wordCount);
+console.log('Words array:', JSON.stringify(words.slice(0, 10)));
