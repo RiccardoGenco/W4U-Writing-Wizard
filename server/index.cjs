@@ -1890,6 +1890,9 @@ async function forwardToN8n(requestId, userId, payload, token) {
 
                 // Handle immediate response from n8n for async tasks
                 if (responseData && (responseData.status === 'started' || responseData.status === 'processing')) {
+                    if (payload.action === 'WRITE_CHAPTER_FROM_PLAN') {
+                        throw new Error('WRITE_CHAPTER_FROM_PLAN returned async status. Expected synchronous completion.');
+                    }
                     console.log(`[AI Proxy] Request ${requestId} started/processing in n8n (async mode). Proxy exiting.`);
                     return; // Exit without marking as completed, n8n will do it.
                 }
