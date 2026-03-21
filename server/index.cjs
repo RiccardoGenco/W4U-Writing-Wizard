@@ -563,9 +563,38 @@ async function processCurrentChapter(run, book) {
         } catch (validationError) {
             const isWordCountError = validationError.message && validationError.message.includes('below minimum');
 
-            if (!isWordCountError || attempt >= MAX_EXPANSION_RETRIES) {
-                // Not a word count issue, or max retries exceeded — propagate
+            if (!isWordCountError) {
+                // Not a word count issue — propagate immediately
                 throw validationError;
+            }
+
+            if (attempt >= MAX_EXPANSION_RETRIES) {
+                // Max retries exceeded — GRACEFUL DEGRADATION
+                // Accept the chapter as-is instead of failing the entire run
+                console.warn(`[Expansion] Chapter ${chapter.chapter_number}: max retries exhausted. Accepting chapter with current word count.`);
+
+                // Force-finalize the chapter regardless of word count
+                const { paragraphs: finalParagraphs } = await getChapterWithParagraphs(chapter.id);
+                const finalCompiledContent = finalParagraphs.map(p => p.content || '').filter(Boolean).join('\n\n');
+                const finalWordCount = countWords(finalCompiledContent);
+
+                await supabase.from('chapters')
+                    .update({
+                        content: finalCompiledContent,
+                        actual_word_count: finalWordCount,
+                        status: 'COMPLETED',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', chapter.id);
+
+                lastValidation = {
+                    actualWordCount: finalWordCount,
+                    minAllowedWords: Math.max(500, Math.floor(targetWordsPerChapter * 0.6)),
+                    maxAllowedWords: Math.ceil(targetWordsPerChapter * 1.35)
+                };
+
+                console.log(`[Expansion] Chapter ${chapter.chapter_number} accepted with ${finalWordCount} words (graceful degradation).`);
+                break;
             }
 
             // --- EXPANSION PHASE ---
@@ -589,76 +618,89 @@ async function processCurrentChapter(run, book) {
                 })
                 .eq('id', run.id);
 
-            // Call EXPAND_CHAPTER via n8n
-            const expandResult = await createAiRequestAndWait({
-                userId: run.created_by,
-                bookId: book.id,
-                action: 'EXPAND_CHAPTER',
-                payload: {
-                    chapterId: chapter.id,
+            try {
+                // Call EXPAND_CHAPTER via n8n
+                const expandResult = await createAiRequestAndWait({
+                    userId: run.created_by,
                     bookId: book.id,
-                    fullText: compiledText,
-                    currentWordCount,
-                    deficit,
-                    targetWordCount: minRequired + 150,
-                    paragraphCount: currentParagraphs.length
+                    action: 'EXPAND_CHAPTER',
+                    payload: {
+                        chapterId: chapter.id,
+                        bookId: book.id,
+                        fullText: compiledText,
+                        currentWordCount,
+                        deficit,
+                        targetWordCount: minRequired + 150,
+                        paragraphCount: currentParagraphs.length
+                    }
+                });
+
+                // Parse expanded text from the ai_request response
+                let expandedText = '';
+                if (expandResult.response_data) {
+                    const responseData = typeof expandResult.response_data === 'string'
+                        ? JSON.parse(expandResult.response_data)
+                        : expandResult.response_data;
+                    expandedText = responseData?.expandedText || responseData?.text || responseData?.content || '';
                 }
-            });
 
-            // Parse expanded text from the ai_request response
-            let expandedText = '';
-            if (expandResult.response_data) {
-                const responseData = typeof expandResult.response_data === 'string'
-                    ? JSON.parse(expandResult.response_data)
-                    : expandResult.response_data;
-                expandedText = responseData?.expandedText || responseData?.text || responseData?.content || '';
-            }
+                const expandedWordCount = countWords(expandedText);
 
-            if (!expandedText || expandedText.length < compiledText.length) {
-                console.warn(`[Expansion] Expanded text is shorter or empty. Skipping update.`);
-                throw new Error(`Chapter ${chapter.chapter_number} expansion failed: expanded text is shorter than original`);
-            }
+                // Use WORD COUNT comparison, not character length
+                if (!expandedText || expandedWordCount <= currentWordCount) {
+                    console.warn(`[Expansion] Attempt ${attempt + 1}: expanded text has ${expandedWordCount} words (was ${currentWordCount}). No improvement, will retry or degrade.`);
+                    // Don't throw — just continue to next attempt
+                    continue;
+                }
 
-            // Split expanded text back into paragraphs proportionally
-            const expandedSections = expandedText.split(/\n{2,}/);
-            const paragraphsToUpdate = currentParagraphs.sort((a, b) => a.paragraph_number - b.paragraph_number);
+                console.log(`[Expansion] Attempt ${attempt + 1}: expanded from ${currentWordCount} to ${expandedWordCount} words (+${expandedWordCount - currentWordCount}).`);
 
-            if (expandedSections.length >= paragraphsToUpdate.length) {
-                // Distribute sections evenly across paragraphs
-                const sectionsPerParagraph = Math.ceil(expandedSections.length / paragraphsToUpdate.length);
-                for (let i = 0; i < paragraphsToUpdate.length; i++) {
-                    const start = i * sectionsPerParagraph;
-                    const end = Math.min(start + sectionsPerParagraph, expandedSections.length);
-                    const paragraphContent = expandedSections.slice(start, end).join('\n\n');
-                    const wordCount = countWords(paragraphContent);
+                // Split expanded text back into paragraphs proportionally
+                const expandedSections = expandedText.split(/\n{2,}/).filter(s => s.trim().length > 0);
+                const paragraphsToUpdate = currentParagraphs.sort((a, b) => a.paragraph_number - b.paragraph_number);
 
+                if (expandedSections.length >= paragraphsToUpdate.length) {
+                    // Distribute sections evenly across paragraphs
+                    const sectionsPerParagraph = Math.ceil(expandedSections.length / paragraphsToUpdate.length);
+                    for (let i = 0; i < paragraphsToUpdate.length; i++) {
+                        const start = i * sectionsPerParagraph;
+                        const end = Math.min(start + sectionsPerParagraph, expandedSections.length);
+                        const paragraphContent = expandedSections.slice(start, end).join('\n\n');
+                        const wordCount = countWords(paragraphContent);
+
+                        await supabase.from('paragraphs')
+                            .update({
+                                content: paragraphContent,
+                                actual_word_count: wordCount,
+                                status: 'COMPLETED',
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', paragraphsToUpdate[i].id);
+                    }
+                } else {
+                    // Fewer sections than paragraphs — put all text in first paragraph
                     await supabase.from('paragraphs')
                         .update({
-                            content: paragraphContent,
-                            actual_word_count: wordCount,
+                            content: expandedText,
+                            actual_word_count: expandedWordCount,
                             status: 'COMPLETED',
                             updated_at: new Date().toISOString()
                         })
-                        .eq('id', paragraphsToUpdate[i].id);
+                        .eq('id', paragraphsToUpdate[0].id);
                 }
-            } else {
-                // Fewer sections than paragraphs — put all text in first paragraph, clear rest
-                const fullWordCount = countWords(expandedText);
-                await supabase.from('paragraphs')
-                    .update({
-                        content: expandedText,
-                        actual_word_count: fullWordCount,
-                        status: 'COMPLETED',
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', paragraphsToUpdate[0].id);
+
+                // Re-finalize chapter with new content
+                await finalizeChapterIfReady(chapter.id);
+
+                console.log(`[Expansion] Chapter ${chapter.chapter_number} expanded. Re-validating...`);
+                // Loop continues → re-validate
+
+            } catch (expansionError) {
+                // Expansion call itself failed (timeout, n8n error, etc.)
+                console.warn(`[Expansion] Attempt ${attempt + 1} failed: ${expansionError.message}. Will retry or degrade.`);
+                // Don't throw — continue to next attempt or graceful degradation
+                continue;
             }
-
-            // Re-finalize chapter with new content
-            await finalizeChapterIfReady(chapter.id);
-
-            console.log(`[Expansion] Chapter ${chapter.chapter_number} expanded. Re-validating...`);
-            // Loop continues → re-validate
         }
     }
 
