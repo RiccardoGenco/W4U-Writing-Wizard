@@ -944,7 +944,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const bookData = $node[\"Get Book Context Concept Architect1\"].json;\nconst dbContext = bookData.context_data || {};\nconst config = bookData.configuration || {};\n\nconst targetPagesRaw = $node[\"Webhook Router\"].json.body.targetPages ?? config.target_pages ?? dbContext.target_pages ?? bookData.target_pages;\nconst parsedTargetPages = Number(targetPagesRaw);\nif (!Number.isFinite(parsedTargetPages) || parsedTargetPages <= 0) {\n  throw new Error(\"targetPages missing/invalid in OUTLINE payload/context\");\n}\nconst targetPages = Math.round(parsedTargetPages);\n\nconst chaptersRateRaw = $node[\"Webhook Router\"].json.body.configuration?.chaptersRate ?? config.chaptersRate ?? 10;\nconst chaptersRate = Number(chaptersRateRaw) > 0 ? Number(chaptersRateRaw) : 10;\nconst wordsPerPage = Number(config.words_per_page) > 0 ? Number(config.words_per_page) : 250;\n\nlet numChapters = Number(bookData.target_chapters);\nif (!Number.isFinite(numChapters) || numChapters <= 0) {\n  numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));\n}\n\nconst totalWords = targetPages * wordsPerPage;\nconst wordsPerChapter = Math.floor(totalWords / numChapters);\n\nreturn {\n  json: {\n    target_pages: targetPages,\n    total_words_target: totalWords,\n    num_chapters: numChapters,\n    words_per_chapter: wordsPerChapter,\n    paragraphs_per_chapter: config.paragraphs_per_chapter || 5,\n    debug_inputs: { targetPagesRaw, chaptersRate, config }\n  }\n};"
+        "jsCode": "const bookData = $node[\"Get Book Context Concept Architect1\"].json;\nconst dbContext = bookData.context_data || {};\nconst config = bookData.configuration || {};\n\nconst targetPagesRaw = $node[\"Webhook Router\"].json.body.targetPages ?? config.target_pages ?? dbContext.target_pages ?? bookData.target_pages;\nconst parsedTargetPages = Number(targetPagesRaw);\nif (!Number.isFinite(parsedTargetPages) || parsedTargetPages <= 0) {\n  throw new Error(\"targetPages missing/invalid in OUTLINE payload/context\");\n}\nconst targetPages = Math.round(parsedTargetPages);\n\nconst chaptersRateRaw = $node[\"Webhook Router\"].json.body.configuration?.chaptersRate ?? config.chaptersRate ?? 10;\nconst chaptersRate = Number(chaptersRateRaw) > 0 ? Number(chaptersRateRaw) : 10;\nconst wordsPerPage = Number(config.words_per_page) > 0 ? Number(config.words_per_page) : 300;\n\nlet numChapters = Number(bookData.target_chapters);\nif (!Number.isFinite(numChapters) || numChapters <= 0) {\n  numChapters = Math.max(1, Math.floor(targetPages / chaptersRate));\n}\n\nconst totalWords = targetPages * wordsPerPage;\nconst wordsPerChapter = Math.floor(totalWords / numChapters);\n\nreturn {\n  json: {\n    target_pages: targetPages,\n    total_words_target: totalWords,\n    num_chapters: numChapters,\n    words_per_chapter: wordsPerChapter,\n    paragraphs_per_chapter: config.paragraphs_per_chapter || 5,\n    debug_inputs: { targetPagesRaw, chaptersRate, config }\n  }\n};"
       },
       "id": "93c04668-6286-4e6f-aa87-049afe635412",
       "name": "Calculator",
@@ -1837,6 +1837,28 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "expand-chapter-cond",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "EXPAND_CHAPTER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -2166,6 +2188,89 @@
         1400,
         1600
       ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "options": {
+          "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
+        }
+      },
+      "id": "get-book-context-expander-001",
+      "name": "Get Book Context Expander",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1900
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const book = $node[\"Get Book Context Expander\"].json || {};\n  const body = $node[\"Webhook Router\"].json.body || {};\n  const fullText = body.fullText || \"\";\n  const deficit = Number(body.deficit || 300);\n  const targetWordCount = Number(body.targetWordCount || 1500);\n\n  const expanderPrompt = book.prompts?.EXPANDER || \"Sei un editor professionista. Espandi il testo fornito aggiungendo dettagli, esempi e approfondimenti senza alterare la struttura. Restituisci il testo completo espanso.\";\n\n  return {\n    model: book.primary_model || \"gpt-4o\",\n    temperature: book.temps?.EXPANDER || 0.4,\n    messages: [\n      { role: \"system\", content: expanderPrompt },\n      { role: \"user\", content:\n`TESTO DA ESPANDERE:\\n${fullText}\\n\\nISTRUZIONI:\\n- Il testo attuale è troppo corto rispetto all'obiettivo.\\n- Devi aggiungere circa ${deficit} parole distribuite uniformemente.\\n- Target totale: almeno ${targetWordCount} parole.\\n- NON rimuovere contenuto esistente.\\n- NON alterare la struttura dei paragrafi.\\n- Arricchisci con dettagli, esempi, approfondimenti.\\n- Restituisci SOLO il testo espanso completo, senza commenti o markup.` }\n    ]\n  };\n})() }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "agent-expander-001",
+      "name": "Agent: Expander",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        400,
+        1900
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "lIvnrEKrZKxdIRLJ",
+          "name": "OpenAi account 5"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE ai_requests SET status = 'completed', response_data = $1::jsonb, updated_at = NOW() WHERE id = $2::uuid",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify({ expandedText: $node[\"Agent: Expander\"].json.choices[0].message.content }) }}, {{ $node[\"Webhook Router\"].json.body.requestId }}"
+        }
+      },
+      "id": "update-ai-request-expander-001",
+      "name": "Update Request Status (Expander)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        800,
+        1900
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "0AsoTCNHEls3AaYu",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -2912,6 +3017,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Get Book Context Expander",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -3022,6 +3134,28 @@
         [
           {
             "node": "Response Chapter Writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Book Context Expander": {
+      "main": [
+        [
+          {
+            "node": "Agent: Expander",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent: Expander": {
+      "main": [
+        [
+          {
+            "node": "Update Request Status (Expander)",
             "type": "main",
             "index": 0
           }

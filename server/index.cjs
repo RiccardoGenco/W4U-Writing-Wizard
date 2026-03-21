@@ -111,7 +111,7 @@ const getWordsPerPage = (book) => {
     const fromContext = Number(book?.context_data?.configuration?.words_per_page);
     if (Number.isFinite(fromConfig) && fromConfig > 0) return Math.round(fromConfig);
     if (Number.isFinite(fromContext) && fromContext > 0) return Math.round(fromContext);
-    return 250;
+    return 300;
 };
 
 const getExpectedParagraphsPerChapter = (book) => {
@@ -495,6 +495,7 @@ async function processCurrentChapter(run, book) {
         throw new Error('Run missing current_chapter_id');
     }
 
+    const MAX_EXPANSION_RETRIES = 2;
     const expectedParagraphsPerChapter = getExpectedParagraphsPerChapter(book);
     const targetWordsPerChapter = getTargetWordsPerChapter(book);
     const { chapter, paragraphs } = await getChapterWithParagraphs(run.current_chapter_id);
@@ -508,67 +509,181 @@ async function processCurrentChapter(run, book) {
     }
 
     const hasPendingParagraphs = paragraphs.some(p => p.status !== 'COMPLETED' || !p.content || p.content.length <= 20);
+
+    // If all paragraphs are already written, skip directly to validation
     if (!hasPendingParagraphs) {
         const finalizedAlready = await finalizeChapterIfReady(chapter.id);
         if (!finalizedAlready) {
             throw new Error(`Chapter ${chapter.chapter_number} is marked complete but cannot be finalized`);
         }
-        await validateCompletedChapter(chapter.id, book);
-        return;
-    }
+        // Still run through the expansion-aware validation below
+    } else {
+        // --- WRITE PHASE: generate all paragraphs ---
+        await supabase.from('book_generation_runs')
+            .update({
+                status: 'writing',
+                phase: 'write_chapter',
+                current_chapter_id: chapter.id,
+                current_chapter_number: chapter.chapter_number,
+                metadata: {
+                    ...(run.metadata || {}),
+                    active_paragraph_id: null,
+                    active_paragraph_number: null,
+                    expected_paragraphs_in_chapter: paragraphs.length,
+                    target_words_for_chapter: targetWordsPerChapter
+                },
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', run.id);
 
-    await supabase.from('book_generation_runs')
-        .update({
-            status: 'writing',
-            phase: 'write_chapter',
-            current_chapter_id: chapter.id,
-            current_chapter_number: chapter.chapter_number,
-            metadata: {
-                ...(run.metadata || {}),
-                active_paragraph_id: null,
-                active_paragraph_number: null,
-                expected_paragraphs_in_chapter: paragraphs.length,
-                target_words_for_chapter: targetWordsPerChapter
-            },
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', run.id);
-
-    await createAiRequestAndWait({
-        userId: run.created_by,
-        bookId: book.id,
-        action: 'WRITE_CHAPTER_FROM_PLAN',
-        payload: {
-            chapterId: chapter.id,
+        await createAiRequestAndWait({
+            userId: run.created_by,
             bookId: book.id,
-            targetWordCount: targetWordsPerChapter
-        }
-    });
+            action: 'WRITE_CHAPTER_FROM_PLAN',
+            payload: {
+                chapterId: chapter.id,
+                bookId: book.id,
+                targetWordCount: targetWordsPerChapter
+            }
+        });
 
-    const finalized = await finalizeChapterIfReady(chapter.id);
-    if (!finalized) {
-        throw new Error(`Chapter ${chapter.chapter_number} is still incomplete after chapter generation`);
+        const finalized = await finalizeChapterIfReady(chapter.id);
+        if (!finalized) {
+            throw new Error(`Chapter ${chapter.chapter_number} is still incomplete after chapter generation`);
+        }
     }
 
-    const chapterValidation = await validateCompletedChapter(chapter.id, book);
-    await supabase.from('book_generation_runs')
-        .update({
-            actual_total_words: (Number(run.actual_total_words) || 0) + chapterValidation.actualWordCount,
-            metadata: {
-                ...(run.metadata || {}),
-                last_completed_chapter_id: chapter.id,
-                last_completed_chapter_number: chapter.chapter_number,
-                last_completed_chapter_words: chapterValidation.actualWordCount,
-                target_words_for_chapter: targetWordsPerChapter,
-                chapter_word_range: {
-                    min: chapterValidation.minAllowedWords,
-                    max: chapterValidation.maxAllowedWords
+    // --- VALIDATION + EXPANSION RETRY LOOP ---
+    let lastValidation = null;
+    for (let attempt = 0; attempt <= MAX_EXPANSION_RETRIES; attempt++) {
+        try {
+            lastValidation = await validateCompletedChapter(chapter.id, book);
+            // Validation passed — break out of retry loop
+            break;
+        } catch (validationError) {
+            const isWordCountError = validationError.message && validationError.message.includes('below minimum');
+
+            if (!isWordCountError || attempt >= MAX_EXPANSION_RETRIES) {
+                // Not a word count issue, or max retries exceeded — propagate
+                throw validationError;
+            }
+
+            // --- EXPANSION PHASE ---
+            const { paragraphs: currentParagraphs } = await getChapterWithParagraphs(chapter.id);
+            const compiledText = currentParagraphs.map(p => p.content || '').filter(Boolean).join('\n\n');
+            const currentWordCount = countWords(compiledText);
+            const minRequired = Math.max(500, Math.floor(targetWordsPerChapter * 0.6));
+            const deficit = minRequired - currentWordCount + 150; // +150 buffer to avoid marginal pass
+
+            console.log(`[Expansion] Chapter ${chapter.chapter_number}: ${currentWordCount} words, need ${minRequired}. Deficit: ${deficit}. Attempt ${attempt + 1}/${MAX_EXPANSION_RETRIES}`);
+
+            await supabase.from('book_generation_runs')
+                .update({
+                    metadata: {
+                        ...(run.metadata || {}),
+                        expansion_attempt: attempt + 1,
+                        expansion_deficit: deficit,
+                        pre_expansion_words: currentWordCount
+                    },
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', run.id);
+
+            // Call EXPAND_CHAPTER via n8n
+            const expandResult = await createAiRequestAndWait({
+                userId: run.created_by,
+                bookId: book.id,
+                action: 'EXPAND_CHAPTER',
+                payload: {
+                    chapterId: chapter.id,
+                    bookId: book.id,
+                    fullText: compiledText,
+                    currentWordCount,
+                    deficit,
+                    targetWordCount: minRequired + 150,
+                    paragraphCount: currentParagraphs.length
                 }
-            },
-            updated_at: new Date().toISOString()
-        })
-        .eq('id', run.id);
+            });
+
+            // Parse expanded text from the ai_request response
+            let expandedText = '';
+            if (expandResult.response_data) {
+                const responseData = typeof expandResult.response_data === 'string'
+                    ? JSON.parse(expandResult.response_data)
+                    : expandResult.response_data;
+                expandedText = responseData?.expandedText || responseData?.text || responseData?.content || '';
+            }
+
+            if (!expandedText || expandedText.length < compiledText.length) {
+                console.warn(`[Expansion] Expanded text is shorter or empty. Skipping update.`);
+                throw new Error(`Chapter ${chapter.chapter_number} expansion failed: expanded text is shorter than original`);
+            }
+
+            // Split expanded text back into paragraphs proportionally
+            const expandedSections = expandedText.split(/\n{2,}/);
+            const paragraphsToUpdate = currentParagraphs.sort((a, b) => a.paragraph_number - b.paragraph_number);
+
+            if (expandedSections.length >= paragraphsToUpdate.length) {
+                // Distribute sections evenly across paragraphs
+                const sectionsPerParagraph = Math.ceil(expandedSections.length / paragraphsToUpdate.length);
+                for (let i = 0; i < paragraphsToUpdate.length; i++) {
+                    const start = i * sectionsPerParagraph;
+                    const end = Math.min(start + sectionsPerParagraph, expandedSections.length);
+                    const paragraphContent = expandedSections.slice(start, end).join('\n\n');
+                    const wordCount = countWords(paragraphContent);
+
+                    await supabase.from('paragraphs')
+                        .update({
+                            content: paragraphContent,
+                            actual_word_count: wordCount,
+                            status: 'COMPLETED',
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', paragraphsToUpdate[i].id);
+                }
+            } else {
+                // Fewer sections than paragraphs — put all text in first paragraph, clear rest
+                const fullWordCount = countWords(expandedText);
+                await supabase.from('paragraphs')
+                    .update({
+                        content: expandedText,
+                        actual_word_count: fullWordCount,
+                        status: 'COMPLETED',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', paragraphsToUpdate[0].id);
+            }
+
+            // Re-finalize chapter with new content
+            await finalizeChapterIfReady(chapter.id);
+
+            console.log(`[Expansion] Chapter ${chapter.chapter_number} expanded. Re-validating...`);
+            // Loop continues → re-validate
+        }
+    }
+
+    // Update run with successful validation
+    if (lastValidation) {
+        await supabase.from('book_generation_runs')
+            .update({
+                actual_total_words: (Number(run.actual_total_words) || 0) + lastValidation.actualWordCount,
+                metadata: {
+                    ...(run.metadata || {}),
+                    last_completed_chapter_id: chapter.id,
+                    last_completed_chapter_number: chapter.chapter_number,
+                    last_completed_chapter_words: lastValidation.actualWordCount,
+                    target_words_for_chapter: targetWordsPerChapter,
+                    chapter_word_range: {
+                        min: lastValidation.minAllowedWords,
+                        max: lastValidation.maxAllowedWords
+                    }
+                },
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', run.id);
+    }
 }
+
 
 async function finalizeBookGenerationRun(runId, book) {
     const { data: chapters, error: chaptersError } = await supabase

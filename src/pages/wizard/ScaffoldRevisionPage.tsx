@@ -145,7 +145,7 @@ const ScaffoldRevisionPage: React.FC = () => {
             const wordsPerPage =
                 parsePositiveInt(book.configuration?.words_per_page) ??
                 parsePositiveInt(book.context_data?.configuration?.words_per_page) ??
-                250;
+                300;
             
             const totalWordsTarget = targetPages * wordsPerPage;
             const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
@@ -175,7 +175,7 @@ const ScaffoldRevisionPage: React.FC = () => {
                     title: p.title || `Sottocapitolo ${pIndex + 1}`,
                     description: p.description || '',
                     status: 'PENDING',
-                    target_word_count: 250 // Standard target
+                    target_word_count: 300 // Standard target
                 }));
 
                 const { data: newParagraphs, error } = await supabase
