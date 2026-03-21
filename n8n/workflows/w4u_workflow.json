@@ -347,7 +347,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ $node[\"Webhook Router\"].json.body.bookId }}"
         }
@@ -498,7 +498,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
         }
@@ -701,7 +701,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ $node[\"Webhook Router\"].json.body.bookId }}"
         }
@@ -849,7 +849,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ $node[\"Get Paragraph\"].json.book_id }}"
         }
@@ -1327,7 +1327,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
         }
@@ -1350,7 +1350,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ [$node[\"Init Book (Optional)\"].json.id] }}"
         }
@@ -1953,7 +1953,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
         }
@@ -1998,7 +1998,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+        "query": "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = 'primary_model') s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END OR genre = 'GENERAL')   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN ('Saggistica Scientifica o Storica', 'Tecnologia e AI', 'Business & Self-Help', 'Hobby e Passioni', 'Salute, Dieta e Benessere', 'Finanza Personale e Investimenti', 'Biografie e Memorie') THEN 'Non-Fiction' ELSE 'Fiction' END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
         "options": {
           "queryReplacement": "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
         }
