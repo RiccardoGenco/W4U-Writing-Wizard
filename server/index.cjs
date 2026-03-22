@@ -396,7 +396,7 @@ async function createAiRequestAndWait({ userId, bookId, action, payload, timeout
         const { data: current, error } = await supabase
             .from('ai_requests')
             .select('*')
-            .eq('id', aiRequest.id)
+            .eq('id', aiRequestId)
             .single();
 
         if (error || !current) {
