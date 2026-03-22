@@ -237,11 +237,13 @@ async function refreshBookGenerationRunState(runId, book) {
             return;
         }
 
-        const actualTotalWords = (paragraphs || []).reduce((acc, paragraph) => {
-            if (Number.isFinite(paragraph.actual_word_count) && paragraph.actual_word_count > 0) {
-                return acc + Number(paragraph.actual_word_count);
-            }
-            return acc + countWords(paragraph.content);
+        const actualTotalWords = (paragraphs || []).reduce((acc, p) => {
+            const isPlausibleWordCount =
+                Number.isFinite(p.actual_word_count) &&
+                p.actual_word_count > 1 &&
+                !(p.content && p.content.length > 100 && p.actual_word_count < 10);
+            if (isPlausibleWordCount) return acc + Number(p.actual_word_count);
+            return acc + countWords(p.content);
         }, 0);
 
         const nextChapter = chapters.find(ch => ch.status !== 'COMPLETED') || null;
@@ -461,7 +463,7 @@ async function finalizeChapterIfReady(chapterId) {
 async function validateCompletedChapter(chapterId, book) {
     const { chapter, paragraphs } = await getChapterWithParagraphs(chapterId);
     const targetWordsPerChapter = getTargetWordsPerChapter(book);
-    const minAllowedWords = Math.max(500, Math.floor(targetWordsPerChapter * 0.6));
+    const minAllowedWords = Math.max(500, Math.floor(targetWordsPerChapter * 0.9));
     const maxAllowedWords = Math.ceil(targetWordsPerChapter * 1.35);
     const expectedParagraphsPerChapter = getExpectedParagraphsPerChapter(book);
     const actualWordCount = paragraphs.reduce((acc, p) => {
@@ -529,7 +531,7 @@ async function processCurrentChapter(run, book) {
         throw new Error('Run missing current_chapter_id');
     }
 
-    const MAX_EXPANSION_RETRIES = 2;
+    const MAX_EXPANSION_RETRIES = 3;
     const expectedParagraphsPerChapter = getExpectedParagraphsPerChapter(book);
     const targetWordsPerChapter = getTargetWordsPerChapter(book);
     const { chapter, paragraphs } = await getChapterWithParagraphs(run.current_chapter_id);
@@ -552,7 +554,7 @@ async function processCurrentChapter(run, book) {
         }
         // Still run through the expansion-aware validation below
     } else {
-        // --- WRITE PHASE: generate all paragraphs ---
+        // --- WRITE PHASE: SPLIT GENERATION (TWO PARTS) ---
         await supabase.from('book_generation_runs')
             .update({
                 status: 'writing',
@@ -570,6 +572,18 @@ async function processCurrentChapter(run, book) {
             })
             .eq('id', run.id);
 
+        const totalParagraphs = paragraphs.length;
+        const midPoint = Math.ceil(totalParagraphs / 2);
+
+        // Sort paragraphs to be safe
+        const sortedParagraphs = [...paragraphs].sort((a, b) => a.paragraph_number - b.paragraph_number);
+
+        const part1Range = [sortedParagraphs[0].paragraph_number, sortedParagraphs[midPoint - 1].paragraph_number];
+        const part2Range = [sortedParagraphs[midPoint].paragraph_number, sortedParagraphs[totalParagraphs - 1].paragraph_number];
+
+        console.log(`[Book Generation] Chapter ${chapter.chapter_number}: Initiating SPLIT GENERATION. Part 1: ${part1Range[0]}-${part1Range[1]}, Part 2: ${part2Range[0]}-${part2Range[1]}`);
+
+        // Generate Part 1
         await createAiRequestAndWait({
             userId: run.created_by,
             bookId: book.id,
@@ -577,7 +591,25 @@ async function processCurrentChapter(run, book) {
             payload: {
                 chapterId: chapter.id,
                 bookId: book.id,
-                targetWordCount: targetWordsPerChapter
+                targetWordCount: Math.round(targetWordsPerChapter / 2),
+                paragraphRange: part1Range,
+                partNumber: 1,
+                totalParts: 2
+            }
+        });
+
+        // Generate Part 2
+        await createAiRequestAndWait({
+            userId: run.created_by,
+            bookId: book.id,
+            action: 'WRITE_CHAPTER_FROM_PLAN',
+            payload: {
+                chapterId: chapter.id,
+                bookId: book.id,
+                targetWordCount: Math.round(targetWordsPerChapter / 2),
+                paragraphRange: part2Range,
+                partNumber: 2,
+                totalParts: 2
             }
         });
 
@@ -623,7 +655,7 @@ async function processCurrentChapter(run, book) {
 
                 lastValidation = {
                     actualWordCount: finalWordCount,
-                    minAllowedWords: Math.max(500, Math.floor(targetWordsPerChapter * 0.6)),
+                    minAllowedWords: Math.max(500, Math.floor(targetWordsPerChapter * 0.9)),
                     maxAllowedWords: Math.ceil(targetWordsPerChapter * 1.35)
                 };
 
@@ -635,7 +667,7 @@ async function processCurrentChapter(run, book) {
             const { paragraphs: currentParagraphs } = await getChapterWithParagraphs(chapter.id);
             const compiledText = currentParagraphs.map(p => p.content || '').filter(Boolean).join('\n\n');
             const currentWordCount = countWords(compiledText);
-            const minRequired = Math.max(500, Math.floor(targetWordsPerChapter * 0.6));
+            const minRequired = Math.max(500, Math.floor(targetWordsPerChapter * 0.9));
             const deficit = minRequired - currentWordCount + 150; // +150 buffer to avoid marginal pass
 
             console.log(`[Expansion] Chapter ${chapter.chapter_number}: ${currentWordCount} words, need ${minRequired}. Deficit: ${deficit}. Attempt ${attempt + 1}/${MAX_EXPANSION_RETRIES}`);
@@ -712,7 +744,7 @@ async function processCurrentChapter(run, book) {
                             .eq('id', paragraphsToUpdate[i].id);
                     }
                 } else {
-                    // Fewer sections than paragraphs — put all text in first paragraph
+                    // Fewer sections than paragraphs — put all text in first paragraph and CLEAR others
                     await supabase.from('paragraphs')
                         .update({
                             content: expandedText,
@@ -721,6 +753,18 @@ async function processCurrentChapter(run, book) {
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', paragraphsToUpdate[0].id);
+                    
+                    if (paragraphsToUpdate.length > 1) {
+                        const otherIds = paragraphsToUpdate.slice(1).map(p => p.id);
+                        await supabase.from('paragraphs')
+                            .update({
+                                content: '',
+                                actual_word_count: 0,
+                                status: 'SKIPPED',
+                                updated_at: new Date().toISOString()
+                            })
+                            .in('id', otherIds);
+                    }
                 }
 
                 // Re-finalize chapter with new content
@@ -773,9 +817,12 @@ async function finalizeBookGenerationRun(runId, book) {
     }
 
     const totalWords = (chapters || []).reduce((acc, chapter) => {
-        if (Number.isFinite(chapter.actual_word_count) && chapter.actual_word_count > 0) {
-            return acc + Number(chapter.actual_word_count);
-        }
+        const isPlausibleWordCount =
+            Number.isFinite(chapter.actual_word_count) &&
+            chapter.actual_word_count > 100 && // Chapter must be longer
+            !(chapter.content && chapter.content.length > 500 && chapter.actual_word_count < 50);
+        
+        if (isPlausibleWordCount) return acc + Number(chapter.actual_word_count);
         return acc + countWords(chapter.content);
     }, 0);
 

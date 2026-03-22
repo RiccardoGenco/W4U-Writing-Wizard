@@ -1,0 +1,190 @@
+﻿[
+    {
+        "parameters":  {
+                           "operation":  "executeQuery",
+                           "query":  "INSERT INTO ai_usage_logs (book_id, operation_type, node_name, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, metadata) \nVALUES (\n  \u0027{{ $node[\"Webhook Router\"].json.body.bookId || $node[\"Init Book (Optional)\"].json.id }}\u0027::uuid,\n  \u0027{{ $node[\"Webhook Router\"].json.body.action }}\u0027,\n  \u0027Agent: Writer\u0027,\n  \u0027{{ $node[\"Get Book\"].json.primary_model || \"gpt-4o\" }}\u0027,\n  {{ $json.usage ? $json.usage.prompt_tokens : 0 }},\n  {{ $json.usage ? $json.usage.completion_tokens : 0 }},\n  {{ $json.usage ? $json.usage.total_tokens : 0 }},\n  {{ \n    (function() {\n      const model = $node[\"Get Book\"].json.primary_model || \"gpt-4o\";\n      const isMini = model.includes(\"mini\");\n      const inPrice = isMini ? 0.00000015 : 0.0000025;\n      const outPrice = isMini ? 0.00000060 : 0.00001;\n      const promptTokens = $json.usage ? $json.usage.prompt_tokens : 0;\n      const completionTokens = $json.usage ? $json.usage.completion_tokens : 0;\n      return (promptTokens * inPrice + completionTokens * outPrice) * 1.05;\n    })()\n  }},\n  \u0027{{ JSON.stringify($json.usage || {}) }}\u0027::jsonb\n)",
+                           "options":  {
+
+                                       }
+                       },
+        "id":  "8c67209d-e1b8-45e0-929b-e03840793988",
+        "name":  "Log AI Usage: Writer",
+        "type":  "n8n-nodes-base.postgres",
+        "typeVersion":  2.4,
+        "position":  [
+                         640,
+                         64
+                     ],
+        "credentials":  {
+                            "postgres":  {
+                                             "id":  "0AsoTCNHEls3AaYu",
+                                             "name":  "Postgres account"
+                                         }
+                        },
+        "onError":  "continueRegularOutput"
+    },
+    {
+        "parameters":  {
+                           "jsCode":  "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\nlet rawContent = $node[\"Agent: Writer\"].json.choices[0].message.content;\n// Strip markdown backticks\nrawContent = rawContent.replace(/```markdown\\n?|```/g, \u0027\u0027).trim();\n// Strip emojis\nconst cleanContent = rawContent.replace(emojiRegex, \u0027\u0027);\nconst wordCount = cleanContent.split(/\\s+/).filter(w =\u003e w.length \u003e 0).length;\n\nreturn {\n  content: cleanContent,\n  word_count: wordCount\n};"
+                       },
+        "id":  "8b21dd09-b990-4e0b-ace5-d07ebd1dbcd9",
+        "name":  "Sanitize Writer",
+        "type":  "n8n-nodes-base.code",
+        "typeVersion":  2,
+        "position":  [
+                         864,
+                         64
+                     ]
+    },
+    {
+        "parameters":  {
+                           "method":  "POST",
+                           "url":  "https://api.openai.com/v1/chat/completions",
+                           "authentication":  "predefinedCredentialType",
+                           "nodeCredentialType":  "openAiApi",
+                           "sendHeaders":  true,
+                           "headerParameters":  {
+                                                    "parameters":  [
+                                                                       {
+                                                                           "name":  "Content-Type",
+                                                                           "value":  "application/json"
+                                                                       }
+                                                                   ]
+                                                },
+                           "sendBody":  true,
+                           "specifyBody":  "json",
+                           "jsonBody":  "={{ (() =\u003e {\n  const book = $node[\"Get Book\"].json || {};\n  const paragraph = $node[\"Get Paragraph\"].json || {};\n  const prevCtx = ($node[\"Get Previous Paragraphs Context\"].json?.combined_content || \"\").slice(-6000);\n  const ragChunks = $(\"RAG: Query Draft Chunks\").all().map(i =\u003e i.json?.content || \"\").filter(Boolean).join(\"\\n\\n\").slice(0, 5000);\n\n  const wordsPerPage = Number(book?.configuration?.words_per_page || 250);\n  const targetWordCount = Number(paragraph?.target_word_count || wordsPerPage);\n  const minWords = Math.max(120, Math.floor(targetWordCount * 0.85));\n  const maxWords = Math.max(minWords + 30, Math.ceil(targetWordCount * 1.15));\n\n  const chapterTitle = paragraph.chapter_title || $node[\"Webhook Router\"].json.body.chapter?.title || \"Senza Titolo\";\n  const chapterSummary = paragraph.chapter_summary || $node[\"Webhook Router\"].json.body.chapter?.summary || \"\";\n  const paragraphTitle = paragraph.title || $node[\"Webhook Router\"].json.body.paragraphTitle || \"\";\n  const paragraphBrief = paragraph.description || \"\";\n\n  return {\n    model: book.primary_model || \"gpt-4o\",\n    temperature: book?.temps?.WRITER || 0.5,\n    messages: [\n      { role: \"system\", content: (book?.prompts?.WRITER || \"Scrivi contenuti coerenti, chiari e di alta qualita.\") },\n      { role: \"user\", content:\n`DATA:\nBLUEPRINT: ${JSON.stringify(book.context_data || {})}\nPLOT SUMMARY: ${book.plot_summary || \"\"}\n\nTITOLO LIBRO: ${book.title || \"\"}\nCAPITOLO: ${chapterTitle} - ${chapterSummary}\nPARAGRAFO: ${paragraphTitle}\nOBIETTIVO PARAGRAFO: ${paragraphBrief}\n\nCONTINUITA CAPITOLO (gia scritto):\n${prevCtx || \"(vuoto)\"}\n\nRAG CONTESTO:\n${ragChunks || \"(vuoto)\"}\n\nVINCOLI QUALITA:\n- Mantieni coerenza narrativa e logica con blueprint e testo precedente.\n- Non ripetere concetti gia espressi salvo raccordi necessari.\n- Testo naturale, concreto, senza filler o meta-commenti.\n- Lunghezza target circa ${targetWordCount} parole (range ${minWords}-${maxWords}).\n- Restituisci solo il testo finale del paragrafo, senza markdown code fence.` }\n    ]\n  };\n})() }}",
+                           "options":  {
+
+                                       }
+                       },
+        "id":  "1e7fcb48-4258-43bc-9953-bc5cf44c0964",
+        "name":  "Agent: Writer",
+        "type":  "n8n-nodes-base.httpRequest",
+        "typeVersion":  4,
+        "position":  [
+                         416,
+                         64
+                     ],
+        "credentials":  {
+                            "openAiApi":  {
+                                              "id":  "lIvnrEKrZKxdIRLJ",
+                                              "name":  "OpenAi account 5"
+                                          }
+                        }
+    },
+    {
+        "parameters":  {
+                           "operation":  "executeQuery",
+                           "query":  "UPDATE ai_requests SET status = \u0027completed\u0027, response_data = $1::jsonb, updated_at = NOW() WHERE id = $2::uuid",
+                           "options":  {
+                                           "queryReplacement":  "={{ JSON.stringify({ aiResponse: $node[\"Agent: Writer\"].json.choices[0].message.content }) }}, {{ $node[\"Webhook Router\"].json.body.requestId }}"
+                                       }
+                       },
+        "id":  "update-ai-request-writer-001",
+        "name":  "Update Request Status (Writer)",
+        "type":  "n8n-nodes-base.postgres",
+        "typeVersion":  2.4,
+        "position":  [
+                         1200,
+                         272
+                     ],
+        "credentials":  {
+                            "postgres":  {
+                                             "id":  "0AsoTCNHEls3AaYu",
+                                             "name":  "Postgres account"
+                                         }
+                        }
+    },
+    {
+        "parameters":  {
+                           "operation":  "executeQuery",
+                           "query":  "SELECT b.*, s.value as primary_model, jsonb_object_agg(p.name, p.prompt_text) as prompts, jsonb_object_agg(p.name, p.temperature) as temps FROM books b CROSS JOIN (SELECT value FROM ai_settings WHERE key = \u0027primary_model\u0027) s LEFT JOIN LATERAL (  SELECT DISTINCT ON (name) name, prompt_text, temperature   FROM ai_prompts   WHERE is_active = true AND (genre = b.genre OR genre = CASE WHEN b.genre IN (\u0027Saggistica Scientifica o Storica\u0027, \u0027Tecnologia e AI\u0027, \u0027Business \u0026 Self-Help\u0027, \u0027Hobby e Passioni\u0027, \u0027Salute, Dieta e Benessere\u0027, \u0027Finanza Personale e Investimenti\u0027, \u0027Biografie e Memorie\u0027) THEN \u0027Non-Fiction\u0027 ELSE \u0027Fiction\u0027 END OR genre = \u0027GENERAL\u0027)   ORDER BY name, (genre = b.genre) DESC, (genre = CASE WHEN b.genre IN (\u0027Saggistica Scientifica o Storica\u0027, \u0027Tecnologia e AI\u0027, \u0027Business \u0026 Self-Help\u0027, \u0027Hobby e Passioni\u0027, \u0027Salute, Dieta e Benessere\u0027, \u0027Finanza Personale e Investimenti\u0027, \u0027Biografie e Memorie\u0027) THEN \u0027Non-Fiction\u0027 ELSE \u0027Fiction\u0027 END) DESC, created_at DESC) p ON true WHERE b.id = $1::uuid GROUP BY b.id, s.value",
+                           "options":  {
+                                           "queryReplacement":  "={{ [$node[\"Webhook Router\"].json.body.bookId] }}"
+                                       }
+                       },
+        "id":  "624474ea-ce58-44ad-ae59-5dde5399bb3e",
+        "name":  "Get Book Context Chapter Writer",
+        "type":  "n8n-nodes-base.postgres",
+        "typeVersion":  2,
+        "position":  [
+                         0,
+                         1600
+                     ],
+        "credentials":  {
+                            "postgres":  {
+                                             "id":  "0AsoTCNHEls3AaYu",
+                                             "name":  "Postgres account"
+                                         }
+                        }
+    },
+    {
+        "parameters":  {
+                           "mode":  "runOnceForAllItems",
+                           "jsCode":  "const paragraphs = $items(\"Get Chapter Paragraphs\").map(i =\u003e i.json);\nconst context = $node[\"Get Book Context Chapter Writer\"].json || {};\nconst webhook = $node[\"Webhook Router\"].json.body || {};\n\nif (!Array.isArray(paragraphs) || paragraphs.length === 0) {\n  throw new Error(\u0027No scaffold paragraphs found for chapter writer\u0027);\n}\n\nconst model = context.primary_model || \u0027gpt-4o\u0027;\nconst temperature = context.temps.CHAPTER_WRITER || 0.5;\nconst systemPrompt = context.prompts.CHAPTER_WRITER || \u0027Sei un autore professionale. Scrivi testi coerenti, specifici e narrativamente solidi.\u0027;\nconst chapter = paragraphs[0] || {};\nconst chapterTitle = chapter.chapter_title || webhook.chapterTitle || \u0027Capitolo senza titolo\u0027;\nconst chapterSummary = chapter.chapter_summary || webhook.chapterSummary || \u0027\u0027;\nconst targetWordCount = Number(webhook.targetWordCount);\nconst safeTargetWordCount = Number.isFinite(targetWordCount) \u0026\u0026 targetWordCount \u003e 0 ? Math.round(targetWordCount) : Math.max(1200, paragraphs.length * 250);\nconst minWordCount = Math.max(800, Math.floor(safeTargetWordCount * 0.9));\nconst outlineStr = paragraphs.map((p) =\u003e `- ${p.paragraph_number}. ${p.title}\\n  Obiettivo: ${p.description || \u0027(non specificato)\u0027}`).join(\u0027\\n\u0027);\nconst continuity = (context.context_data?.messages || []).slice(-12).map((m) =\u003e `${m.role}: ${m.content}`).join(\u0027\\n\u0027);\n\nconst userPrompt = [\n  `TITOLO LIBRO: ${context.title || \u0027\u0027}`,\n  `PLOT SUMMARY: ${context.plot_summary || \u0027\u0027}`,\n  `BLUEPRINT: ${JSON.stringify(context.context_data || {})}`,\n  `CAPITOLO: ${chapterTitle}`,\n  `SINTESI CAPITOLO: ${chapterSummary}`,\n  \u0027\u0027,\n  \u0027TRACCIA DEI SOTTOCAPITOLI DA COPRIRE IN ORDINE:\u0027,\n  outlineStr,\n  \u0027\u0027,\n  \u0027CONTINUITA DALLA FASE PRECEDENTE:\u0027,\n  continuity || \u0027(non disponibile)\u0027,\n  \u0027\u0027,\n  `VINCOLO LUNGHEZZA: scrivi l\u0027intero capitolo con almeno ${minWordCount} parole e obiettivo ${safeTargetWordCount} parole complessive.`,\n  \u0027REGOLE:\u0027,\n  \u0027- Copri tutti i sottocapitoli nell ordine dato, senza saltarne nessuno.\u0027,\n  \u0027- Mantieni coerenza narrativa, evita ripetizioni e filler.\u0027,\n  \u0027- Ogni contenuto deve essere testo finale, non scalette o note metatestuali.\u0027,\n  \u0027- Restituisci SOLO JSON valido con questa forma:\u0027,\n  \u0027{\"paragraphs\":[{\"paragraph_number\":1,\"content\":\"...\"}]}\u0027,\n  \u0027- L array paragraphs deve contenere esattamente un elemento per ogni sottocapitolo previsto.\u0027,\n  \u0027- Usa gli stessi paragraph_number della traccia.\u0027\n].join(\u0027\\n\u0027);\n\nreturn [{\n  json: {\n    model,\n    temperature,\n    systemPrompt,\n    userPrompt,\n    expectedParagraphs: paragraphs.length,\n    targetWordCount: safeTargetWordCount\n  }\n}];"
+                       },
+        "id":  "e274782e-b444-47eb-8af6-6cfeac44a21a",
+        "name":  "Prepare Writer Payload",
+        "type":  "n8n-nodes-base.code",
+        "typeVersion":  2,
+        "position":  [
+                         400,
+                         1600
+                     ]
+    },
+    {
+        "parameters":  {
+                           "method":  "POST",
+                           "url":  "https://api.openai.com/v1/chat/completions",
+                           "authentication":  "predefinedCredentialType",
+                           "nodeCredentialType":  "openAiApi",
+                           "sendHeaders":  true,
+                           "headerParameters":  {
+                                                    "parameters":  [
+                                                                       {
+                                                                           "name":  "Content-Type",
+                                                                           "value":  "application/json"
+                                                                       }
+                                                                   ]
+                                                },
+                           "sendBody":  true,
+                           "specifyBody":  "json",
+                           "jsonBody":  "={{ { \"model\": $node[\"Prepare Writer Payload\"].json.model, \"temperature\": $node[\"Prepare Writer Payload\"].json.temperature, \"response_format\": { \"type\": \"json_object\" }, \"messages\": [ { \"role\": \"system\", \"content\": $node[\"Prepare Writer Payload\"].json.systemPrompt }, { \"role\": \"user\", \"content\": $node[\"Prepare Writer Payload\"].json.userPrompt } ] } }}",
+                           "options":  {
+                                           "timeout":  300000
+                                       }
+                       },
+        "id":  "0ec777b8-193f-4c12-aba5-d91ecb185acb",
+        "name":  "Agent: Chapter Writer",
+        "type":  "n8n-nodes-base.httpRequest",
+        "typeVersion":  4,
+        "position":  [
+                         600,
+                         1600
+                     ],
+        "credentials":  {
+                            "openAiApi":  {
+                                              "id":  "lIvnrEKrZKxdIRLJ",
+                                              "name":  "OpenAi account 5"
+                                          }
+                        }
+    },
+    {
+        "parameters":  {
+                           "respondWith":  "json",
+                           "responseBody":  "={{ { \"status\": \"completed\", \"data\": { \"chapterId\": $node[\"Webhook Router\"].json.body.chapterId, \"paragraphs\": $node[\"Sanitize Chapter JSON\"].json.paragraphs, \"targetWordCount\": $node[\"Prepare Writer Payload\"].json.targetWordCount } } }}",
+                           "options":  {
+
+                                       }
+                       },
+        "id":  "96dbfb1b-bd95-4c4d-8392-3d59b650b0c1",
+        "name":  "Response Chapter Writer",
+        "type":  "n8n-nodes-base.respondToWebhook",
+        "typeVersion":  1,
+        "position":  [
+                         1400,
+                         1600
+                     ]
+    }
+]

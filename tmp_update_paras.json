@@ -1,0 +1,23 @@
+﻿{
+    "parameters":  {
+                       "operation":  "executeQuery",
+                       "query":  "UPDATE paragraphs p SET content = j.content, status = \u0027COMPLETED\u0027, actual_word_count = array_length(regexp_split_to_array(j.content, \u0027\\\\s+\u0027), 1) FROM jsonb_to_recordset($1::jsonb) AS j(paragraph_number int, content text) WHERE p.chapter_id = $2::uuid AND p.paragraph_number = j.paragraph_number",
+                       "options":  {
+                                       "queryReplacement":  "={{ [JSON.stringify($json.paragraphs || []), $node[\"Webhook Router\"].json.body.chapterId] }}"
+                                   }
+                   },
+    "id":  "d9d0e5e4-45e4-43dd-b016-5b54b8d66db4",
+    "name":  "Update Chapter Paragraphs Bulk",
+    "type":  "n8n-nodes-base.postgres",
+    "typeVersion":  2,
+    "position":  [
+                     1000,
+                     1600
+                 ],
+    "credentials":  {
+                        "postgres":  {
+                                         "id":  "0AsoTCNHEls3AaYu",
+                                         "name":  "Postgres account"
+                                     }
+                    }
+}
