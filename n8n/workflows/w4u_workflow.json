@@ -1251,6 +1251,28 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "EXPAND_CHAPTER",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "expand-chapter-rule-001"
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -2720,6 +2742,13 @@
         [
           {
             "node": "Get Book Context Chapter Writer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Started",
             "type": "main",
             "index": 0
           }

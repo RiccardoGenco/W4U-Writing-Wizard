@@ -327,33 +327,67 @@ async function getChapterWithParagraphs(chapterId) {
     return { chapter, paragraphs: paragraphs || [] };
 }
 
-async function createAiRequestAndWait({ userId, bookId, action, payload, timeoutMs = 6 * 60 * 1000 }) {
-    const { data: aiRequest, error: insertError } = await supabase
-        .from('ai_requests')
-        .insert({
-            user_id: userId,
-            book_id: bookId,
-            action,
-            status: 'pending',
-            request_payload: payload
-        })
-        .select()
-        .single();
+async function ensureSuccess(promise, contextMessage = 'Database operation') {
+    const res = await promise;
+    if (res.error) {
+        throw new Error(`${contextMessage} failed: ${res.error.message}`);
+    }
+    return res;
+}
 
-    if (insertError || !aiRequest) {
-        throw new Error(`Failed to create ai_request for ${action}`);
+async function createAiRequestAndWait({ userId, bookId, action, payload, timeoutMs = 6 * 60 * 1000 }) {
+    // 1. Deduplication: check for existing pending/processing request for same book + action + chapter
+    const { data: pendingRequests, error: findError } = await supabase
+        .from('ai_requests')
+        .select('*')
+        .eq('book_id', bookId)
+        .eq('action', action)
+        .in('status', ['pending', 'processing', 'started']);
+
+    let aiRequestId = null;
+    if (!findError && pendingRequests && pendingRequests.length > 0) {
+        const targetChapter = payload.chapterId;
+        const match = pendingRequests.find(r => {
+            const rChapter = r.request_payload ? r.request_payload.chapterId : null;
+            return rChapter === targetChapter;
+        });
+        if (match) {
+            console.log(`[Book Generation] Deduplicating AI request for ${action}. Reusing ${match.id}`);
+            aiRequestId = match.id;
+        }
     }
 
-    forwardToN8n(aiRequest.id, userId, { ...payload, action, bookId }, null).catch(async (err) => {
-        console.error(`[Book Generation] Worker dispatch failed for ${action}:`, err.message);
-        await supabase.from('ai_requests')
-            .update({
-                status: 'failed',
-                error_message: err.message,
-                updated_at: new Date().toISOString()
+    // 2. Create if not found
+    if (!aiRequestId) {
+        const { data: aiRequest, error: insertError } = await supabase
+            .from('ai_requests')
+            .insert({
+                user_id: userId,
+                book_id: bookId,
+                action,
+                status: 'pending',
+                request_payload: payload
             })
-            .eq('id', aiRequest.id);
-    });
+            .select()
+            .single();
+
+        if (insertError || !aiRequest) {
+            throw new Error(`Failed to create ai_request for ${action}: ${insertError?.message}`);
+        }
+        
+        aiRequestId = aiRequest.id;
+
+        forwardToN8n(aiRequestId, userId, { ...payload, action, bookId }, null).catch(async (err) => {
+            console.error(`[Book Generation] Worker dispatch failed for ${action}:`, err.message);
+            await supabase.from('ai_requests')
+                .update({
+                    status: 'failed',
+                    error_message: err.message,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', aiRequestId);
+        });
+    }
 
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
@@ -384,7 +418,7 @@ async function createAiRequestAndWait({ userId, bookId, action, payload, timeout
             error_message: `Timeout waiting for ${action}`,
             updated_at: new Date().toISOString()
         })
-        .eq('id', aiRequest.id);
+        .eq('id', aiRequestId);
 
     throw new Error(`Timeout waiting for ${action}`);
 }
@@ -780,6 +814,10 @@ async function continueBookGenerationRun(runId) {
     activeRuns.add(runId);
     try {
         let iterations = 0;
+        let stallPhase = null;
+        let stallChapterId = null;
+        let stallCount = 0;
+
         while (iterations < 50) {
             iterations += 1;
             const run = await getBookGenerationRun(runId);
@@ -789,7 +827,19 @@ async function continueBookGenerationRun(runId) {
                 return;
             }
 
-            await refreshBookGenerationRunState(runId, book);
+            if (run.phase === stallPhase && run.current_chapter_id === stallChapterId) {
+                stallCount++;
+                if (stallCount >= 3) {
+                    throw new Error(`Orchestration stalled for 3 iterations on phase ${stallPhase}, chapter ${stallChapterId}. Stopping loop to prevent hours-long runaway.`);
+                }
+            } else {
+                stallPhase = run.phase;
+                stallChapterId = run.current_chapter_id;
+                stallCount = 1;
+            }
+
+            // Using ensureSuccess on state refresh to break the loop if DB fails
+            await ensureSuccess(refreshBookGenerationRunState(runId, book), 'refreshBookGenerationRunState');
             const refreshedRun = await getBookGenerationRun(runId);
 
             if (refreshedRun.status === 'failed') {
@@ -975,9 +1025,9 @@ const buildRenderableChapters = (chapters, paragraphs) => {
         .map((chapter) => {
             const chapterParagraphs = (paragraphsByChapter.get(chapter.id) || [])
                 .sort((a, b) => a.paragraph_number - b.paragraph_number);
-            
+
             const compiledContent = typeof chapter.content === 'string' ? chapter.content.trim() : '';
-            
+
             // Se abbiamo dei paragrafi, usiamo quelli. 
             // Ma se il chapter.content (intro legacy) è diverso dalla concatenazione dei paragrafi, lo includiamo come intro.
             const paragraphsText = chapterParagraphs.map(p => p.content || '').join('\n\n').trim();
@@ -1024,7 +1074,7 @@ const loadExportBundle = async (scopedSupabase, bookId) => {
     if (paragraphsError) throw new Error("Paragraphs not found");
 
     const renderableChapters = buildRenderableChapters(chapters, paragraphs || []);
-    
+
     // Verifica che TUTTI i capitoli abbiano contenuto. Se filter ridurrebbe la lunghezza, significa che qualcuno è vuoto.
     const emptyChapters = renderableChapters.filter(ch => !ch.hasRenderableContent);
     if (emptyChapters.length > 0) {
@@ -1248,7 +1298,7 @@ app.post("/export/docx", async (req, res) => {
         const docxDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
         const backCoverBlurb = getBackCoverBlurb(book);
-        
+
         let coverBuffer = null;
         if (normalizedEdition === 'paperback') {
             if (!book.cover_url) {
@@ -2063,10 +2113,10 @@ async function forwardToN8n(requestId, userId, payload, token) {
             throw new Error(`Network error connecting to n8n: ${err.message}`);
         });
 
-        await logDebug('server', 'ai_proxy_n8n_response', { 
-            requestId, 
-            status: n8nResponse.status, 
-            statusText: n8nResponse.statusText 
+        await logDebug('server', 'ai_proxy_n8n_response', {
+            requestId,
+            status: n8nResponse.status,
+            statusText: n8nResponse.statusText
         }, bookId);
 
         const contentType = n8nResponse.headers.get('content-type') || '';
@@ -2367,11 +2417,11 @@ const upload = multer({
  */
 app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
     try {
-        let { bookId, imageUrl } = req.body || {}; 
-        
+        let { bookId, imageUrl } = req.body || {};
+
         // Handle n8n common errors: trailing space in key or leading '=' in values
         if (!bookId && req.body && req.body["bookId "]) bookId = req.body["bookId "];
-        
+
         if (typeof bookId === 'string') bookId = bookId.replace(/^=/, '').trim();
         if (typeof imageUrl === 'string') imageUrl = imageUrl.replace(/^=/, '').trim();
 
@@ -2384,20 +2434,20 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
         if (!file && imageUrl) {
             try {
                 console.log(`[Upload] Downloading image from URL: ${imageUrl.substring(0, 50)}...`);
-                
+
                 const response = await fetch(imageUrl, {
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (W4U-Writing-Wizard/1.0)'
                     }
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`OpenAI respond con status ${response.status}: ${response.statusText}`);
                 }
-                
+
                 const arrayBuffer = await response.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
-                
+
                 file = {
                     buffer: buffer,
                     size: buffer.length,
@@ -2406,7 +2456,7 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
                 };
             } catch (fetchErr) {
                 console.error("[Upload] Error fetching image from URL:", fetchErr);
-                return res.status(400).json({ 
+                return res.status(400).json({
                     error: "Failed to download image from the provided URL",
                     details: fetchErr.message
                 });
@@ -2425,9 +2475,9 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
             const missing = [];
             if (!bookId) missing.push("bookId");
             if (!file) missing.push("image file or imageUrl");
-            
+
             console.error("[Upload] Missing data:", missing.join(", "));
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: `Missing parameters: ${missing.join(", ")}`,
                 debug: { bodyReceived: !!req.body, fileReceived: !!file, urlReceived: !!imageUrl }
             });
