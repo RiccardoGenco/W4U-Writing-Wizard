@@ -839,7 +839,7 @@ async function continueBookGenerationRun(runId) {
             }
 
             // Using ensureSuccess on state refresh to break the loop if DB fails
-            await ensureSuccess(refreshBookGenerationRunState(runId, book), 'refreshBookGenerationRunState');
+            await refreshBookGenerationRunState(runId, book);
             const refreshedRun = await getBookGenerationRun(runId);
 
             if (refreshedRun.status === 'failed') {
