@@ -486,7 +486,7 @@ async function validateCompletedChapter(chapterId, book) {
     }, 0);
 
 
-    const invalidParagraph = paragraphs.find((paragraph) => !paragraph.content || paragraph.content.length <= 20);
+    const invalidParagraph = paragraphs.find((p) => p.status !== 'SKIPPED' && (!p.content || p.content.length <= 20));
     if (invalidParagraph) {
         await supabase.from('chapters')
             .update({ status: 'PENDING', updated_at: new Date().toISOString() })
