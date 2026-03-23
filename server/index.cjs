@@ -491,7 +491,10 @@ async function validateCompletedChapter(chapterId, book) {
         await supabase.from('chapters')
             .update({ status: 'PENDING', updated_at: new Date().toISOString() })
             .eq('id', chapter.id);
-        throw new Error(`Chapter ${chapter.chapter_number} validation failed: paragraph ${invalidParagraph.paragraph_number} is empty`);
+        
+        const errorMsg = `Chapter ${chapter.chapter_number} validation failed: paragraph ${invalidParagraph.paragraph_number} (${invalidParagraph.title || 'Untitled'}) is empty or too short. Total words counted: ${actualWordCount}.`;
+        console.error(`[validateCompletedChapter] ${errorMsg}`);
+        throw new Error(errorMsg);
     }
 
     if (expectedParagraphsPerChapter && paragraphs.length !== expectedParagraphsPerChapter) {
@@ -722,17 +725,40 @@ async function processCurrentChapter(run, book) {
                 console.log(`[Expansion] Attempt ${attempt + 1}: expanded from ${currentWordCount} to ${expandedWordCount} words (+${expandedWordCount - currentWordCount}).`);
 
                 // Split expanded text back into paragraphs proportionally
-                const expandedSections = expandedText.split(/\n{2,}/).filter(s => s.trim().length > 0);
+                // Robust splitting logic
+                let expandedSections = expandedText.split(/\n{2,}/).filter(s => s.trim().length > 0);
                 const paragraphsToUpdate = currentParagraphs.sort((a, b) => a.paragraph_number - b.paragraph_number);
 
-                if (expandedSections.length >= paragraphsToUpdate.length) {
-                    // Distribute sections evenly across paragraphs
-                    const sectionsPerParagraph = Math.ceil(expandedSections.length / paragraphsToUpdate.length);
-                    for (let i = 0; i < paragraphsToUpdate.length; i++) {
-                        const start = i * sectionsPerParagraph;
-                        const end = Math.min(start + sectionsPerParagraph, expandedSections.length);
-                        const paragraphContent = expandedSections.slice(start, end).join('\n\n');
+                // Defensive check: if sections are too few, try splitting by single newline
+                if (expandedSections.length < paragraphsToUpdate.length) {
+                    const fallbackSections = expandedText.split(/\n/).filter(s => s.trim().length > 20);
+                    if (fallbackSections.length >= paragraphsToUpdate.length) {
+                        console.log(`[Expansion] Using single newline fallback split. Sections: ${fallbackSections.length}`);
+                        expandedSections = fallbackSections;
+                    }
+                }
+
+                const totalSections = expandedSections.length;
+                const totalParagraphs = paragraphsToUpdate.length;
+
+                if (totalSections >= totalParagraphs) {
+                    // Sequential distribution: distribute extra sections to the first paragraphs
+                    const baseCount = Math.floor(totalSections / totalParagraphs);
+                    let extra = totalSections % totalParagraphs;
+                    let currentIndex = 0;
+
+                    console.log(`[Expansion] Distributing ${totalSections} sections into ${totalParagraphs} paragraphs (Base: ${baseCount}, Extras: ${extra})`);
+
+                    for (let i = 0; i < totalParagraphs; i++) {
+                        const count = baseCount + (extra > 0 ? 1 : 0);
+                        if (extra > 0) extra--;
+
+                        const pSections = expandedSections.slice(currentIndex, currentIndex + count);
+                        currentIndex += count;
+                        const paragraphContent = pSections.join('\n\n');
                         const wordCount = countWords(paragraphContent);
+
+                        console.log(`[Expansion] Updating paragraph ${paragraphsToUpdate[i].paragraph_number} with ${count} sections (${wordCount} words)`);
 
                         await supabase.from('paragraphs')
                             .update({
@@ -744,26 +770,36 @@ async function processCurrentChapter(run, book) {
                             .eq('id', paragraphsToUpdate[i].id);
                     }
                 } else {
-                    // Fewer sections than paragraphs — put all text in first paragraph and CLEAR others
-                    await supabase.from('paragraphs')
-                        .update({
-                            content: expandedText,
-                            actual_word_count: expandedWordCount,
-                            status: 'COMPLETED',
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', paragraphsToUpdate[0].id);
+                    // Critical fallback: fewer sections than paragraphs even after secondary splitting
+                    console.warn(`[Expansion] FEWER SECTIONS (${totalSections}) THAN PARAGRAPHS (${totalParagraphs}). Merging into available paragraphs.`);
                     
-                    if (paragraphsToUpdate.length > 1) {
-                        const otherIds = paragraphsToUpdate.slice(1).map(p => p.id);
+                    for (let i = 0; i < totalParagraphs; i++) {
+                        let content = '';
+                        let status = 'COMPLETED';
+                        let words = 0;
+
+                        if (i < totalSections) {
+                            content = expandedSections[i];
+                            words = countWords(content);
+                            console.log(`[Expansion] Fallback: Paragraph ${paragraphsToUpdate[i].paragraph_number} takes section ${i}`);
+                        } else {
+                            // This paragraph has no section. KEEP OLD CONTENT instead of clearing if possible, 
+                            // but mark as COMPLETED to pass validation if it's not empty.
+                            // If it WAS empty, this is a failure of the LLM to provide enough context.
+                            console.warn(`[Expansion] Fallback: Paragraph ${paragraphsToUpdate[i].paragraph_number} has NO SECTION. Keeping existing content.`);
+                            content = paragraphsToUpdate[i].content || '';
+                            words = countWords(content);
+                            status = content.length > 20 ? 'COMPLETED' : 'PENDING';
+                        }
+
                         await supabase.from('paragraphs')
                             .update({
-                                content: '',
-                                actual_word_count: 0,
-                                status: 'SKIPPED',
+                                content,
+                                actual_word_count: words,
+                                status,
                                 updated_at: new Date().toISOString()
                             })
-                            .in('id', otherIds);
+                            .eq('id', paragraphsToUpdate[i].id);
                     }
                 }
 
