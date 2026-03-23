@@ -2331,7 +2331,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un copywriter editoriale esperto. Scrivi una quarta di copertina (blurb) accattivante ed editoriale di circa 100-150 parole per il libro. Assicurati che il tono sia persuasivo, senza svelare il finale, e studiato per invogliare il lettore ad acquistare il libro. Rispondi SOLO con il blurb finito.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Titolo: {{ $('Webhook').item.json.title }}\\nAutore: {{ $('Webhook').item.json.author }}\\nSinossi/Trama: {{ $('Webhook').item.json.synopsis }}\"\n    }\n  ],\n  \"temperature\": 0.7\n}",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Sei un copywriter editoriale esperto. Scrivi una quarta di copertina (blurb) accattivante ed editoriale di circa 100-150 parole per il libro. Assicurati che il tono sia persuasivo, senza svelare il finale, e studiato per invogliare il lettore ad acquistare il libro. Rispondi SOLO con il blurb finito.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Titolo: {{ $('Webhook Router').item.json.body.title }}\\nAutore: {{ $('Webhook Router').item.json.body.author }}\\nSinossi/Trama: {{ $('Webhook Router').item.json.body.synopsis }}\"\n    }\n  ],\n  \"temperature\": 0.7\n}",
         "options": {}
       },
       "id": "2d42b5c3-9b7e-4076-a70e-544fcf18a429",
@@ -2352,11 +2352,11 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{ \"blurb\": \"{{ $json.choices[0].message.content }}\" }",
+        "responseBody": "={{ { \"blurb\": $json.choices[0].message.content } }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.4,
+      "typeVersion": 1,
       "position": [
         -992,
         1744
