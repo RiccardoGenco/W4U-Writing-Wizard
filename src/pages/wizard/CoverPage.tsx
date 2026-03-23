@@ -556,10 +556,10 @@ const CoverPage: React.FC = () => {
                             boxSizing: 'border-box'
                         }}>
                             <div style={{ textAlign: 'center', opacity: 0.85 }}>
-                                <p style={{ fontStyle: 'italic', fontSize: '80px', marginBottom: '100px', fontWeight: '300' }}>
+                                <p style={{ fontStyle: 'italic', fontSize: '56px', marginBottom: '80px', fontWeight: '300' }}>
                                     Un'opera straordinaria ti attende...
                                 </p>
-                                <p style={{ fontSize: '60px', lineHeight: '1.8', textAlign: 'left', fontWeight: '400' }}>
+                                <p style={{ fontSize: '42px', lineHeight: '1.6', textAlign: 'left', fontWeight: '400' }}>
                                     {backCoverBlurb || (
                                         <>
                                             Preparati a immergerti tra le pagine di `{bookTitle}`. Un'avventura straordinaria che esplora, tra le righe, temi profondi e universali con uno stile narrativo inimitabile e coinvolgente. 
