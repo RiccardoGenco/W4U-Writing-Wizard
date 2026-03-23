@@ -1181,6 +1181,10 @@ const loadExportBundle = async (scopedSupabase, bookId) => {
 };
 
 const getBackCoverBlurb = (book) => {
+    // Prioritize the manually generated blurb from Cover Generation page
+    const manualBlurb = book?.context_data?.back_cover_blurb;
+    if (manualBlurb) return manualBlurb;
+
     const summary = normalizeText(removeEmojis(book?.plot_summary || ""));
     if (summary) {
         return summary.length > 900 ? `${summary.slice(0, 897)}...` : summary;

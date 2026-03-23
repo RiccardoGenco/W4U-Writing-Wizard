@@ -15,6 +15,8 @@ const CoverPage: React.FC = () => {
     const [style, setStyle] = useState('modern literary fiction');
     const [loading, setLoading] = useState(true);
     const [progressStage, setProgressStage] = useState<string>('');
+    const [backCoverBlurb, setBackCoverBlurb] = useState<string>('');
+    const [generatingBlurb, setGeneratingBlurb] = useState(false);
 
     const bookId = localStorage.getItem('active_book_id');
 
@@ -66,6 +68,10 @@ const CoverPage: React.FC = () => {
                 setBookAuthor(data.author || 'Autore');
                 if (data.cover_url) {
                     setCoverUrl(data.cover_url);
+                }
+                
+                if (data.context_data?.back_cover_blurb) {
+                    setBackCoverBlurb(data.context_data.back_cover_blurb);
                 }
 
                 // Try to extract mood/style from blueprint if present
@@ -158,6 +164,48 @@ const CoverPage: React.FC = () => {
             }, bookId);
             alert('Errore durante la generazione della copertina. Riprova.');
             setGenerating(false);
+        }
+    };
+
+    const generateBackCoverBlurb = async () => {
+        if (!bookId) return;
+        setGeneratingBlurb(true);
+        try {
+            await logDebug('frontend', 'back_cover_blurb_generation_start', { bookId }, bookId);
+
+            const response = await callBookAgent('GENERATE_BACK_COVER_BLURB', {
+                title: bookTitle,
+                author: bookAuthor,
+                synopsis: '' // Will be handled by agent using book context
+            }, bookId);
+
+            if (response && response.blurb) {
+                setBackCoverBlurb(response.blurb);
+
+                // Save to context_data
+                const { data: bookData } = await supabase
+                    .from('books')
+                    .select('context_data')
+                    .eq('id', bookId)
+                    .single();
+
+                const updatedContext = {
+                    ...(bookData?.context_data || {}),
+                    back_cover_blurb: response.blurb
+                };
+
+                await supabase
+                    .from('books')
+                    .update({ context_data: updatedContext })
+                    .eq('id', bookId);
+
+                await logDebug('frontend', 'back_cover_blurb_generation_success', { bookId }, bookId);
+            }
+        } catch (err: any) {
+            console.error('Blurb generation error:', err);
+            alert('Errore durante la generazione della quarta di copertina. Riprova.');
+        } finally {
+            setGeneratingBlurb(false);
         }
     };
 
@@ -358,14 +406,25 @@ const CoverPage: React.FC = () => {
                         </button>
 
                         {coverUrl && (
-                            <button
-                                onClick={downloadCombinedCover}
-                                className="btn-secondary"
-                                style={{ width: '100%' }}
-                            >
-                                <Download size={20} />
-                                Scarica Copertina
-                            </button>
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                                <button
+                                    onClick={downloadCombinedCover}
+                                    className="btn-secondary"
+                                    style={{ flex: 1 }}
+                                >
+                                    <Download size={20} />
+                                    Scarica
+                                </button>
+                                <button
+                                    onClick={generateBackCoverBlurb}
+                                    disabled={generatingBlurb}
+                                    className="btn-secondary"
+                                    style={{ flex: 1 }}
+                                >
+                                    {generatingBlurb ? <Loader2 className="animate-spin" size={20} /> : <Wand2 size={20} />}
+                                    Genera Quarta
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -493,13 +552,17 @@ const CoverPage: React.FC = () => {
                             boxSizing: 'border-box'
                         }}>
                             <div style={{ textAlign: 'center', opacity: 0.85 }}>
-                                <p style={{ fontStyle: 'italic', fontSize: '70px', marginBottom: '80px', fontWeight: '300' }}>
+                                <p style={{ fontStyle: 'italic', fontSize: '80px', marginBottom: '100px', fontWeight: '300' }}>
                                     Un'opera straordinaria ti attende...
                                 </p>
-                                <p style={{ fontSize: '50px', lineHeight: '1.6', textAlign: 'left', fontWeight: '400' }}>
-                                    {/* Testo segnaposto per blurb, eventualmente l'utente può inserire la trama reale in futuro */}
-                                    Preparati a immergerti tra le pagine di `{bookTitle}`. Un'avventura che esplora, tra le righe, temi profondi con uno stile inimitabile. 
-                                    Scopri i dettagli che rendono questo libro una lettura assolutamente imperdibile per gli appassionati del genere.
+                                <p style={{ fontSize: '60px', lineHeight: '1.8', textAlign: 'left', fontWeight: '400' }}>
+                                    {backCoverBlurb || (
+                                        <>
+                                            Preparati a immergerti tra le pagine di `{bookTitle}`. Un'avventura straordinaria che esplora, tra le righe, temi profondi e universali con uno stile narrativo inimitabile e coinvolgente. 
+                                            Scopri i dettagli minuziosi e le sfumature che rendono questo libro una lettura assolutamente imperdibile per tutti gli appassionati del genere. 
+                                            Attraverso una prosa curata e una trama avvincente, l'autore ci conduce in un viaggio emozionante che rimarrà impresso nella memoria del lettore molto tempo dopo aver chiuso l'ultima pagina.
+                                        </>
+                                    )}
                                 </p>
                             </div>
 
@@ -514,7 +577,7 @@ const CoverPage: React.FC = () => {
                                     justifyContent: 'center',
                                     borderRadius: '8px'
                                 }}>
-                                    <span style={{ color: 'black', fontSize: '40px', fontWeight: 'bold' }}>BARCODE AREA</span>
+                                    {/* Barcode area pure white as requested */}
                                 </div>
                             </div>
                         </div>
