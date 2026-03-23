@@ -16,6 +16,7 @@ const CoverPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [progressStage, setProgressStage] = useState<string>('');
     const [backCoverBlurb, setBackCoverBlurb] = useState<string>('');
+    const [plotSummary, setPlotSummary] = useState<string>('');
     const [generatingBlurb, setGeneratingBlurb] = useState(false);
 
     const bookId = localStorage.getItem('active_book_id');
@@ -58,7 +59,7 @@ const CoverPage: React.FC = () => {
         try {
             const { data, error } = await supabase
                 .from('books')
-                .select('title, author, cover_url, genre, context_data')
+                .select('title, author, cover_url, genre, context_data, plot_summary')
                 .eq('id', bookId)
                 .single();
 
@@ -66,6 +67,9 @@ const CoverPage: React.FC = () => {
             if (data) {
                 setBookTitle(data.title || 'Il tuo libro');
                 setBookAuthor(data.author || 'Autore');
+                if (data.plot_summary) {
+                    setPlotSummary(data.plot_summary);
+                }
                 if (data.cover_url) {
                     setCoverUrl(data.cover_url);
                 }
@@ -176,7 +180,7 @@ const CoverPage: React.FC = () => {
             const response = await callBookAgent('GENERATE_BACK_COVER_BLURB', {
                 title: bookTitle,
                 author: bookAuthor,
-                synopsis: '' // Will be handled by agent using book context
+                synopsis: plotSummary
             }, bookId);
 
             if (response && response.blurb) {
