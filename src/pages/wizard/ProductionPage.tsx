@@ -470,6 +470,46 @@ const ProductionPage: React.FC = () => {
                             </p>
                         )}
                     </div>
+
+                    {/* Bottone di emergenza per sbloccare la UI in caso di stallo */}
+                    <div style={{
+                        position: 'fixed',
+                        bottom: '2rem',
+                        left: '2rem',
+                        zIndex: 1001
+                    }}>
+                        <button
+                            onClick={() => {
+                                if (confirm("Vuoi davvero chiudere l'overlay? Se la generazione è ancora in corso sul server, continuerà in background.")) {
+                                    syncRunState(null);
+                                }
+                            }}
+                            className="btn-secondary"
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                padding: '0.6rem 1.2rem',
+                                borderRadius: '12px',
+                                color: 'rgba(255, 255, 255, 0.4)',
+                                fontSize: '0.8rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.8)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.4)';
+                            }}
+                        >
+                            <X size={14} /> Forza Chiusura Overlay (Se bloccato)
+                        </button>
+                    </div>
                 </div>
             )}
 
