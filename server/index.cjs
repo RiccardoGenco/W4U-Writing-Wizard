@@ -337,7 +337,7 @@ async function ensureSuccess(promise, contextMessage = 'Database operation') {
     return res;
 }
 
-async function createAiRequestAndWait({ userId, bookId, action, payload, timeoutMs = 6 * 60 * 1000 }) {
+async function createAiRequestAndWait({ userId, bookId, action, payload, timeoutMs = 10 * 60 * 1000 }) { // Increased default to 10 min
     // 1. Deduplication: check for existing pending/processing request for same book + action + chapter
     const { data: pendingRequests, error: findError } = await supabase
         .from('ai_requests')
@@ -741,7 +741,16 @@ async function processCurrentChapter(run, book) {
                 const totalSections = expandedSections.length;
                 const totalParagraphs = paragraphsToUpdate.length;
 
-                if (totalSections >= totalParagraphs) {
+                if (totalSections < totalParagraphs) {
+                    console.warn(`[Expansion] Warning: LLM returned ${totalSections} sections, expected ${totalParagraphs}. Attempting softer split...`);
+                    const softerSections = expandedText.split(/\n/).filter(s => s.trim().length > 10);
+                    if (softerSections.length >= totalParagraphs) {
+                        expandedSections = softerSections;
+                        console.log(`[Expansion] Softer split successful: ${expandedSections.length} sections.`);
+                    }
+                }
+
+                if (expandedSections.length >= totalParagraphs) {
                     // Sequential distribution: distribute extra sections to the first paragraphs
                     const baseCount = Math.floor(totalSections / totalParagraphs);
                     let extra = totalSections % totalParagraphs;
