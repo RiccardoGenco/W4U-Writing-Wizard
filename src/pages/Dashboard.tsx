@@ -247,7 +247,7 @@ const Dashboard: React.FC = () => {
                                     <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Nome Autore</label>
                                     <input
                                         required
-                                        placeholder="Es. Riccardo Genco"
+                                        placeholder="Nome scrittore"
                                         value={author}
                                         onChange={e => setAuthor(e.target.value)}
                                         style={{ width: '100%' }}

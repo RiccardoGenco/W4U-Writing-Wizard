@@ -602,7 +602,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\nlet rawContent = $node[\"Agent: Writer\"].json.choices[0].message.content;\n// Strip markdown backticks\nrawContent = rawContent.replace(/```markdown\\n?|```/g, '').trim();\n// Strip emojis\nconst cleanContent = rawContent.replace(emojiRegex, '');\nconst wordCount = cleanContent.split(/\\s+/).filter(w => w.length > 0).length;\n\nreturn {\n  content: cleanContent,\n  word_count: wordCount\n};"
+        "jsCode": "const emojiRegex = /[\\uD83C-\\uDBFF\\uDC00-\\uDFFF\\u2600-\\u26FF\\u2700-\\u27BF]/g;\nlet rawContent = $node[\"Agent: Writer\"].json.choices[0].message.content || \"\";\n// Strip markdown backticks\nrawContent = rawContent.replace(/```markdown\\n?|```/g, '').trim();\n// Strip emojis\nconst cleanContent = rawContent.replace(emojiRegex, '');\nconst wordCount = cleanContent.split(/\\s+/).filter(w => w.length > 0).length;\n\nif (wordCount < 10 || cleanContent.length < 50) {\n  throw new Error(`Generated content too short: ${wordCount} words. Check AI output for errors.`);\n}\n\nreturn {\n  content: cleanContent,\n  word_count: wordCount\n};"
       },
       "id": "546ca0e1-3b1d-4f8e-9aa2-1f5089e15ee2",
       "name": "Sanitize Writer",

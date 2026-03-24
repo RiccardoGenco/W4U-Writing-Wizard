@@ -376,7 +376,7 @@ async function createAiRequestAndWait({ userId, bookId, action, payload, timeout
         if (insertError || !aiRequest) {
             throw new Error(`Failed to create ai_request for ${action}: ${insertError?.message}`);
         }
-        
+
         aiRequestId = aiRequest.id;
 
         forwardToN8n(aiRequestId, userId, { ...payload, action, bookId }, null).catch(async (err) => {
@@ -491,7 +491,7 @@ async function validateCompletedChapter(chapterId, book) {
         await supabase.from('chapters')
             .update({ status: 'PENDING', updated_at: new Date().toISOString() })
             .eq('id', chapter.id);
-        
+
         const errorMsg = `Chapter ${chapter.chapter_number} validation failed: paragraph ${invalidParagraph.paragraph_number} (${invalidParagraph.title || 'Untitled'}) is empty or too short. Total words counted: ${actualWordCount}.`;
         console.error(`[validateCompletedChapter] ${errorMsg}`);
         throw new Error(errorMsg);
@@ -772,7 +772,7 @@ async function processCurrentChapter(run, book) {
                 } else {
                     // Critical fallback: fewer sections than paragraphs even after secondary splitting
                     console.warn(`[Expansion] FEWER SECTIONS (${totalSections}) THAN PARAGRAPHS (${totalParagraphs}). Merging into available paragraphs.`);
-                    
+
                     for (let i = 0; i < totalParagraphs; i++) {
                         let content = '';
                         let status = 'COMPLETED';
@@ -857,7 +857,7 @@ async function finalizeBookGenerationRun(runId, book) {
             Number.isFinite(chapter.actual_word_count) &&
             chapter.actual_word_count > 100 && // Chapter must be longer
             !(chapter.content && chapter.content.length > 500 && chapter.actual_word_count < 50);
-        
+
         if (isPlausibleWordCount) return acc + Number(chapter.actual_word_count);
         return acc + countWords(chapter.content);
     }, 0);
@@ -2021,12 +2021,29 @@ app.post("/api/book-generation/start", async (req, res) => {
         }
 
         if (existingRun) {
-            return res.status(409).json({
-                error: 'A generation run is already active for this book',
-                runId: existingRun.id,
-                status: existingRun.status,
-                phase: existingRun.phase
-            });
+            const updatedAt = new Date(existingRun.updated_at);
+            const now = new Date();
+            const minutesSinceUpdate = (now - updatedAt) / (1000 * 60);
+
+            // If run is stale (no update for 15 min), allow bypassing it
+            if (minutesSinceUpdate > 15 || req.body.force === true) {
+                console.log(`[Book Generation] Run ${existingRun.id} is stale (${minutesSinceUpdate.toFixed(1)} min). Marking as failed and starting new run.`);
+                await supabase.from('book_generation_runs')
+                    .update({
+                        status: 'failed',
+                        last_error: req.body.force ? 'Manually terminated' : 'Stale/Abandoned Run',
+                        updated_at: now.toISOString()
+                    })
+                    .eq('id', existingRun.id);
+            } else {
+                return res.status(409).json({
+                    error: 'A generation run is already active for this book',
+                    runId: existingRun.id,
+                    status: existingRun.status,
+                    phase: existingRun.phase,
+                    last_update: existingRun.updated_at
+                });
+            }
         }
 
         const targetPages = Number(book?.target_pages || book?.context_data?.target_pages);
