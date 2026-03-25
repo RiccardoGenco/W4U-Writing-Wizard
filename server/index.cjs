@@ -119,7 +119,9 @@ const getExpectedParagraphsPerChapter = (book) => {
     const targetChapters = Number(book?.target_chapters || 0);
     if (!Number.isFinite(targetPages) || targetPages <= 0) return null;
     if (!Number.isFinite(targetChapters) || targetChapters <= 0) return null;
-    return Math.max(1, Math.round(targetPages / targetChapters));
+    // Increase density: aim for ~2 paragraphs per page (~150 words/para) 
+    // instead of 1 paragraph/page (~300 words/para) to avoid LLM laziness.
+    return Math.max(1, Math.round((targetPages / targetChapters) * 2));
 };
 
 const getTargetWordsPerChapter = (book) => {
