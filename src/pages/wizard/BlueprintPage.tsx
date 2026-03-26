@@ -136,50 +136,63 @@ const BlueprintPage: React.FC = () => {
 
             const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
 
+            const fetchScaffoldWithRetry = async (chapter: { id: string; title: string; summary?: string | null }, attempts = 3) => {
+                let lastError: unknown = null;
+                for (let attempt = 1; attempt <= attempts; attempt += 1) {
+                    try {
+                        const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
+                            chapter: {
+                                id: chapter.id,
+                                title: chapter.title,
+                                summary: chapter.summary || ''
+                            },
+                            targetParagraphCount: paragraphsPerChapter,
+                            targetWordCount: targetWordCountPerParagraph
+                        }, bookId);
+
+                        const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
+                        if (!Array.isArray(aiParagraphs)) {
+                            throw new Error("Formato paragrafi non valido dall'IA");
+                        }
+                        if (aiParagraphs.length !== paragraphsPerChapter) {
+                            throw new Error(`Numero paragrafi errato: ${aiParagraphs.length} / ${paragraphsPerChapter}`);
+                        }
+
+                        return aiParagraphs;
+                    } catch (error) {
+                        lastError = error;
+                        await logDebug('frontend', 'blueprint_scaffold_retry', {
+                            chapterId: chapter.id,
+                            chapterTitle: chapter.title,
+                            attempt,
+                            error: error instanceof Error ? error.message : String(error)
+                        }, bookId);
+                    }
+                }
+                throw lastError instanceof Error ? lastError : new Error(String(lastError));
+            };
+
             for (let i = 0; i < insertedChapters.length; i++) {
                 const chapter = insertedChapters[i];
                 const originalChapter = chapters.find(c => c.title === chapter.title);
                 setScaffoldProgress(`Scomposizione Capitolo ${i + 1} di ${insertedChapters.length}...`);
 
-                try {
-                    const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
-                        chapter: {
-                            id: chapter.id,
-                            title: chapter.title,
-                            summary: originalChapter?.summary || ''
-                        },
-                        targetParagraphCount: paragraphsPerChapter,
-                        targetWordCount: targetWordCountPerParagraph
-                    }, bookId);
+                const aiParagraphs = await fetchScaffoldWithRetry({
+                    id: chapter.id,
+                    title: chapter.title,
+                    summary: originalChapter?.summary || ''
+                });
 
-                    const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
-
-                    if (Array.isArray(aiParagraphs) && aiParagraphs.length > 0) {
-                        aiParagraphs.forEach((p: AiParagraph, pIndex: number) => {
-                            dbParagraphs.push({
-                                chapter_id: chapter.id,
-                                paragraph_number: pIndex + 1,
-                                title: p.title || `Sottocapitolo ${pIndex + 1}`,
-                                description: p.description || '',
-                                status: 'PENDING',
-                                target_word_count: targetWordCountPerParagraph
-                            });
-                        });
-                    } else {
-                        throw new Error("Formato paragrafi non valido dall'IA");
-                    }
-                } catch (scaffoldError) {
-                    console.error("Scaffold error for chapter", chapter.title, scaffoldError);
-                    // Fallback to prevent complete failure
+                aiParagraphs.forEach((p: AiParagraph, pIndex: number) => {
                     dbParagraphs.push({
                         chapter_id: chapter.id,
-                        paragraph_number: 1,
-                        title: `Sottocapitolo Generico`,
-                        description: `L'AI non ha risposto per questo capitolo. Modifica manuale necessaria.`,
+                        paragraph_number: pIndex + 1,
+                        title: p.title || `Sottocapitolo ${pIndex + 1}`,
+                        description: p.description || '',
                         status: 'PENDING',
                         target_word_count: targetWordCountPerParagraph
                     });
-                }
+                });
             }
 
             const { error: pError } = await supabase

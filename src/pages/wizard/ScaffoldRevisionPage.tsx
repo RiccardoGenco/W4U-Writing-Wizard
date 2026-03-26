@@ -151,18 +151,38 @@ const ScaffoldRevisionPage: React.FC = () => {
             const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
             const paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));
 
-            const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
-                chapter: {
-                    id: chapter.id,
-                    title: chapter.title,
-                    summary: chapter.summary,
-                    currentParagraphCount: chapter.paragraphs.length
-                },
-                feedback: feedback,
-                targetParagraphCount: paragraphsPerChapter
-            }, bookId);
+            const fetchScaffoldWithRetry = async (attempts = 3) => {
+                let lastError: unknown = null;
+                for (let attempt = 1; attempt <= attempts; attempt += 1) {
+                    try {
+                        const scaffoldData: ScaffoldChapterResponse = await callBookAgent('SCAFFOLD_CHAPTER', {
+                            chapter: {
+                                id: chapter.id,
+                                title: chapter.title,
+                                summary: chapter.summary,
+                                currentParagraphCount: chapter.paragraphs.length
+                            },
+                            feedback: feedback,
+                            targetParagraphCount: paragraphsPerChapter
+                        }, bookId);
 
-            const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
+                        const aiParagraphs = scaffoldData?.paragraphs || scaffoldData?.data?.paragraphs || [];
+                        if (!Array.isArray(aiParagraphs)) {
+                            throw new Error("Formato IA non valido.");
+                        }
+                        if (aiParagraphs.length !== paragraphsPerChapter) {
+                            throw new Error(`Numero paragrafi errato: ${aiParagraphs.length} / ${paragraphsPerChapter}`);
+                        }
+
+                        return aiParagraphs;
+                    } catch (error) {
+                        lastError = error;
+                    }
+                }
+                throw lastError instanceof Error ? lastError : new Error(String(lastError));
+            };
+
+            const aiParagraphs = await fetchScaffoldWithRetry();
 
             if (Array.isArray(aiParagraphs) && aiParagraphs.length > 0) {
                 // Delete old paragraphs
@@ -202,7 +222,7 @@ const ScaffoldRevisionPage: React.FC = () => {
                 // Clear feedback after success
                 setFeedbacks(prev => ({ ...prev, [chapterId]: '' }));
             } else {
-                throw new Error("Formato IA non valido.")
+                throw new Error("Formato IA non valido.");
             }
         } catch (err) {
             console.error("Error regenerating scaffold:", err);
