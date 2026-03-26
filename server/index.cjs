@@ -917,6 +917,15 @@ async function continueBookGenerationRun(runId) {
             const run = await getBookGenerationRun(runId);
             const book = await getBookForGeneration(run.book_id);
 
+            await logDebug('server', 'book_generation_iteration', {
+                runId,
+                iteration: iterations,
+                status: run.status,
+                phase: run.phase,
+                current_chapter_id: run.current_chapter_id,
+                current_chapter_number: run.current_chapter_number
+            }, run.book_id);
+
             if (run.status === 'completed' || run.status === 'failed') {
                 return;
             }
@@ -935,6 +944,15 @@ async function continueBookGenerationRun(runId) {
             // Using ensureSuccess on state refresh to break the loop if DB fails
             await refreshBookGenerationRunState(runId, book);
             const refreshedRun = await getBookGenerationRun(runId);
+
+            await logDebug('server', 'book_generation_post_refresh', {
+                runId,
+                iteration: iterations,
+                status: refreshedRun.status,
+                phase: refreshedRun.phase,
+                current_chapter_id: refreshedRun.current_chapter_id,
+                current_chapter_number: refreshedRun.current_chapter_number
+            }, refreshedRun.book_id);
 
             if (refreshedRun.status === 'failed') {
                 return;
@@ -960,6 +978,22 @@ async function continueBookGenerationRun(runId) {
     } finally {
         activeRuns.delete(runId);
     }
+}
+
+function kickBookGenerationRun(runId, reason = 'unspecified') {
+    if (!runId) return false;
+    if (activeRuns.has(runId)) {
+        return false;
+    }
+
+    setImmediate(() => {
+        logDebug('server', 'book_generation_resume_requested', { runId, reason }).catch(() => {});
+        continueBookGenerationRun(runId).catch(err => {
+            console.error(`[Book Generation] Async orchestration error (${reason}):`, err.message);
+        });
+    });
+
+    return true;
 }
 
 // --- EDITORIAL PIPELINE UTILS ---
@@ -2091,9 +2125,7 @@ app.post("/api/book-generation/start", async (req, res) => {
             runId: run.id
         });
 
-        continueBookGenerationRun(run.id).catch(err => {
-            console.error('[Book Generation] Async orchestration error:', err.message);
-        });
+        kickBookGenerationRun(run.id, 'start_endpoint');
     } catch (err) {
         console.error('[Book Generation] Start error:', err);
         res.status(500).json({ error: 'Internal server error' });
@@ -2128,6 +2160,19 @@ app.get("/api/book-generation/status/:runId", async (req, res) => {
 
         if (error || !run) {
             return res.status(404).json({ error: 'Run not found' });
+        }
+
+        const isActiveRun = ['pending', 'planning', 'writing', 'review'].includes(run.status);
+        if (isActiveRun && run.updated_at) {
+            const updatedAt = new Date(run.updated_at).getTime();
+            const now = Date.now();
+            const secondsSinceUpdate = Number.isFinite(updatedAt) ? (now - updatedAt) / 1000 : 0;
+
+            // Vercel may suspend background work after the initial response.
+            // Use status polling as a safe heartbeat to re-kick stalled active runs.
+            if (secondsSinceUpdate >= 15) {
+                kickBookGenerationRun(run.id, `status_poll_${run.phase}`);
+            }
         }
 
         res.json({
