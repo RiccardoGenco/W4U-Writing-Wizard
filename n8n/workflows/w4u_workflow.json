@@ -1510,42 +1510,6 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const source = $node[\"Merge Scaffold Output\"]?.json?.paragraphs ? $node[\"Merge Scaffold Output\"].json : $node[\"Scaffold Parse\"].json;\nconst reqId = source?.reqId || $(\u0027Webhook Router\u0027).first().json?.body?.requestId;\nconst targetCount = Number(source?.targetCount || $(\u0027Webhook Router\u0027).first().json?.body?.targetParagraphCount) || null;\nconst paras = Array.isArray(source?.paragraphs) ? source.paragraphs : [];\nconst mergeError = source?.mergeError || source?.parseError || null;\n\nif (!reqId) {\n  throw new Error(\u0027Missing requestId in SCAFFOLD_CHAPTER payload\u0027);\n}\n\nconst hasParagraphs = paras.length \u003e 0;\nconst hasEnoughParagraphs = targetCount ? paras.length === targetCount : hasParagraphs;\nconst status = hasEnoughParagraphs \u0026\u0026 !mergeError ? \u0027completed\u0027 : \u0027failed\u0027;\nconst responseData = hasEnoughParagraphs \u0026\u0026 !mergeError ? { paragraphs: paras } : null;\nconst errorMessage = hasEnoughParagraphs \u0026\u0026 !mergeError\n  ? null\n  : (mergeError || (\u0027Scaffolder produced \u0027 + paras.length + \u0027 paragraphs, expected exactly \u0027 + (targetCount || 1)));\n\nconst escapedResponse = responseData ? JSON.stringify(responseData).replace(/\u0027/g, \"\u0027\u0027\") : null;\nconst escapedError = errorMessage ? String(errorMessage).replace(/\u0027/g, \"\u0027\u0027\") : null;\n\nconst query = hasEnoughParagraphs \u0026\u0026 !mergeError\n  ? \"UPDATE ai_requests SET status = \u0027completed\u0027, response_data = \u0027\" + escapedResponse + \"\u0027::jsonb, error_message = NULL, updated_at = NOW() WHERE id = \u0027\" + reqId + \"\u0027::uuid;\"\n  : \"UPDATE ai_requests SET status = \u0027failed\u0027, response_data = NULL, error_message = \u0027\" + escapedError + \"\u0027, updated_at = NOW() WHERE id = \u0027\" + reqId + \"\u0027::uuid;\";\n\nreturn { json: { query, status, requestId: reqId, paragraphs_count: paras.length, target_count: targetCount } };"
-                                     },
-                      "id":  "d1fd842e-a56c-4f80-84f5-54786acf8295",
-                      "name":  "Build Scaffold Log Query",
-                      "type":  "n8n-nodes-base.code",
-                      "typeVersion":  2,
-                      "position":  [
-                                       4480,
-                                       1680
-                                   ]
-                  },
-                  {
-                      "parameters":  {
-                                         "operation":  "executeQuery",
-                                         "query":  "={{ $json.query }}",
-                                         "options":  {
-
-                                                     }
-                                     },
-                      "id":  "60363e98-1a07-4563-98c3-18a50fcee79d",
-                      "name":  "Response Scaffold",
-                      "type":  "n8n-nodes-base.postgres",
-                      "typeVersion":  2,
-                      "position":  [
-                                       4704,
-                                       1680
-                                   ],
-                      "credentials":  {
-                                          "postgres":  {
-                                                           "id":  "0AsoTCNHEls3AaYu",
-                                                           "name":  "Postgres account"
-                                                       }
-                                      }
-                  },
-                  {
-                      "parameters":  {
                                          "method":  "POST",
                                          "url":  "https://api.openai.com/v1/embeddings",
                                          "authentication":  "predefinedCredentialType",
@@ -1607,7 +1571,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "// Build a robust OpenAI payload for SCAFFOLD_CHAPTER with explicit JSON schema instructions.\nconst webhookBody = $(\u0027Webhook Router\u0027).first().json?.body || {};\nconst context = $(\u0027Get Book Context (Scaffolder)\u0027).first().json || {};\nconst primaryModel = context.primary_model || \u0027gpt-4o\u0027;\nconst prompts = context.prompts || {};\nconst temps = context.temps || {};\n\nconst chapterTitle = webhookBody.chapter?.title || \u0027Capitolo Sconosciuto\u0027;\nconst chapterSummary = webhookBody.chapter?.summary || \u0027\u0027;\nconst feedback = webhookBody.feedback || \u0027Nessun feedback. Genera da zero.\u0027;\nconst rawTargetCount = Number(webhookBody.targetParagraphCount);\nconst targetCount = Number.isFinite(rawTargetCount) \u0026\u0026 rawTargetCount \u003e 0 ? Math.min(25, Math.max(1, Math.round(rawTargetCount))) : 5;\n\n// Read targetWordCount passed from frontend (proportional to book target pages)\nconst rawTargetWordCount = Number(webhookBody.targetWordCount);\nconst targetWordCount = Number.isFinite(rawTargetWordCount) \u0026\u0026 rawTargetWordCount \u003e 0 ? Math.round(rawTargetWordCount) : 300;\n\nconst ragChunks = $(\u0027RAG: Query Scaffold\u0027).all()\n  .map(item =\u003e (item?.json?.content ? String(item.json.content) : \u0027\u0027))\n  .filter(Boolean)\n  .join(\u0027  \u0027);\n\nconst systemPrompt = prompts.SCAFFOLDER || \"Sei l\u0027Architetto Letterario W4U.\";\n\nconst schemaInstruction = [\n  \u0027Rispondi SOLO con JSON valido, senza markdown e senza testo extra.\u0027,\n  \u0027Schema obbligatorio:\u0027,\n  \u0027{\"paragraphs\":[{\"title\":\"string\",\"description\":\"string\"}]}\u0027,\n  \u0027Genera ESATTAMENTE \u0027 + targetCount + \u0027 elementi in paragraphs.\u0027,\n  \u0027Se stai per generare meno di \u0027 + targetCount + \u0027 elementi, aggiungi nuovi elementi fino ad arrivare esattamente a \u0027 + targetCount + \u0027. Non restituire mai meno elementi del richiesto.\u0027,\n  \u0027Controlla il conteggio finale: paragraphs deve avere esattamente \u0027 + targetCount + \u0027 elementi.\u0027,\n  \u0027Ogni paragrafo, quando scritto dall\\\u0027AI Writer, dovrÃƒÆ’Ã‚Â  essere circa \u0027 + targetWordCount + \u0027 parole. Descrivi il contenuto in modo sufficiente a guidare una scrittura densa e approfondita di \u0027 + targetWordCount + \u0027 parole.\u0027\n].join(\u0027\\n\u0027);\n\nconst userContent = [\n  \u0027DATA:\u0027,\n  \u0027BLUEPRINT: \u0027 + JSON.stringify(context.context_data || {}),\n  \u0027PLOT SUMMARY: \u0027 + (context.plot_summary || \u0027\u0027),\n  \u0027CURRENT CHAPTER: \u0027 + chapterTitle + \u0027 - \u0027 + chapterSummary,\n  \u0027RAG CONTEXT: \u0027 + ragChunks,\n  \u0027FEEDBACK/INSTRUCTION: \u0027 + feedback,\n  schemaInstruction\n].join(\u0027\\n\\n\u0027);\n\nconst openaiPayload = {\n  model: primaryModel,\n  max_tokens: 4000,\n  temperature: (typeof temps.SCAFFOLDER === \u0027number\u0027 ? Math.min(temps.SCAFFOLDER, 0.3) : 0.3),\n  response_format: { type: \u0027json_object\u0027 },\n  messages: [\n    { role: \u0027system\u0027, content: systemPrompt },\n    { role: \u0027user\u0027, content: userContent }\n  ]\n};\n\nreturn { json: openaiPayload };"
+                                         "jsCode":  "// Build a robust OpenAI payload for SCAFFOLD_CHAPTER with explicit JSON schema instructions.\nconst webhookBody = $(\u0027Webhook Router\u0027).first().json?.body || {};\nconst context = $(\u0027Get Book Context (Scaffolder)\u0027).first().json || {};\nconst primaryModel = context.primary_model || \u0027gpt-4o\u0027;\nconst prompts = context.prompts || {};\nconst temps = context.temps || {};\n\nconst chapterTitle = webhookBody.chapter?.title || \u0027Capitolo Sconosciuto\u0027;\nconst chapterSummary = webhookBody.chapter?.summary || \u0027\u0027;\nconst feedback = webhookBody.feedback || \u0027Nessun feedback. Genera da zero.\u0027;\nconst rawTargetCount = Number(webhookBody.targetParagraphCount);\nconst targetCount = Number.isFinite(rawTargetCount) \u0026\u0026 rawTargetCount \u003e 0 ? Math.min(25, Math.max(1, Math.round(rawTargetCount))) : 5;\n\n// Read targetWordCount passed from frontend (proportional to book target pages)\nconst rawTargetWordCount = Number(webhookBody.targetWordCount);\nconst targetWordCount = Number.isFinite(rawTargetWordCount) \u0026\u0026 rawTargetWordCount \u003e 0 ? Math.round(rawTargetWordCount) : 300;\n\nconst ragChunks = $(\u0027RAG: Query Scaffold\u0027).all()\n  .map(item =\u003e (item?.json?.content ? String(item.json.content) : \u0027\u0027))\n  .filter(Boolean)\n  .join(\u0027  \u0027);\n\nconst systemPrompt = prompts.SCAFFOLDER || \"Sei l\u0027Architetto Letterario W4U.\";\n\nconst schemaInstruction = [\n  \u0027Rispondi SOLO con JSON valido, senza markdown e senza testo extra.\u0027,\n  \u0027Schema obbligatorio:\u0027,\n  \u0027{\"paragraphs\":[{\"title\":\"string\",\"description\":\"string\"}]}\u0027,\n  \u0027Genera ESATTAMENTE \u0027 + targetCount + \u0027 elementi in paragraphs.\u0027,\n  \u0027Se stai per generare meno di \u0027 + targetCount + \u0027 elementi, aggiungi nuovi elementi fino ad arrivare esattamente a \u0027 + targetCount + \u0027. Non restituire mai meno elementi del richiesto.\u0027,\n  \u0027Controlla il conteggio finale: paragraphs deve avere esattamente \u0027 + targetCount + \u0027 elementi.\u0027,\n  \u0027Ogni paragrafo, quando scritto dall\\\u0027AI Writer, dovrÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  essere circa \u0027 + targetWordCount + \u0027 parole. Descrivi il contenuto in modo sufficiente a guidare una scrittura densa e approfondita di \u0027 + targetWordCount + \u0027 parole.\u0027\n].join(\u0027\\n\u0027);\n\nconst userContent = [\n  \u0027DATA:\u0027,\n  \u0027BLUEPRINT: \u0027 + JSON.stringify(context.context_data || {}),\n  \u0027PLOT SUMMARY: \u0027 + (context.plot_summary || \u0027\u0027),\n  \u0027CURRENT CHAPTER: \u0027 + chapterTitle + \u0027 - \u0027 + chapterSummary,\n  \u0027RAG CONTEXT: \u0027 + ragChunks,\n  \u0027FEEDBACK/INSTRUCTION: \u0027 + feedback,\n  schemaInstruction\n].join(\u0027\\n\\n\u0027);\n\nconst openaiPayload = {\n  model: primaryModel,\n  max_tokens: 4000,\n  temperature: (typeof temps.SCAFFOLDER === \u0027number\u0027 ? Math.min(temps.SCAFFOLDER, 0.3) : 0.3),\n  response_format: { type: \u0027json_object\u0027 },\n  messages: [\n    { role: \u0027system\u0027, content: systemPrompt },\n    { role: \u0027user\u0027, content: userContent }\n  ]\n};\n\nreturn { json: openaiPayload };"
                                      },
                       "id":  "d2531dff-ef68-40f0-9d2a-3898a10cef2e",
                       "name":  "Build Scaffolder Payload",
@@ -2323,7 +2287,7 @@
                                                               },
                                          "sendBody":  true,
                                          "specifyBody":  "json",
-                                         "jsonBody":  "={{ (() =\u003e {\n  const book = $node[\"Get Book Context Expander\"].json || {};\n  const body = $node[\"Webhook Router\"].json.body || {};\n  const fullText = body.fullText || \"\";\n  const deficit = Number(body.deficit || 300);\n  const targetWordCount = Number(body.targetWordCount || 1500);\n\n  const expanderPrompt = book.prompts?.EXPANDER || \"Sei un editor professionista. Espandi il testo fornito aggiungendo dettagli, esempi e approfondimenti senza alterare la struttura. Restituisci il testo completo espanso.\";\n\n  return {\n    model: book.primary_model || \"gpt-4o\",\n    temperature: book.temps?.EXPANDER || 0.4,\n    max_tokens: 4096,\n    messages: [\n      { role: \"system\", content: expanderPrompt + \"\\n\\nIMPORTANTE: Mantieni rigorosamente la divisione in paragrafi usando il doppio a capo (\\n\\n) tra un paragrafo e l\u0027altro. Non unire i paragrafi esistenti.\" },\n      { role: \"user\", content:\n`TESTO DA ESPANDERE:\\n${fullText}\\n\\nISTRUZIONI:\\n- Il testo attuale ÃƒÆ’Ã‚Â¨ troppo corto rispetto all\u0027obiettivo.\\n- Devi aggiungere circa ${deficit} parole distribuite uniformemente tra i paragrafi esistenti.\\n- Target totale: almeno ${targetWordCount} parole.\\n- NON rimuovere contenuto esistente.\\n- NON alterare la struttura dei paragrafi (mantieni i titoli e la sequenza).\\n- Arricchisci con dettagli, esempi, approfondimenti.\\n- Usa il doppio invio (\\n\\n) per separare i paragrafi.\\n- Restituisci SOLO il testo espanso completo, senza commenti o markup.` }\n    ]\n  };\n})() }}",
+                                         "jsonBody":  "={{ (() =\u003e {\n  const book = $node[\"Get Book Context Expander\"].json || {};\n  const body = $node[\"Webhook Router\"].json.body || {};\n  const fullText = body.fullText || \"\";\n  const deficit = Number(body.deficit || 300);\n  const targetWordCount = Number(body.targetWordCount || 1500);\n\n  const expanderPrompt = book.prompts?.EXPANDER || \"Sei un editor professionista. Espandi il testo fornito aggiungendo dettagli, esempi e approfondimenti senza alterare la struttura. Restituisci il testo completo espanso.\";\n\n  return {\n    model: book.primary_model || \"gpt-4o\",\n    temperature: book.temps?.EXPANDER || 0.4,\n    max_tokens: 4096,\n    messages: [\n      { role: \"system\", content: expanderPrompt + \"\\n\\nIMPORTANTE: Mantieni rigorosamente la divisione in paragrafi usando il doppio a capo (\\n\\n) tra un paragrafo e l\u0027altro. Non unire i paragrafi esistenti.\" },\n      { role: \"user\", content:\n`TESTO DA ESPANDERE:\\n${fullText}\\n\\nISTRUZIONI:\\n- Il testo attuale ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ troppo corto rispetto all\u0027obiettivo.\\n- Devi aggiungere circa ${deficit} parole distribuite uniformemente tra i paragrafi esistenti.\\n- Target totale: almeno ${targetWordCount} parole.\\n- NON rimuovere contenuto esistente.\\n- NON alterare la struttura dei paragrafi (mantieni i titoli e la sequenza).\\n- Arricchisci con dettagli, esempi, approfondimenti.\\n- Usa il doppio invio (\\n\\n) per separare i paragrafi.\\n- Restituisci SOLO il testo espanso completo, senza commenti o markup.` }\n    ]\n  };\n})() }}",
                                          "options":  {
                                                          "timeout":  480000
                                                      }
@@ -2518,7 +2482,7 @@
                   },
                   {
                       "parameters":  {
-                                         "jsCode":  "const source = $node[\"Scaffold Parse\"].json || {};\nconst context = $(\u0027Get Book Context (Scaffolder)\u0027).first().json || {};\nconst prompts = context.prompts || {};\nconst temps = context.temps || {};\nconst primaryModel = context.primary_model || \u0027gpt-4o\u0027;\n\nconst missingCount = Number(source.missingCount || 0);\nconst targetWordCount = Number(source.targetWordCount || 0) || (Number($(\u0027Webhook Router\u0027).first().json?.body?.targetWordCount) || 300);\n\nconst ragChunks = $(\u0027RAG: Query Scaffold\u0027).all()\n  .map(item =\u003e (item?.json?.content ? String(item.json.content) : \u0027\u0027))\n  .filter(Boolean)\n  .join(\u0027  \u0027);\n\nconst systemPrompt = prompts.SCAFFOLDER || \"Sei l\u0027Architetto Letterario W4U.\";\nconst existing = Array.isArray(source.paragraphs) ? source.paragraphs : [];\n\nconst schemaInstruction = [\n  \u0027Rispondi SOLO con JSON valido, senza markdown e senza testo extra.\u0027,\n  \u0027Schema obbligatorio:\u0027,\n  \u0027{\"paragraphs\":[{\"title\":\"string\",\"description\":\"string\"}]}\u0027,\n  \u0027Genera ESATTAMENTE \u0027 + missingCount + \u0027 elementi in paragraphs.\u0027,\n  \u0027Non ripetere i seguenti sottocapitoli giÃƒÂ  presenti: \u0027 + JSON.stringify(existing),\n  \u0027Ogni paragrafo deve guidare la scrittura di circa \u0027 + targetWordCount + \u0027 parole.\u0027\n].join(\u0027\\n\u0027);\n\nconst userContent = [\n  \u0027DATA:\u0027,\n  \u0027BLUEPRINT: \u0027 + JSON.stringify(context.context_data || {}),\n  \u0027PLOT SUMMARY: \u0027 + (context.plot_summary || \u0027\u0027),\n  \u0027CURRENT CHAPTER: \u0027 + (source.chapterTitle || \u0027\u0027) + \u0027 - \u0027 + (source.chapterSummary || \u0027\u0027),\n  \u0027RAG CONTEXT: \u0027 + ragChunks,\n  schemaInstruction\n].join(\u0027\\n\\n\u0027);\n\nconst openaiPayload = {\n  model: primaryModel,\n  max_tokens: 2000,\n  temperature: (typeof temps.SCAFFOLDER === \u0027number\u0027 ? Math.min(temps.SCAFFOLDER, 0.3) : 0.3),\n  response_format: { type: \u0027json_object\u0027 },\n  messages: [\n    { role: \u0027system\u0027, content: systemPrompt },\n    { role: \u0027user\u0027, content: userContent }\n  ]\n};\n\nreturn { json: openaiPayload };"
+                                         "jsCode":  "const source = $node[\"Scaffold Parse\"].json || {};\nconst context = $(\u0027Get Book Context (Scaffolder)\u0027).first().json || {};\nconst prompts = context.prompts || {};\nconst temps = context.temps || {};\nconst primaryModel = context.primary_model || \u0027gpt-4o\u0027;\n\nconst missingCount = Number(source.missingCount || 0);\nconst targetWordCount = Number(source.targetWordCount || 0) || (Number($(\u0027Webhook Router\u0027).first().json?.body?.targetWordCount) || 300);\n\nconst ragChunks = $(\u0027RAG: Query Scaffold\u0027).all()\n  .map(item =\u003e (item?.json?.content ? String(item.json.content) : \u0027\u0027))\n  .filter(Boolean)\n  .join(\u0027  \u0027);\n\nconst systemPrompt = prompts.SCAFFOLDER || \"Sei l\u0027Architetto Letterario W4U.\";\nconst existing = Array.isArray(source.paragraphs) ? source.paragraphs : [];\n\nconst schemaInstruction = [\n  \u0027Rispondi SOLO con JSON valido, senza markdown e senza testo extra.\u0027,\n  \u0027Schema obbligatorio:\u0027,\n  \u0027{\"paragraphs\":[{\"title\":\"string\",\"description\":\"string\"}]}\u0027,\n  \u0027Genera ESATTAMENTE \u0027 + missingCount + \u0027 elementi in paragraphs.\u0027,\n  \u0027Non ripetere i seguenti sottocapitoli giÃƒÆ’Ã‚Â  presenti: \u0027 + JSON.stringify(existing),\n  \u0027Ogni paragrafo deve guidare la scrittura di circa \u0027 + targetWordCount + \u0027 parole.\u0027\n].join(\u0027\\n\u0027);\n\nconst userContent = [\n  \u0027DATA:\u0027,\n  \u0027BLUEPRINT: \u0027 + JSON.stringify(context.context_data || {}),\n  \u0027PLOT SUMMARY: \u0027 + (context.plot_summary || \u0027\u0027),\n  \u0027CURRENT CHAPTER: \u0027 + (source.chapterTitle || \u0027\u0027) + \u0027 - \u0027 + (source.chapterSummary || \u0027\u0027),\n  \u0027RAG CONTEXT: \u0027 + ragChunks,\n  schemaInstruction\n].join(\u0027\\n\\n\u0027);\n\nconst openaiPayload = {\n  model: primaryModel,\n  max_tokens: 2000,\n  temperature: (typeof temps.SCAFFOLDER === \u0027number\u0027 ? Math.min(temps.SCAFFOLDER, 0.3) : 0.3),\n  response_format: { type: \u0027json_object\u0027 },\n  messages: [\n    { role: \u0027system\u0027, content: systemPrompt },\n    { role: \u0027user\u0027, content: userContent }\n  ]\n};\n\nreturn { json: openaiPayload };"
                                      },
                       "id":  "a3f44ef9-932a-4e77-9a2b-8c0f6b2f9f3d",
                       "name":  "Build Missing Scaffold Payload",
@@ -2577,6 +2541,36 @@
                       "position":  [
                                        4256,
                                        1584
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const source = $node[\"Merge Scaffold Output\"]?.json?.paragraphs\n  ? $node[\"Merge Scaffold Output\"].json\n  : $node[\"Scaffold Parse\"].json;\n\nconst targetCount = Number(source?.targetCount || 0);\nconst paragraphs = Array.isArray(source?.paragraphs) ? source.paragraphs : [];\nconst mergeError = source?.mergeError || source?.parseError || null;\n\nif (mergeError) {\n  throw new Error(String(mergeError));\n}\n\nif (!targetCount || paragraphs.length !== targetCount) {\n  throw new Error(\u0027Scaffolder produced \u0027 + paragraphs.length + \u0027 paragraphs, expected exactly \u0027 + (targetCount || 1));\n}\n\nreturn {\n  json: {\n    paragraphs\n  }\n};"
+                                     },
+                      "id":  "2a73f32f-a71a-4187-9d04-6f0e994ec1f8",
+                      "name":  "Finalize Scaffold Payload",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       4480,
+                                       1680
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ $json }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "4841e318-a50f-4bd2-8d03-4f4539ed3173",
+                      "name":  "Respond Scaffold JSON",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1,
+                      "position":  [
+                                       4704,
+                                       1680
                                    ]
                   }
               ],
@@ -3139,20 +3133,13 @@
                                               },
                         "Log AI Usage: Scaffolder":  {
                                                          "main":  [
-                                                                      {
-                                                                          "node":  "Scaffold Parse",
-                                                                          "type":  "main",
-                                                                          "index":  0
-                                                                      }
-                                                                  ]
-                                                     },
-                        "Build Scaffold Log Query":  {
-                                                         "main":  [
-                                                                      {
-                                                                          "node":  "Response Scaffold",
-                                                                          "type":  "main",
-                                                                          "index":  0
-                                                                      }
+                                                                      [
+                                                                          {
+                                                                              "node":  "Scaffold Parse",
+                                                                              "type":  "main",
+                                                                              "index":  0
+                                                                          }
+                                                                      ]
                                                                   ]
                                                      },
                         "Generate Cover (DALL-E 3)":  {
@@ -3526,11 +3513,13 @@
                                                     },
                         "Scaffold Parse":  {
                                                "main":  [
-                                                            {
-                                                                "node":  "Scaffold Missing?",
-                                                                "type":  "main",
-                                                                "index":  0
-                                                            }
+                                                            [
+                                                                {
+                                                                    "node":  "Scaffold Missing?",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
                                                         ]
                                            },
                         "Scaffold Missing?":  {
@@ -3544,7 +3533,7 @@
                                                                ],
                                                                [
                                                                    {
-                                                                       "node":  "Build Scaffold Log Query",
+                                                                       "node":  "Finalize Scaffold Payload",
                                                                        "type":  "main",
                                                                        "index":  0
                                                                    }
@@ -3553,31 +3542,48 @@
                                               },
                         "Build Missing Scaffold Payload":  {
                                                                "main":  [
-                                                                            {
-                                                                                "node":  "Agent: Scaffolder Missing",
-                                                                                "type":  "main",
-                                                                                "index":  0
-                                                                            }
+                                                                            [
+                                                                                {
+                                                                                    "node":  "Agent: Scaffolder Missing",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
                                                                         ]
                                                            },
                         "Agent: Scaffolder Missing":  {
                                                           "main":  [
-                                                                       {
-                                                                           "node":  "Merge Scaffold Output",
-                                                                           "type":  "main",
-                                                                           "index":  0
-                                                                       }
+                                                                       [
+                                                                           {
+                                                                               "node":  "Merge Scaffold Output",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
                                                                    ]
                                                       },
                         "Merge Scaffold Output":  {
                                                       "main":  [
-                                                                   {
-                                                                       "node":  "Build Scaffold Log Query",
-                                                                       "type":  "main",
-                                                                       "index":  0
-                                                                   }
+                                                                   [
+                                                                       {
+                                                                           "node":  "Finalize Scaffold Payload",
+                                                                           "type":  "main",
+                                                                           "index":  0
+                                                                       }
+                                                                   ]
                                                                ]
-                                                  }
+                                                  },
+                        "Finalize Scaffold Payload":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Respond Scaffold JSON",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      }
                     },
     "active":  true,
     "settings":  {

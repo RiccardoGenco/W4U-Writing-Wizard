@@ -142,14 +142,7 @@ const ScaffoldRevisionPage: React.FC = () => {
             }
 
             const targetChapters = parsePositiveInt(book.target_chapters) ?? chapters.length;
-            const wordsPerPage =
-                parsePositiveInt(book.configuration?.words_per_page) ??
-                parsePositiveInt(book.context_data?.configuration?.words_per_page) ??
-                300;
-            
-            const totalWordsTarget = targetPages * wordsPerPage;
-            const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
-            const paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));
+            const paragraphsPerChapter = Math.max(1, Math.round(targetPages / targetChapters));
 
             const fetchScaffoldWithRetry = async (attempts = 5) => {
                 let lastError: unknown = null;
