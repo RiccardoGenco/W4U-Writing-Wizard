@@ -12,6 +12,47 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+let authTokenCache: string | null = null;
+
+const getSupabaseStorageKey = (): string | null => {
+    try {
+        const host = new URL(SUPABASE_URL).host;
+        const projectRef = host.split('.')[0];
+        return projectRef ? `sb-${projectRef}-auth-token` : null;
+    } catch {
+        return null;
+    }
+};
+
+const readAccessTokenFromStorage = (): string | null => {
+    if (typeof window === 'undefined') return null;
+
+    const storageKey = getSupabaseStorageKey();
+    if (!storageKey) return null;
+
+    try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw);
+        if (parsed?.access_token) return parsed.access_token;
+        if (parsed?.currentSession?.access_token) return parsed.currentSession.access_token;
+        if (Array.isArray(parsed)) {
+            const sessionLike = parsed.find((entry) => entry?.access_token || entry?.currentSession?.access_token);
+            if (sessionLike?.access_token) return sessionLike.access_token;
+            if (sessionLike?.currentSession?.access_token) return sessionLike.currentSession.access_token;
+        }
+    } catch (error) {
+        console.warn('[API] Failed to read auth token from localStorage:', error);
+    }
+
+    return null;
+};
+
+supabase.auth.onAuthStateChange((_event, session) => {
+    authTokenCache = session?.access_token ?? null;
+});
+
 // Centralized logger
 export const logDebug = async (source: string, eventType: string, payload: any, bookId?: string | null) => {
     try {
@@ -53,10 +94,18 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
+            authTokenCache = session.access_token;
             headers['Authorization'] = `Bearer ${session.access_token}`;
+            return headers;
         }
     } catch (err: unknown) {
         console.error('[API] getAuthHeaders: failed to get session');
+    }
+
+    const fallbackToken = authTokenCache || readAccessTokenFromStorage();
+    if (fallbackToken) {
+        authTokenCache = fallbackToken;
+        headers['Authorization'] = `Bearer ${fallbackToken}`;
     }
 
     return headers;
@@ -87,7 +136,8 @@ async function pollForCompletion(
                 if (statusResponse.status === 401) {
                     // Try to refresh session once
                     const { data: { session } } = await supabase.auth.refreshSession();
-                    if (!session) throw new Error('Unauthorized');
+                    if (!session?.access_token) throw new Error('Unauthorized');
+                    authTokenCache = session.access_token;
                     continue; // Retry with new session
                 }
                 
