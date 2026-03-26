@@ -2263,15 +2263,46 @@ async function forwardToN8n(requestId, userId, payload, token) {
         }
 
         console.log(`[AI Proxy] Forwarding request ${requestId} to n8n: ${n8nWebhookUrl}`);
+        await logDebug('server', 'ai_proxy_dispatch', {
+            requestId,
+            action: payload.action,
+            webhook: n8nWebhookUrl
+        }, bookId);
 
-        const n8nResponse = await fetch(n8nWebhookUrl, {
-            method: 'POST',
-            headers: n8nHeaders,
-            body: JSON.stringify(n8nPayload)
-        }).catch(err => {
+        const timeoutMs = Number(process.env.N8N_REQUEST_TIMEOUT_MS || 45000);
+        const controller = new AbortController();
+        const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+        let n8nResponse;
+        try {
+            n8nResponse = await fetch(n8nWebhookUrl, {
+                method: 'POST',
+                headers: n8nHeaders,
+                body: JSON.stringify(n8nPayload),
+                signal: controller.signal
+            });
+        } catch (err) {
+            if (err?.name === 'AbortError') {
+                await logDebug('server', 'ai_proxy_dispatch_timeout', {
+                    requestId,
+                    action: payload.action,
+                    webhook: n8nWebhookUrl,
+                    timeout_ms: timeoutMs
+                }, bookId);
+                throw new Error(`Timeout connecting to n8n after ${timeoutMs}ms`);
+            }
+
+            await logDebug('server', 'ai_proxy_fetch_error', {
+                requestId,
+                action: payload.action,
+                webhook: n8nWebhookUrl,
+                error: err?.message || String(err)
+            }, bookId);
             console.error(`[AI Proxy] Fetch to n8n failed for ${requestId}:`, err.message);
             throw new Error(`Network error connecting to n8n: ${err.message}`);
-        });
+        } finally {
+            clearTimeout(timeoutHandle);
+        }
 
         await logDebug('server', 'ai_proxy_n8n_response', {
             requestId,
