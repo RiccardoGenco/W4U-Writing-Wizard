@@ -151,7 +151,7 @@ const ScaffoldRevisionPage: React.FC = () => {
             const wordsPerChapter = Math.floor(totalWordsTarget / targetChapters);
             const paragraphsPerChapter = Math.max(1, Math.ceil(wordsPerChapter / 250));
 
-            const fetchScaffoldWithRetry = async (attempts = 3) => {
+            const fetchScaffoldWithRetry = async (attempts = 5) => {
                 let lastError: unknown = null;
                 for (let attempt = 1; attempt <= attempts; attempt += 1) {
                     try {
@@ -177,6 +177,9 @@ const ScaffoldRevisionPage: React.FC = () => {
                         return aiParagraphs;
                     } catch (error) {
                         lastError = error;
+                        if (attempt < attempts) {
+                            await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+                        }
                     }
                 }
                 throw lastError instanceof Error ? lastError : new Error(String(lastError));

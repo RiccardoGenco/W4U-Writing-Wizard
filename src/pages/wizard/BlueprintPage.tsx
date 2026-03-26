@@ -136,7 +136,7 @@ const BlueprintPage: React.FC = () => {
 
             const dbParagraphs: Array<{ chapter_id: string; paragraph_number: number; title: string; description: string; status: string; target_word_count: number }> = [];
 
-            const fetchScaffoldWithRetry = async (chapter: { id: string; title: string; summary?: string | null }, attempts = 3) => {
+            const fetchScaffoldWithRetry = async (chapter: { id: string; title: string; summary?: string | null }, attempts = 5) => {
                 let lastError: unknown = null;
                 for (let attempt = 1; attempt <= attempts; attempt += 1) {
                     try {
@@ -167,6 +167,9 @@ const BlueprintPage: React.FC = () => {
                             attempt,
                             error: error instanceof Error ? error.message : String(error)
                         }, bookId);
+                        if (attempt < attempts) {
+                            await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+                        }
                     }
                 }
                 throw lastError instanceof Error ? lastError : new Error(String(lastError));
