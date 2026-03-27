@@ -30,6 +30,39 @@ interface DBChapter {
 type RunPhase = BookGenerationRunStatus['phase'];
 type RunStatus = BookGenerationRunStatus['status'];
 
+const getRunErrorPresentation = (run: BookGenerationRunStatus | null) => {
+    if (!run) return null;
+
+    const fallbackInfo = run.fallback_info || {};
+    const missingParagraphs = Array.isArray((fallbackInfo as Record<string, unknown>).missing_paragraph_numbers)
+        ? ((fallbackInfo as Record<string, unknown>).missing_paragraph_numbers as number[])
+        : [];
+
+    const userMessage = run.user_message || run.last_error;
+    if (!userMessage) return null;
+
+    const nextStep = (() => {
+        if (!run.recoverable) return 'Controlla i dati del libro o contatta il team tecnico prima di riprovare.';
+        if (run.suggested_action === 'resume_missing_paragraphs' && missingParagraphs.length > 0) {
+            return `Puoi premere di nuovo "Elabora Tutto": il sistema ripartira dai sottocapitoli mancanti (${missingParagraphs.join(', ')}).`;
+        }
+        if (run.suggested_action === 'wait_and_resume') {
+            return 'Attendi qualche minuto e poi premi di nuovo "Elabora Tutto": la generazione riprendera dai contenuti gia salvati.';
+        }
+        if (run.suggested_action === 'resume_expansion') {
+            return 'Puoi rilanciare la generazione: il sistema eseguira un passaggio aggiuntivo di completamento senza buttare via il testo valido.';
+        }
+        return 'Puoi rilanciare la generazione: il sistema proseguira dal punto rimasto senza rigenerare i capitoli gia completati.';
+    })();
+
+    return {
+        userMessage,
+        nextStep,
+        developerMessage: run.developer_message || run.last_error || null,
+        isRecoverable: run.recoverable !== false
+    };
+};
+
 // -------------------------------------------------------------
 // Component: ParagraphEditor
 // -------------------------------------------------------------
@@ -195,6 +228,7 @@ const ProductionPage: React.FC = () => {
     const [runStatus, setRunStatus] = useState<RunStatus | null>(null);
     const [runPhase, setRunPhase] = useState<RunPhase | null>(null);
     const [runError, setRunError] = useState<string | null>(null);
+    const [runErrorDetail, setRunErrorDetail] = useState<string | null>(null);
     const [currentRunChapterId, setCurrentRunChapterId] = useState<string | null>(null);
     const [currentRunChapterNumber, setCurrentRunChapterNumber] = useState<number | null>(null);
     const [startingRun, setStartingRun] = useState(false);
@@ -231,6 +265,7 @@ const ProductionPage: React.FC = () => {
             setRunStatus(null);
             setRunPhase(null);
             setRunError(null);
+            setRunErrorDetail(null);
             setCurrentRunChapterId(null);
             setCurrentRunChapterNumber(null);
             setRunPollErrors(0);
@@ -241,7 +276,9 @@ const ProductionPage: React.FC = () => {
         setRunId(run.id);
         setRunStatus(run.status);
         setRunPhase(run.phase);
-        setRunError(run.last_error || null);
+        const errorPresentation = getRunErrorPresentation(run);
+        setRunError(errorPresentation ? `${errorPresentation.userMessage} ${errorPresentation.nextStep}` : null);
+        setRunErrorDetail(errorPresentation?.developerMessage || null);
         setCurrentRunChapterId(run.current_chapter_id || null);
         setCurrentRunChapterNumber(run.current_chapter_number || null);
         setRunPollErrors(0);
@@ -357,7 +394,13 @@ const ProductionPage: React.FC = () => {
                         const next = prev + 1;
                         if (next >= 3) {
                             setRunError('Stato generazione non raggiungibile. Se il job è bloccato, riprova o rigenera.');
-                            syncRunState(null);
+                            setRunErrorDetail('Polling dello stato fallito per 3 tentativi consecutivi.');
+                            setRunId(null);
+                            setRunStatus(null);
+                            setRunPhase(null);
+                            setCurrentRunChapterId(null);
+                            setCurrentRunChapterNumber(null);
+                            persistRunId(null);
                         }
                         return next;
                     });
@@ -413,6 +456,7 @@ const ProductionPage: React.FC = () => {
 
         setStartingRun(true);
         setRunError(null);
+        setRunErrorDetail(null);
         setLoadingMessage(loadingPhases[0]);
 
         try {
@@ -431,6 +475,7 @@ const ProductionPage: React.FC = () => {
                 persistRunId(err.runId);
             } else {
                 setRunError(err.message || 'Avvio della generazione fallito');
+                setRunErrorDetail(err.message || 'Start endpoint failed');
             }
         } finally {
             setStartingRun(false);
@@ -530,7 +575,18 @@ const ProductionPage: React.FC = () => {
                             color: 'var(--text-primary)',
                             fontSize: '0.85rem'
                         }}>
-                            {runError}
+                            <div style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Generazione interrotta</div>
+                            <div>{runError}</div>
+                            {runErrorDetail && (
+                                <div style={{
+                                    marginTop: '0.5rem',
+                                    fontSize: '0.78rem',
+                                    color: 'var(--text-muted)',
+                                    wordBreak: 'break-word'
+                                }}>
+                                    Dettaglio tecnico: {runErrorDetail}
+                                </div>
+                            )}
                         </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', gap: '0.5rem' }}>

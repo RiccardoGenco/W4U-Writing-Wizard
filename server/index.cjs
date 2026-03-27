@@ -145,7 +145,177 @@ const countWords = (text) => {
     return text.split(/\s+/).filter(word => word.length > 0).length;
 };
 
+const normalizeParagraphRange = (range) => {
+    if (!Array.isArray(range) || range.length !== 2) return null;
+    const start = Number(range[0]);
+    const end = Number(range[1]);
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start <= 0 || end < start) return null;
+    return [start, end];
+};
+
+const buildExpectedParagraphNumbers = (range) => {
+    const normalizedRange = normalizeParagraphRange(range);
+    if (!normalizedRange) return [];
+    const [start, end] = normalizedRange;
+    const numbers = [];
+    for (let current = start; current <= end; current++) {
+        numbers.push(current);
+    }
+    return numbers;
+};
+
+const buildAiRequestSignature = (action, payload = {}) => {
+    const normalizedRange = normalizeParagraphRange(payload.paragraphRange);
+    const normalizedTargetWordCount = Number(payload.targetWordCount);
+    const normalizedPartNumber = Number(payload.partNumber);
+
+    return JSON.stringify({
+        action: action || null,
+        chapterId: payload.chapterId || null,
+        partNumber: Number.isInteger(normalizedPartNumber) ? normalizedPartNumber : null,
+        paragraphRange: normalizedRange,
+        targetWordCount: Number.isFinite(normalizedTargetWordCount) ? Math.round(normalizedTargetWordCount) : null
+    });
+};
+
+const getIncompleteParagraphNumbers = (paragraphs = []) => paragraphs
+    .filter(p => p.status !== 'COMPLETED' || !p.content || p.content.length <= 20)
+    .map(p => Number(p.paragraph_number))
+    .filter(Number.isInteger)
+    .sort((a, b) => a - b);
+
+const getWrittenParagraphNumbers = (paragraphs = []) => paragraphs
+    .filter(p => p.status === 'COMPLETED' && p.content && p.content.length > 20)
+    .map(p => Number(p.paragraph_number))
+    .filter(Number.isInteger)
+    .sort((a, b) => a - b);
+
+const groupConsecutiveParagraphNumbers = (numbers = []) => {
+    const uniqueSorted = [...new Set(numbers.filter(Number.isInteger))].sort((a, b) => a - b);
+    if (uniqueSorted.length === 0) return [];
+
+    const ranges = [];
+    let rangeStart = uniqueSorted[0];
+    let previous = uniqueSorted[0];
+
+    for (let index = 1; index < uniqueSorted.length; index++) {
+        const current = uniqueSorted[index];
+        if (current === previous + 1) {
+            previous = current;
+            continue;
+        }
+        ranges.push([rangeStart, previous]);
+        rangeStart = current;
+        previous = current;
+    }
+
+    ranges.push([rangeStart, previous]);
+    return ranges;
+};
+
+const classifyBookGenerationError = (message, extra = {}) => {
+    const rawMessage = typeof message === 'string' ? message : String(message || 'Unknown generation error');
+    const base = {
+        code: 'GENERATION_FAILED',
+        recoverable: true,
+        user_message: 'La generazione si e interrotta, ma i contenuti gia scritti sono stati conservati. Puoi riprendere dal punto rimasto.',
+        developer_message: rawMessage,
+        suggested_action: 'resume_generation',
+        ...extra
+    };
+
+    if (rawMessage.includes('still incomplete after chapter generation')) {
+        return {
+            ...base,
+            code: 'PARTIAL_CHAPTER_WRITE',
+            user_message: 'Un capitolo e rimasto incompleto. Il sistema ha conservato i paragrafi gia scritti e puo ripartire solo da quelli mancanti.',
+            suggested_action: 'resume_missing_paragraphs'
+        };
+    }
+
+    if (rawMessage.includes('Missing paragraphs:')) {
+        return {
+            ...base,
+            code: 'MISSING_PARAGRAPHS',
+            user_message: 'Mancano ancora alcuni sottocapitoli. Puoi rilanciare la generazione e il sistema proseguira dai paragrafi non completati.',
+            suggested_action: 'resume_missing_paragraphs'
+        };
+    }
+
+    if (rawMessage.includes('Chapter writer returned') || rawMessage.includes('paragraph numbers different from expected')) {
+        return {
+            ...base,
+            code: 'WORKER_CONTRACT_VIOLATION',
+            user_message: 'Il generatore ha prodotto un output non valido e il controllo di sicurezza lo ha bloccato. Nessun testo buono e andato perso: puoi riprovare dal punto corrente.',
+            suggested_action: 'retry_current_step'
+        };
+    }
+
+    if (rawMessage.includes('Timeout connecting to n8n') || rawMessage.includes('Network error connecting to n8n')) {
+        return {
+            ...base,
+            code: 'WORKER_UNREACHABLE',
+            user_message: 'Il motore di scrittura non era raggiungibile. I contenuti gia generati sono salvi: attendi qualche minuto e poi riprendi la generazione.',
+            suggested_action: 'wait_and_resume'
+        };
+    }
+
+    if (rawMessage.includes('below minimum')) {
+        return {
+            ...base,
+            code: 'CHAPTER_UNDER_TARGET',
+            user_message: 'Il capitolo e stato scritto ma non ha ancora raggiunto la lunghezza minima. Il sistema puo completarlo con un passaggio aggiuntivo.',
+            suggested_action: 'resume_expansion'
+        };
+    }
+
+    if (rawMessage.includes('outside allowed range')) {
+        return {
+            ...base,
+            code: 'BOOK_OUT_OF_RANGE',
+            user_message: 'Il libro e stato generato ma il totale parole e fuori target. Serve un ultimo passaggio di rifinitura prima della chiusura finale.',
+            suggested_action: 'review_and_resume'
+        };
+    }
+
+    if (rawMessage.includes('stalled') || rawMessage.includes('Run iteration guard exceeded')) {
+        return {
+            ...base,
+            code: 'ORCHESTRATION_STALLED',
+            user_message: 'La generazione si e bloccata troppo a lungo. Lo stato e stato salvato e puoi riprendere senza perdere i capitoli gia completati.',
+            suggested_action: 'resume_generation'
+        };
+    }
+
+    return base;
+};
+
+const attachRunErrorMetadata = async (runId, classification, extraMetadata = {}) => {
+    try {
+        const currentRun = await getBookGenerationRun(runId);
+        await supabase.from('book_generation_runs')
+            .update({
+                metadata: {
+                    ...(currentRun.metadata || {}),
+                    error_info: {
+                        code: classification.code,
+                        recoverable: classification.recoverable,
+                        user_message: classification.user_message,
+                        developer_message: classification.developer_message,
+                        suggested_action: classification.suggested_action,
+                        ...extraMetadata
+                    }
+                },
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', runId);
+    } catch (error) {
+        console.error('[Book Generation] Failed to attach error metadata:', error.message);
+    }
+};
+
 async function failBookGenerationRun(runId, phase, lastError, extra = {}) {
+    const classification = classifyBookGenerationError(lastError, extra.error_info || {});
     await supabase.from('book_generation_runs')
         .update({
             status: 'failed',
@@ -155,6 +325,16 @@ async function failBookGenerationRun(runId, phase, lastError, extra = {}) {
             ...extra
         })
         .eq('id', runId);
+
+    await attachRunErrorMetadata(runId, classification, extra.error_info || {});
+    await logDebug('server', 'book_generation_failed', {
+        runId,
+        phase,
+        lastError,
+        error_code: classification.code,
+        recoverable: classification.recoverable,
+        suggested_action: classification.suggested_action
+    }, extra.book_id || null);
 }
 
 async function refreshBookGenerationRunState(runId, book) {
@@ -344,6 +524,12 @@ async function ensureSuccess(promise, contextMessage = 'Database operation') {
 }
 
 async function createAiRequestAndWait({ userId, bookId, action, payload, timeoutMs = 10 * 60 * 1000 }) { // Increased default to 10 min
+    const requestSignature = buildAiRequestSignature(action, payload);
+    const payloadWithSignature = {
+        ...payload,
+        requestSignature
+    };
+
     // 1. Deduplication: check for existing pending/processing request for same book + action + chapter
     const { data: pendingRequests, error: findError } = await supabase
         .from('ai_requests')
@@ -357,7 +543,8 @@ async function createAiRequestAndWait({ userId, bookId, action, payload, timeout
         const targetChapter = payload.chapterId;
         const match = pendingRequests.find(r => {
             const rChapter = r.request_payload ? r.request_payload.chapterId : null;
-            return rChapter === targetChapter;
+            const existingSignature = r.request_payload?.requestSignature || buildAiRequestSignature(action, r.request_payload || {});
+            return rChapter === targetChapter && existingSignature === requestSignature;
         });
         if (match) {
             console.log(`[Book Generation] Deduplicating AI request for ${action}. Reusing ${match.id}`);
@@ -374,7 +561,7 @@ async function createAiRequestAndWait({ userId, bookId, action, payload, timeout
                 book_id: bookId,
                 action,
                 status: 'pending',
-                request_payload: payload
+                request_payload: payloadWithSignature
             })
             .select()
             .single();
@@ -385,7 +572,7 @@ async function createAiRequestAndWait({ userId, bookId, action, payload, timeout
 
         aiRequestId = aiRequest.id;
 
-        forwardToN8n(aiRequestId, userId, { ...payload, action, bookId }, null).catch(async (err) => {
+        forwardToN8n(aiRequestId, userId, { ...payloadWithSignature, action, bookId }, null).catch(async (err) => {
             console.error(`[Book Generation] Worker dispatch failed for ${action}:`, err.message);
             await supabase.from('ai_requests')
                 .update({
@@ -567,6 +754,64 @@ async function processCurrentChapter(run, book) {
         }
         // Still run through the expansion-aware validation below
     } else {
+        const updateRunCoverageMetadata = async (attemptLabel, currentParagraphs, extraMetadata = {}) => {
+            const writtenParagraphNumbers = getWrittenParagraphNumbers(currentParagraphs);
+            const missingParagraphNumbers = getIncompleteParagraphNumbers(currentParagraphs);
+
+            await supabase.from('book_generation_runs')
+                .update({
+                    metadata: {
+                        ...(run.metadata || {}),
+                        active_paragraph_id: null,
+                        active_paragraph_number: null,
+                        expected_paragraphs_in_chapter: paragraphs.length,
+                        target_words_for_chapter: targetWordsPerChapter,
+                        generation_attempt: attemptLabel,
+                        expected_paragraph_numbers: sortedParagraphs.map(p => p.paragraph_number),
+                        written_paragraph_numbers: writtenParagraphNumbers,
+                        missing_paragraph_numbers: missingParagraphNumbers,
+                        ...extraMetadata
+                    },
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', run.id);
+
+            return { writtenParagraphNumbers, missingParagraphNumbers };
+        };
+
+        const dispatchParagraphRanges = async (ranges, attemptLabel) => {
+            if (!Array.isArray(ranges) || ranges.length === 0) {
+                return [];
+            }
+
+            console.log(`[Book Generation] Chapter ${chapter.chapter_number}: ${attemptLabel} for ranges ${JSON.stringify(ranges)}`);
+
+            return Promise.allSettled(ranges.map((range, index) => {
+                const normalizedRange = normalizeParagraphRange(range);
+                const expectedNumbers = buildExpectedParagraphNumbers(normalizedRange);
+                const proportionalTargetWords = Math.max(
+                    250,
+                    Math.round(targetWordsPerChapter * (expectedNumbers.length / totalParagraphs))
+                );
+
+                return createAiRequestAndWait({
+                    userId: run.created_by,
+                    bookId: book.id,
+                    action: 'WRITE_CHAPTER_FROM_PLAN',
+                    payload: {
+                        chapterId: chapter.id,
+                        bookId: book.id,
+                        targetWordCount: proportionalTargetWords,
+                        paragraphRange: normalizedRange,
+                        expectedParagraphNumbers: expectedNumbers,
+                        partNumber: index + 1,
+                        totalParts: ranges.length,
+                        generationAttempt: attemptLabel
+                    }
+                });
+            }));
+        };
+
         // --- WRITE PHASE: SPLIT GENERATION (TWO PARTS) ---
         await supabase.from('book_generation_runs')
             .update({
@@ -596,40 +841,64 @@ async function processCurrentChapter(run, book) {
 
         console.log(`[Book Generation] Chapter ${chapter.chapter_number}: Initiating SPLIT GENERATION (Parallel). Part 1: ${part1Range[0]}-${part1Range[1]}, Part 2: ${part2Range[0]}-${part2Range[1]}`);
 
-        // Generate Part 1 and Part 2 in Parallel
-        await Promise.all([
-            createAiRequestAndWait({
-                userId: run.created_by,
-                bookId: book.id,
-                action: 'WRITE_CHAPTER_FROM_PLAN',
-                payload: {
-                    chapterId: chapter.id,
-                    bookId: book.id,
-                    targetWordCount: Math.round(targetWordsPerChapter / 2),
-                    paragraphRange: part1Range,
-                    partNumber: 1,
-                    totalParts: 2
-                }
-            }),
-            createAiRequestAndWait({
-                userId: run.created_by,
-                bookId: book.id,
-                action: 'WRITE_CHAPTER_FROM_PLAN',
-                payload: {
-                    chapterId: chapter.id,
-                    bookId: book.id,
-                    targetWordCount: Math.round(targetWordsPerChapter / 2),
-                    paragraphRange: part2Range,
-                    partNumber: 2,
-                    totalParts: 2
-                }
-            })
-        ]);
+        const initialResults = await dispatchParagraphRanges([part1Range, part2Range], 'initial_split');
+        const initialWorkerErrors = initialResults
+            .filter(result => result.status === 'rejected')
+            .map(result => result.reason?.message || String(result.reason));
 
+        let { paragraphs: currentParagraphs } = await getChapterWithParagraphs(chapter.id);
+        let { missingParagraphNumbers } = await updateRunCoverageMetadata('initial_split', currentParagraphs, {
+            worker_errors: initialWorkerErrors
+        });
+
+        const MAX_MISSING_PARAGRAPH_RETRIES = 2;
+        for (let retryAttempt = 1; retryAttempt <= MAX_MISSING_PARAGRAPH_RETRIES && missingParagraphNumbers.length > 0; retryAttempt++) {
+            const retryRanges = groupConsecutiveParagraphNumbers(missingParagraphNumbers);
+            const retryLabel = retryAttempt === 1 ? 'retry_missing_ranges' : 'retry_missing_ranges_final';
+
+            const retryResults = await dispatchParagraphRanges(retryRanges, retryLabel);
+            const retryWorkerErrors = retryResults
+                .filter(result => result.status === 'rejected')
+                .map(result => result.reason?.message || String(result.reason));
+
+            ({ paragraphs: currentParagraphs } = await getChapterWithParagraphs(chapter.id));
+            ({ missingParagraphNumbers } = await updateRunCoverageMetadata(retryLabel, currentParagraphs, {
+                worker_errors: retryWorkerErrors,
+                retry_ranges: retryRanges
+            }));
+        }
 
         const finalized = await finalizeChapterIfReady(chapter.id);
         if (!finalized) {
-            throw new Error(`Chapter ${chapter.chapter_number} is still incomplete after chapter generation`);
+            const finalMissingParagraphNumbers = getIncompleteParagraphNumbers(currentParagraphs);
+            await supabase.from('book_generation_runs')
+                .update({
+                    metadata: {
+                        ...(run.metadata || {}),
+                        expected_paragraph_numbers: sortedParagraphs.map(p => p.paragraph_number),
+                        written_paragraph_numbers: getWrittenParagraphNumbers(currentParagraphs),
+                        missing_paragraph_numbers: finalMissingParagraphNumbers,
+                        fallback_info: {
+                            chapter_id: chapter.id,
+                            chapter_number: chapter.chapter_number,
+                            missing_paragraph_numbers: finalMissingParagraphNumbers,
+                            next_retry_ranges: groupConsecutiveParagraphNumbers(finalMissingParagraphNumbers),
+                            retry_mode: 'resume_missing_paragraphs'
+                        }
+                    },
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', run.id);
+
+            await logDebug('server', 'chapter_generation_incomplete', {
+                runId: run.id,
+                chapterId: chapter.id,
+                chapterNumber: chapter.chapter_number,
+                missingParagraphNumbers: finalMissingParagraphNumbers
+            }, book.id);
+            throw new Error(
+                `Chapter ${chapter.chapter_number} is still incomplete after chapter generation. Missing paragraphs: ${finalMissingParagraphNumbers.join(', ')}`
+            );
         }
     }
 
@@ -2184,6 +2453,9 @@ app.get("/api/book-generation/status/:runId", async (req, res) => {
             }
         }
 
+        const errorInfo = run.metadata?.error_info || null;
+        const fallbackInfo = run.metadata?.fallback_info || null;
+
         res.json({
             id: run.id,
             status: run.status,
@@ -2196,6 +2468,11 @@ app.get("/api/book-generation/status/:runId", async (req, res) => {
             expected_chapters: run.expected_chapters,
             completed_chapters: run.completed_chapters,
             last_error: run.last_error,
+            user_message: errorInfo?.user_message || null,
+            developer_message: errorInfo?.developer_message || null,
+            suggested_action: errorInfo?.suggested_action || null,
+            recoverable: typeof errorInfo?.recoverable === 'boolean' ? errorInfo.recoverable : null,
+            fallback_info: fallbackInfo,
             metadata: run.metadata,
             created_at: run.created_at,
             updated_at: run.updated_at

@@ -261,6 +261,11 @@ export interface BookGenerationRunStatus {
     expected_chapters: number | null;
     completed_chapters: number | null;
     last_error: string | null;
+    user_message?: string | null;
+    developer_message?: string | null;
+    suggested_action?: string | null;
+    recoverable?: boolean | null;
+    fallback_info?: Record<string, unknown> | null;
     metadata: Record<string, unknown> | null;
     created_at: string;
     updated_at: string;
