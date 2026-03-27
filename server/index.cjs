@@ -395,7 +395,7 @@ async function createAiRequestAndWait({ userId, bookId, action, payload, timeout
 
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced from 2000 to 1000
 
         const { data: current, error } = await supabase
             .from('ai_requests')
@@ -586,37 +586,38 @@ async function processCurrentChapter(run, book) {
         const part1Range = [sortedParagraphs[0].paragraph_number, sortedParagraphs[midPoint - 1].paragraph_number];
         const part2Range = [sortedParagraphs[midPoint].paragraph_number, sortedParagraphs[totalParagraphs - 1].paragraph_number];
 
-        console.log(`[Book Generation] Chapter ${chapter.chapter_number}: Initiating SPLIT GENERATION. Part 1: ${part1Range[0]}-${part1Range[1]}, Part 2: ${part2Range[0]}-${part2Range[1]}`);
+        console.log(`[Book Generation] Chapter ${chapter.chapter_number}: Initiating SPLIT GENERATION (Parallel). Part 1: ${part1Range[0]}-${part1Range[1]}, Part 2: ${part2Range[0]}-${part2Range[1]}`);
 
-        // Generate Part 1
-        await createAiRequestAndWait({
-            userId: run.created_by,
-            bookId: book.id,
-            action: 'WRITE_CHAPTER_FROM_PLAN',
-            payload: {
-                chapterId: chapter.id,
+        // Generate Part 1 and Part 2 in Parallel
+        await Promise.all([
+            createAiRequestAndWait({
+                userId: run.created_by,
                 bookId: book.id,
-                targetWordCount: Math.round(targetWordsPerChapter / 2),
-                paragraphRange: part1Range,
-                partNumber: 1,
-                totalParts: 2
-            }
-        });
+                action: 'WRITE_CHAPTER_FROM_PLAN',
+                payload: {
+                    chapterId: chapter.id,
+                    bookId: book.id,
+                    targetWordCount: Math.round(targetWordsPerChapter / 2),
+                    paragraphRange: part1Range,
+                    partNumber: 1,
+                    totalParts: 2
+                }
+            }),
+            createAiRequestAndWait({
+                userId: run.created_by,
+                bookId: book.id,
+                action: 'WRITE_CHAPTER_FROM_PLAN',
+                payload: {
+                    chapterId: chapter.id,
+                    bookId: book.id,
+                    targetWordCount: Math.round(targetWordsPerChapter / 2),
+                    paragraphRange: part2Range,
+                    partNumber: 2,
+                    totalParts: 2
+                }
+            })
+        ]);
 
-        // Generate Part 2
-        await createAiRequestAndWait({
-            userId: run.created_by,
-            bookId: book.id,
-            action: 'WRITE_CHAPTER_FROM_PLAN',
-            payload: {
-                chapterId: chapter.id,
-                bookId: book.id,
-                targetWordCount: Math.round(targetWordsPerChapter / 2),
-                paragraphRange: part2Range,
-                partNumber: 2,
-                totalParts: 2
-            }
-        });
 
         const finalized = await finalizeChapterIfReady(chapter.id);
         if (!finalized) {
@@ -2269,7 +2270,7 @@ async function forwardToN8n(requestId, userId, payload, token) {
             webhook: n8nWebhookUrl
         }, bookId);
 
-        const timeoutMs = Number(process.env.N8N_REQUEST_TIMEOUT_MS || 45000);
+        const timeoutMs = Number(process.env.N8N_REQUEST_TIMEOUT_MS || 300000);
         const controller = new AbortController();
         const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
