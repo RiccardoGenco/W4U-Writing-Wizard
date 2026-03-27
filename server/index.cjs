@@ -248,7 +248,11 @@ async function refreshBookGenerationRunState(runId, book) {
             return acc + countWords(p.content);
         }, 0);
 
-        const nextChapter = chapters.find(ch => ch.status !== 'COMPLETED') || null;
+        const nextChapter = chapters.find(ch => {
+            const chParagraphs = paragraphsByChapter.get(ch.id) || [];
+            const hasPending = chParagraphs.some(p => p.status !== 'COMPLETED' || !p.content || p.content.length <= 20);
+            return ch.status !== 'COMPLETED' || hasPending;
+        }) || null;
 
         const { error } = await supabase.from('book_generation_runs')
             .update({
