@@ -1625,22 +1625,9 @@ app.post("/export/epub", async (req, res) => {
                    </div>`
         });
 
-        // Copyright
-        content.splice(1, 0, {
-            title: "Copyright",
-            content: renderTemplate(prompts['courtesy_copyright_page'], templateData) || `<div lang="it" style="text-align: center; margin-top: 10%;">
-                     <h2>${cleanBookTitle}</h2>
-                     <p>${cleanBookTitle} - ${epubDesc.substring(0, 50)}...</p>
-                     <h3>${cleanAuthor}</h3>
-                     <br/><br/>
-                     <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
-                     <br/><br/>
-                     <p style="text-align: justify; font-size: 0.9em;">${epubDisclaimer}</p>
-                   </div>`
-        });
 
         if (introductionText) {
-            content.splice(2, 0, {
+            content.splice(1, 0, {
                 title: "Introduzione",
                 content: `<div lang="it"><h1>Introduzione</h1>${marked.parse(introductionText)}</div>`
             });
@@ -1833,51 +1820,6 @@ app.post("/export/docx", async (req, res) => {
             new Paragraph({ text: "", pageBreakBefore: true })
         );
 
-        // --- COPYRIGHT PAGE ---
-        children.push(
-            new Paragraph({ text: "", spacing: { after: 1200 } }),
-            new Paragraph({
-                text: cleanBookTitle,
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 36, bold: true },
-                spacing: { after: 200 }
-            }),
-            new Paragraph({
-                text: `${cleanBookTitle} - ${docxDesc.substring(0, 50)}...`,
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24 },
-                spacing: { after: 400 }
-            }),
-            new Paragraph({
-                text: cleanAuthor,
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 32 },
-                spacing: { after: 1200 }
-            }),
-            new Paragraph({
-                text: "Editore:",
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24, bold: true }
-            }),
-            new Paragraph({
-                text: publisher,
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24 }
-            }),
-            new Paragraph({
-                text: "mail@write4you.com",
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24 },
-                spacing: { after: 1200 }
-            }),
-            new Paragraph({
-                text: docxDisclaimer,
-                alignment: AlignmentType.BOTH,
-                font: { name: "Georgia", size: 20 },
-                spacing: { line: 360 }
-            }),
-            new Paragraph({ text: "", pageBreakBefore: true })
-        );
 
         // --- TABLE OF CONTENTS ---
         children.push(
@@ -2226,19 +2168,7 @@ app.post("/export/pdf", async (req, res) => {
                 <h1 class="book-title">${cleanBookTitle}</h1>
                 <h2 class="author">${cleanAuthor}</h2>
             </div>
-            <div class="title-page" style="margin-top: 10%;">
-                ${renderTemplate(prompts['courtesy_copyright_page'], templateData) || `
-                <h2 style="font-size: 2em; margin-bottom: 0.5em; font-weight: normal;">${cleanBookTitle}</h2>
-                <p style="font-size: 1.2em;">${cleanBookTitle} - ${pdfDesc.substring(0, 50)}...</p>
-                <h3 style="margin-top: 1em; font-size: 1.5em; font-weight: normal;">${cleanAuthor}</h3>
-                <div style="margin-top: 4em;">
-                    <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
-                </div>
-                <div style="margin-top: 5em; text-align: justify; font-size: 0.9em; line-height: 1.8; padding: 0 3em;">
-                    <p>${pdfDisclaimer}</p>
-                </div>
-                `}
-            </div>
+
 
             <div class="toc">
                 <h1>Indice</h1>
