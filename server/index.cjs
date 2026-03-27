@@ -1131,6 +1131,7 @@ async function processCurrentChapter(run, book) {
 
 
 async function finalizeBookGenerationRun(runId, book) {
+    const currentRun = await getBookGenerationRun(runId);
     const { data: chapters, error: chaptersError } = await supabase
         .from('chapters')
         .select('id, status, actual_word_count, content')
@@ -1139,6 +1140,16 @@ async function finalizeBookGenerationRun(runId, book) {
 
     if (chaptersError) {
         throw new Error(`Failed to load chapters during final review: ${chaptersError.message}`);
+    }
+
+    const chapterIds = (chapters || []).map(chapter => chapter.id);
+    const { data: paragraphs, error: paragraphsError } = await supabase
+        .from('paragraphs')
+        .select('chapter_id, status, content, paragraph_number')
+        .in('chapter_id', chapterIds);
+
+    if (paragraphsError) {
+        throw new Error(`Failed to load paragraphs during final review: ${paragraphsError.message}`);
     }
 
     const totalWords = (chapters || []).reduce((acc, chapter) => {
@@ -1155,12 +1166,17 @@ async function finalizeBookGenerationRun(runId, book) {
     const minAllowed = Math.floor(targetTotalWords * 0.9);
     const maxAllowed = Math.ceil(targetTotalWords * 1.1);
     const allCompleted = (chapters || []).length > 0 && chapters.every(ch => ch.status === 'COMPLETED');
+    const targetPages = Number(book.target_pages || book?.context_data?.target_pages);
+    const completedParagraphs = (paragraphs || []).filter(p => p.status === 'COMPLETED' && p.content && p.content.length > 20).length;
+    const pageAlignmentTolerance = 1;
+    const isWithinWordTarget = totalWords >= minAllowed && totalWords <= maxAllowed;
+    const isWithinPageTarget = Number.isFinite(targetPages) && Math.abs(completedParagraphs - Math.round(targetPages)) <= pageAlignmentTolerance;
 
     if (!allCompleted) {
         throw new Error('Final review failed: not all chapters are completed');
     }
 
-    if (totalWords < minAllowed || totalWords > maxAllowed) {
+    if (!isWithinWordTarget && !isWithinPageTarget) {
         throw new Error(`Final review failed: total words ${totalWords} outside allowed range ${minAllowed}-${maxAllowed}`);
     }
 
@@ -1172,6 +1188,17 @@ async function finalizeBookGenerationRun(runId, book) {
             current_chapter_id: null,
             current_chapter_number: null,
             last_error: null,
+            metadata: {
+                ...(currentRun.metadata || {}),
+                final_review: {
+                    total_words: totalWords,
+                    min_allowed_words: minAllowed,
+                    max_allowed_words: maxAllowed,
+                    completed_paragraphs: completedParagraphs,
+                    target_pages: Number.isFinite(targetPages) ? Math.round(targetPages) : null,
+                    accepted_via: isWithinWordTarget ? 'word_target' : 'page_target'
+                }
+            },
             updated_at: new Date().toISOString()
         })
         .eq('id', runId);
@@ -1516,6 +1543,16 @@ const getBackCoverBlurb = (book) => {
     return `Preparati a immergerti tra le pagine di ${book?.title || 'questo libro'}. Un progetto costruito per offrire una lettura coinvolgente, coerente e curata in ogni dettaglio.`;
 };
 
+const getBookIntroduction = (book) => {
+    const intro = normalizeText(removeEmojis(
+        book?.context_data?.introduction ||
+        book?.context_data?.back_cover_blurb ||
+        book?.plot_summary ||
+        ""
+    ));
+    return intro;
+};
+
 const fetchRemoteBuffer = async (url) => {
     if (!url) return null;
     const response = await fetch(url);
@@ -1544,6 +1581,7 @@ app.post("/export/epub", async (req, res) => {
         const cleanAuthor = book.author || "Autore";
         const epubDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const epubDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+        const introductionText = getBookIntroduction(book);
 
         const templateData = {
             title: cleanBookTitle,
@@ -1565,7 +1603,7 @@ app.post("/export/epub", async (req, res) => {
             }
 
             ch.exportParagraphs.forEach(p => {
-                const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
+                const subTitle = `<h2>${index + 1}.${p.paragraph_number} ${editorialCasing(normalizeText(removeEmojis(p.title || `Paragrafo ${index + 1}.${p.paragraph_number}`)))}</h2>`;
                 const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
                 chapterHtml += `<section class="subchapter">${subTitle}${subContent}</section>`;
             });
@@ -1581,10 +1619,9 @@ app.post("/export/epub", async (req, res) => {
         // Titolo
         content.unshift({
             title: "Titolo",
-            content: renderTemplate(prompts['courtesy_title_page'], templateData) || `<div lang="it" style="text-align: center; margin-top: 30%;">
-                     <h2>${cleanAuthor}</h2>
+            content: `<div lang="it" style="text-align: center; margin-top: 30%;">
                      <h1 style="font-size: 2.5em; margin: 0.5em 0;">${cleanBookTitle}</h1>
-                     <p><em>${epubDesc}</em></p>
+                     <h2>${cleanAuthor}</h2>
                    </div>`
         });
 
@@ -1601,6 +1638,13 @@ app.post("/export/epub", async (req, res) => {
                      <p style="text-align: justify; font-size: 0.9em;">${epubDisclaimer}</p>
                    </div>`
         });
+
+        if (introductionText) {
+            content.splice(2, 0, {
+                title: "Introduzione",
+                content: `<div lang="it"><h1>Introduzione</h1>${marked.parse(introductionText)}</div>`
+            });
+        }
 
         const options = {
             title: cleanBookTitle,
@@ -1708,6 +1752,7 @@ app.post("/export/docx", async (req, res) => {
         const docxDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
         const backCoverBlurb = getBackCoverBlurb(book);
+        const introductionText = getBookIntroduction(book);
 
         let coverBuffer = null;
         if (normalizedEdition === 'paperback') {
@@ -1731,8 +1776,11 @@ app.post("/export/docx", async (req, res) => {
 
             const introHtml = ch.exportCompiledContent ? marked.parse(normalizeText(removeEmojis(ch.exportCompiledContent))) : "";
             const subchapters = ch.exportParagraphs.map(p => ({
+                paragraphNumber: p.paragraph_number,
+                tocLabel: `${index + 1}.${p.paragraph_number}`,
                 title: p.title ? editorialCasing(normalizeText(removeEmojis(p.title))) : "",
-                htmlContent: p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : ""
+                htmlContent: p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "",
+                bookmarkId: `chapter_${index + 1}_paragraph_${p.paragraph_number}`
             }));
 
             return {
@@ -1777,17 +1825,10 @@ app.post("/export/docx", async (req, res) => {
             }),
             new Paragraph({ text: "", spacing: { after: 800 } }),
             new Paragraph({
-                text: `di ${cleanAuthor}`,
+                text: cleanAuthor,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 200 },
                 font: { name: "Georgia", size: 28 }
-            }),
-            new Paragraph({ text: "", spacing: { after: 1600 } }),
-            new Paragraph({
-                text: docxDesc,
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 20 },
-                italics: true
             }),
             new Paragraph({ text: "", pageBreakBefore: true })
         );
@@ -1867,9 +1908,51 @@ app.post("/export/docx", async (req, res) => {
                     alignment: AlignmentType.LEFT
                 })
             );
+
+            ch.subchapters.forEach((sub) => {
+                const label = sub.title ? `${sub.tocLabel} ${sub.title}` : `Paragrafo ${sub.tocLabel}`;
+                children.push(
+                    new Paragraph({
+                        children: [
+                            new InternalHyperlink({
+                                children: [
+                                    new TextRun({
+                                        text: label,
+                                        font: { name: "Georgia", size: 22 }
+                                    })
+                                ],
+                                anchor: sub.bookmarkId
+                            })
+                        ],
+                        spacing: { after: 80 },
+                        indent: { left: 480 },
+                        alignment: AlignmentType.LEFT
+                    })
+                );
+            });
         });
 
         children.push(new Paragraph({ text: "", pageBreakBefore: true }));
+
+        if (introductionText) {
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: "Introduzione",
+                            bold: true,
+                            font: { name: "Georgia", size: 40 }
+                        })
+                    ],
+                    heading: HeadingLevel.HEADING_1,
+                    alignment: AlignmentType.LEFT,
+                    spacing: { before: 200, after: 300 }
+                })
+            );
+
+            parseHtmlToParagraphs(marked.parse(introductionText)).forEach(p => children.push(p));
+            children.push(new Paragraph({ text: "", pageBreakBefore: true }));
+        }
 
         // --- CHAPTERS ---
         processedChapters.forEach((ch) => {
@@ -1896,21 +1979,21 @@ app.post("/export/docx", async (req, res) => {
 
             // 2. Subchapters
             ch.subchapters.forEach(sub => {
-                if (sub.title) {
-                    children.push(
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: sub.title,
-                                    bold: true,
-                                    font: { name: "Georgia", size: 32 }
-                                })
-                            ],
-                            heading: HeadingLevel.HEADING_2,
-                            spacing: { before: 300, after: 200 }
-                        })
-                    );
-                }
+                const subchapterLabel = sub.title ? `${sub.tocLabel} ${sub.title}` : `Paragrafo ${sub.tocLabel}`;
+                children.push(
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: subchapterLabel,
+                                bold: true,
+                                font: { name: "Georgia", size: 32 }
+                            })
+                        ],
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 300, after: 200 },
+                        bookmark: { id: sub.bookmarkId }
+                    })
+                );
 
                 if (sub.htmlContent) {
                     parseHtmlToParagraphs(sub.htmlContent).forEach(p => children.push(p));
@@ -2088,6 +2171,7 @@ app.post("/export/pdf", async (req, res) => {
         const cleanAuthor = book.author || "Autore";
         const pdfDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
         const pdfDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
+        const introductionText = getBookIntroduction(book);
 
         const templateData = {
             title: cleanBookTitle,
@@ -2139,11 +2223,8 @@ app.post("/export/pdf", async (req, res) => {
                 <img src="${book.cover_url}" alt="Copertina frontale" />
             </div>` : ''}
             <div class="title-page">
-                ${renderTemplate(prompts['courtesy_title_page'], templateData) || `
                 <h1 class="book-title">${cleanBookTitle}</h1>
-                <h2 class="author">di ${cleanAuthor}</h2>
-                <p style="margin-top: 2em; font-style: italic; font-size: 1.2em;">${pdfDesc}</p>
-                `}
+                <h2 class="author">${cleanAuthor}</h2>
             </div>
             <div class="title-page" style="margin-top: 10%;">
                 ${renderTemplate(prompts['courtesy_copyright_page'], templateData) || `
@@ -2163,10 +2244,25 @@ app.post("/export/pdf", async (req, res) => {
                 <h1>Indice</h1>
                 ${chapters.map((ch, i) => `
                     <div class="toc-item">
-                        <a href="#ch${i + 1}">${formatChapterTitle(i, ch.title || "Senza titolo")}</a>
+                        <a href="#ch${i + 1}"><span>${formatChapterTitle(i, ch.title || "Senza titolo")}</span></a>
                     </div>
+                    ${ch.exportParagraphs.map((p) => `
+                        <div class="toc-item" style="margin-left: 1.5em; font-size: 0.98em;">
+                            <a href="#ch${i + 1}-p${p.paragraph_number}">
+                                <span>${i + 1}.${p.paragraph_number} ${editorialCasing(normalizeText(removeEmojis(p.title || `Paragrafo ${i + 1}.${p.paragraph_number}`)))}</span>
+                            </a>
+                        </div>
+                    `).join('')}
                 `).join('')}
             </div>
+
+            ${introductionText ? `
+            <div class="chapter" id="introduction">
+                <h1 class="chapter-title">Introduzione</h1>
+                <div class="content">
+                    ${marked.parse(introductionText)}
+                </div>
+            </div>` : ''}
             
             ${chapters.map((ch, i) => {
             const fullTitle = formatChapterTitle(i, ch.title || "Senza titolo");
@@ -2182,7 +2278,7 @@ app.post("/export/pdf", async (req, res) => {
             }
 
             ch.exportParagraphs.forEach(p => {
-                const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
+                const subTitle = `<h2 id="ch${i + 1}-p${p.paragraph_number}">${i + 1}.${p.paragraph_number} ${editorialCasing(normalizeText(removeEmojis(p.title || `Paragrafo ${i + 1}.${p.paragraph_number}`)))}</h2>`;
                 const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
                 chapterHtml += `<div class="subchapter">${subTitle}${subContent}</div>`;
             });

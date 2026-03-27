@@ -216,11 +216,23 @@ const CoverPage: React.FC = () => {
     const downloadCombinedCover = async () => {
         const ebookElement = document.getElementById('ebook-export-node');
         const paperbackElement = document.getElementById('paperback-export-node');
-        if (!ebookElement || !paperbackElement) return;
+        if (!ebookElement || !paperbackElement || !bookId) return;
 
         if (!confirm('Verranno scaricati due file ad alta risoluzione (eBook e Cartaceo). Il processo potrebbe richiedere alcuni secondi, procedere?')) return;
 
         try {
+            const { data: latestBook } = await supabase
+                .from('books')
+                .select('context_data')
+                .eq('id', bookId)
+                .single();
+
+            const latestBlurb = latestBook?.context_data?.back_cover_blurb;
+            if (latestBlurb && latestBlurb !== backCoverBlurb) {
+                setBackCoverBlurb(latestBlurb);
+                await new Promise(res => setTimeout(res, 150));
+            }
+
             // Genera eBook
             const canvasEbook = await html2canvas(ebookElement, {
                 useCORS: true,
@@ -559,7 +571,7 @@ const CoverPage: React.FC = () => {
                                 <p style={{ fontStyle: 'italic', fontSize: '56px', marginBottom: '80px', fontWeight: '300' }}>
                                     Un'opera straordinaria ti attende...
                                 </p>
-                                <p style={{ fontSize: '42px', lineHeight: '1.6', textAlign: 'left', fontWeight: '400' }}>
+                                <p style={{ fontSize: '38px', lineHeight: '1.55', textAlign: 'left', fontWeight: '400', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '1500px', overflow: 'hidden' }}>
                                     {backCoverBlurb || (
                                         <>
                                             Preparati a immergerti tra le pagine di `{bookTitle}`. Un'avventura straordinaria che esplora, tra le righe, temi profondi e universali con uno stile narrativo inimitabile e coinvolgente. 
