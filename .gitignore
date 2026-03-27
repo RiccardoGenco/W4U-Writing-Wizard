@@ -46,3 +46,6 @@ README*
 *.txt
 *.cjs
 *.json.bak
+scripts/generate_backup.py
+docs/BACKUP_GUIDE.md
+backups/
