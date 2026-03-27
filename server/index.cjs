@@ -504,10 +504,14 @@ async function validateCompletedChapter(chapterId, book) {
     }
 
     if (expectedParagraphsPerChapter && paragraphs.length !== expectedParagraphsPerChapter) {
-        await supabase.from('chapters')
-            .update({ status: 'PENDING', updated_at: new Date().toISOString() })
-            .eq('id', chapter.id);
-        throw new Error(`Chapter ${chapter.chapter_number} validation failed: expected ${expectedParagraphsPerChapter} paragraphs, found ${paragraphs.length}`);
+        // Only reset if NOT completed or if significantly short
+        if (chapter.status !== 'COMPLETED' || paragraphs.length < expectedParagraphsPerChapter - 2) {
+            await supabase.from('chapters')
+                .update({ status: 'PENDING', updated_at: new Date().toISOString() })
+                .eq('id', chapter.id);
+            throw new Error(`Chapter ${chapter.chapter_number} validation failed: expected ${expectedParagraphsPerChapter} paragraphs, found ${paragraphs.length}`);
+        }
+        console.log(`[Book Generation] Chapter ${chapter.chapter_number} has ${paragraphs.length} paragraphs (expected ${expectedParagraphsPerChapter}), but is already COMPLETED. Skipping reset.`);
     }
 
     if (actualWordCount < minAllowedWords) {
