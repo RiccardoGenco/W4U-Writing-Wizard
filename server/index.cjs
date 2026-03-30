@@ -2647,47 +2647,52 @@ app.post("/api/support", async (req, res) => {
         const { user } = await createScopedSupabaseForRequest(req);
 
         // Prepare payload for n8n
-        const n8nPayload = {
-            action: 'SUPPORT_TICKET',
-            adminRecipient: 'riccardo.gencotp@gmail.com',
-            userId: user.id,
-            email: user.email,
-            authorName: user.user_metadata?.author_name || 'Utente',
-            subject,
-            message,
-            metadata: {
-                ...metadata,
-                timestamp: new Date().toISOString(),
-                userAgent: req.headers['user-agent'],
-                environment: process.env.VERCEL ? 'production' : 'development'
+        // Prepare Nodemailer transport
+        const nodemailer = require("nodemailer");
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.EMAIL_USER || "riccardo.gencotp@gmail.com",
+                pass: process.env.EMAIL_PASS
             }
-        };
-
-        console.log(`[Support] Dispatching ticket for ${user.email}: ${subject}`);
-
-        const n8nHeaders = {
-            'Content-Type': 'application/json',
-        };
-
-        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
-        if (n8nApiKey) {
-            n8nHeaders['X-API-Key'] = n8nApiKey;
-        }
-        if (process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET) {
-            n8nHeaders['X-Webhook-Secret'] = process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
-        }
-
-        // Forward to the same N8N_WEBHOOK_URL used for other AI actions
-        const response = await fetch(N8N_WEBHOOK_URL, {
-            method: 'POST',
-            headers: n8nHeaders,
-            body: JSON.stringify(n8nPayload)
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[Support] n8n error:`, errorText);
-            throw new Error(`Impossibile inviare il ticket al server n8n: ${response.status}`);
+        const htmlContent = `
+            <h2>Nuovo Ticket di Supporto W4U</h2>
+            <br/>
+            <p><strong>Utente:</strong> ${user.user_metadata?.author_name || 'Utente'}</p>
+            <p><strong>Email Utente:</strong> ${user.email}</p>
+            <p><strong>Oggetto:</strong> ${subject}</p>
+            <hr/>
+            <p><strong>Messaggio:</strong></p>
+            <p style="white-space: pre-wrap; background: #f4f4f4; padding: 15px; border-radius: 5px;">${message}</p>
+            <hr/>
+            <p><strong>Metadati Tecnici:</strong></p>
+            <ul>
+                <li><strong>ID Utente:</strong> ${user.id}</li>
+                <li><strong>Ambiente:</strong> ${process.env.VERCEL ? 'Produzione (Vercel)' : 'Sviluppo Locale'}</li>
+                <li><strong>Timestamp:</strong> ${new Date().toISOString()}</li>
+                <li><strong>User-Agent:</strong> ${req.headers['user-agent']}</li>
+                <li><strong>Viewport:</strong> ${metadata?.viewport || 'Sconosciuto'}</li>
+                <li><strong>Pagina:</strong> ${metadata?.page || 'Sconosciuta'}</li>
+            </ul>
+        `;
+
+        console.log(`[Support] Dispatching ticket for ${user.email} via SMTP: ${subject}`);
+
+        // If no SMTP password is set in the environment, log the payload and mock success
+        // This prevents the server from crashing in development if the user hasn't set it up yet.
+        if (!process.env.EMAIL_PASS) {
+            console.warn("[Support] EMAIL_PASS non è configurato. La mail non verrà realmente inviata. Payload simulato:\n", htmlContent);
+        } else {
+            await transporter.sendMail({
+                from: `"W4U Support System" <${process.env.EMAIL_USER || "riccardo.gencotp@gmail.com"}>`,
+                to: "riccardo.gencotp@gmail.com",
+                subject: `[W4U Support] ${subject}`,
+                html: htmlContent,
+                replyTo: user.email
+            });
+            console.log(`[Support] Mail sent successfully.`);
         }
 
         res.json({ 
