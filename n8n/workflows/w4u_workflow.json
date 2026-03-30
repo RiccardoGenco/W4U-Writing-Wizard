@@ -1296,6 +1296,28 @@
                 ],
                 "combinator": "and"
               }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "support-ticket-rule-001",
+                    "leftValue": "={{ $node[\"Webhook Router\"].json.body.action }}",
+                    "rightValue": "SUPPORT_TICKET",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
             }
           ]
         },
@@ -2363,6 +2385,38 @@
       ],
       "id": "c34247f9-1e7c-49f1-b512-5a8697c7c919",
       "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "fromEmail": "Writing Wizard Support <support@yourdomain.com>",
+        "toEmail": "riccardo.gencotp@gmail.com",
+        "subject": "=Ticket di Supporto: {{ $node[\"Webhook Router\"].json.body.subject }}",
+        "html": "=<div style=\"font-family: sans-serif; line-height: 1.5; color: #333;\">\\n  <h2 style=\"color: #2563eb;\">Nuovo Ticket di Supporto</h2>\\n  <p><strong>Utente:</strong> {{ $node[\"Webhook Router\"].json.body.authorName }} ({{ $node[\"Webhook Router\"].json.body.email }})</p>\\n  <p><strong>Oggetto:</strong> {{ $node[\"Webhook Router\"].json.body.subject }}</p>\\n  <hr style=\"border: 0; border-top: 1px solid #eee; margin: 20px 0;\">\\n  <p style=\"white-space: pre-wrap;\">{{ $node[\"Webhook Router\"].json.body.message }}</p>\\n  <hr style=\"border: 0; border-top: 1px solid #eee; margin: 20px 0;\">\\n  <p style=\"font-size: 12px; color: #666;\">ID Utente: {{ $node[\"Webhook Router\"].json.body.userId }}<br>Contesto: {{ JSON.stringify($node[\"Webhook Router\"].json.body.metadata) }}</p>\\n</div>",
+        "options": {}
+      },
+      "id": "support-email-node-001",
+      "name": "Send Support Email",
+      "type": "n8n-nodes-base.email",
+      "typeVersion": 2.1,
+      "position": [
+        -512,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\": true, \"message\": \"Il tuo messaggio è stato inviato! Ti risponderemo al più presto.\"}",
+        "options": {}
+      },
+      "id": "support-response-node-001",
+      "name": "Response Support Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        300
+      ]
     }
   ],
   "pinData": {},
@@ -2826,6 +2880,24 @@
         [
           {
             "node": "Agent: Back Cover Blurb",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Support Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Support Email": {
+      "main": [
+        [
+          {
+            "node": "Response Support Success",
             "type": "main",
             "index": 0
           }

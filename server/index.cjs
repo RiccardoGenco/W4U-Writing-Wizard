@@ -2629,6 +2629,78 @@ app.post("/api/upload-cover", upload.single("image"), async (req, res) => {
     }
 });
 
+// --- SUPPORT TICKETING ENDPOINT ---
+
+/**
+ * POST /api/support
+ * Processes an in-app support request and forwards it to n8n.
+ */
+app.post("/api/support", async (req, res) => {
+    try {
+        const { subject, message, metadata } = req.body;
+        
+        if (!subject || !message) {
+            return res.status(400).json({ error: "Oggetto e messaggio sono richiesti" });
+        }
+
+        // Identify the user from the token
+        const { user } = await createScopedSupabaseForRequest(req);
+
+        // Prepare payload for n8n
+        const n8nPayload = {
+            action: 'SUPPORT_TICKET',
+            adminRecipient: 'riccardo.gencotp@gmail.com',
+            userId: user.id,
+            email: user.email,
+            authorName: user.user_metadata?.author_name || 'Utente',
+            subject,
+            message,
+            metadata: {
+                ...metadata,
+                timestamp: new Date().toISOString(),
+                userAgent: req.headers['user-agent'],
+                environment: process.env.VERCEL ? 'production' : 'development'
+            }
+        };
+
+        console.log(`[Support] Dispatching ticket for ${user.email}: ${subject}`);
+
+        const n8nHeaders = {
+            'Content-Type': 'application/json',
+        };
+
+        const n8nApiKey = process.env.N8N_API_KEY || process.env.VITE_N8N_API_KEY;
+        if (n8nApiKey) {
+            n8nHeaders['X-API-Key'] = n8nApiKey;
+        }
+        if (process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET) {
+            n8nHeaders['X-Webhook-Secret'] = process.env.N8N_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
+        }
+
+        // Forward to the same N8N_WEBHOOK_URL used for other AI actions
+        const response = await fetch(N8N_WEBHOOK_URL, {
+            method: 'POST',
+            headers: n8nHeaders,
+            body: JSON.stringify(n8nPayload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Support] n8n error:`, errorText);
+            throw new Error(`Impossibile inviare il ticket al server n8n: ${response.status}`);
+        }
+
+        res.json({ 
+            success: true, 
+            message: "Il tuo messaggio è stato inviato! Ti risponderemo al più presto." 
+        });
+
+    } catch (error) {
+        console.error("[Support API] Error:", error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- SHARED SANITIZATION ENDPOINT ---
 
 

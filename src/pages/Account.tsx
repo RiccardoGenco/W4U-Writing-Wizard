@@ -1,28 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { 
     User, 
-    CreditCard, 
-    History, 
-    Save, 
+    Mail, 
+    Shield, 
     AlertTriangle, 
+    Save, 
     Loader2, 
+    LifeBuoy, 
+    ArrowDownLeft, 
+    ArrowUpRight, 
+    Clock, 
+    Zap, 
+    BookOpen, 
+    Layers, 
+    History, 
     CheckCircle,
-    ArrowUpRight,
-    ArrowDownLeft,
-    Shield,
-    BookOpen,
-    Layers,
-    Clock,
-    Zap,
-    Mail,
-    ExternalLink
+    CreditCard
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { useWallet } from '../lib/useWallet';
 import { supabase } from '../lib/api';
 import { motion } from 'framer-motion';
-
-
+import { Toast } from '../components/ui/Toast';
+import type { ToastType } from '../components/ui/Toast';
+import { SupportModal } from '../components/SupportModal';
 
 const AccountPage: React.FC = () => {
     const { user, updatePassword, updateEmail, updateMetadata } = useAuth();
@@ -51,18 +52,26 @@ const AccountPage: React.FC = () => {
     // Transactions State
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loadingTransactions, setLoadingTransactions] = useState(true);
+    
+    // Support Modal & Toasts
+    const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+    const [toasts, setToasts] = useState<{ id: string; message: string; type: ToastType }[]>([]);
+
+    const addToast = (message: string, type: ToastType) => {
+        const id = Math.random().toString(36).substring(2, 9);
+        setToasts((prev) => [...prev, { id, message, type }]);
+    };
+
+    const removeToast = (id: string) => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+    };
 
     useEffect(() => {
         if (user) {
             fetchStats();
             fetchTransactions();
-            loadPreferences();
         }
     }, [user]);
-
-    const loadPreferences = async () => {
-        // Reserved for future use
-    };
 
     const fetchStats = async () => {
         try {
@@ -111,8 +120,6 @@ const AccountPage: React.FC = () => {
         setIsUpdatingProfile(false);
     };
 
-
-
     const handleUpdateEmail = async () => {
         setIsUpdatingEmail(true);
         setEmailSuccess(false);
@@ -139,6 +146,8 @@ const AccountPage: React.FC = () => {
         }
         setIsUpdatingPassword(false);
     };
+
+
 
     return (
         <div className="container-narrow fade-in" style={{ padding: '3rem 0' }}>
@@ -238,8 +247,6 @@ const AccountPage: React.FC = () => {
                     </div>
                 </div>
 
-
-
                 {/* --- SEZIONE SICUREZZA --- */}
                 <div className="glass-panel" style={{ padding: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '2rem' }}>
@@ -270,9 +277,6 @@ const AccountPage: React.FC = () => {
                                     {isUpdatingEmail ? <Loader2 className="animate-spin" size={14} /> : (emailSuccess ? <CheckCircle size={14} /> : 'Aggiorna')}
                                 </button>
                             </div>
-                            <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                                Ti verrà inviata una mail di conferma al nuovo indirizzo.
-                            </p>
                         </div>
 
                         {/* Password */}
@@ -393,16 +397,36 @@ const AccountPage: React.FC = () => {
                                 Per richieste di personalizzazione, problemi tecnici o eliminazione dell'account, contatta direttamente il nostro team.
                             </p>
                         </div>
-                        <a 
-                            href={`mailto:dev02mamaind@gmail.com?subject=Richiesta%20Supporto%20-%20W4U%20Writing%20Wizard&body=Salve%20Team%20Supporto,%0D%0A%0D%0AAvrei%20bisogno%20di%20assistenza%20per%20il%20mio%20account.%0D%0A%0D%0AUtente:%20${encodeURIComponent(user?.user_metadata?.author_name || 'Utente')}%0D%0AEmail:%20${encodeURIComponent(user?.email || '')}%0D%0A%0D%0AMessaggio:%0D%0A`} 
+                        <button 
+                            onClick={() => setIsSupportModalOpen(true)}
                             className="btn-primary" 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap', cursor: 'pointer', border: 'none' }}
                         >
-                            Contatta Supporto <ExternalLink size={16} />
-                        </a>
+                            Contatta Supporto <LifeBuoy size={16} />
+                        </button>
                     </div>
                 </div>
 
+                {/* Support Modal */}
+                <SupportModal 
+                    isOpen={isSupportModalOpen}
+                    onClose={() => setIsSupportModalOpen(false)}
+                    onSuccess={(msg) => addToast(msg, 'success')}
+                    onError={(msg) => addToast(msg, 'error')}
+                />
+
+                {/* Toast Container */}
+                <div style={{ position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 2000, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {toasts.map((toast) => (
+                        <Toast 
+                            key={toast.id}
+                            id={toast.id}
+                            message={toast.message}
+                            type={toast.type}
+                            onClose={removeToast}
+                        />
+                    ))}
+                </div>
             </div>
         </div>
     );
