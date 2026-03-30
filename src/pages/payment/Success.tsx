@@ -47,7 +47,7 @@ export const PaymentSuccess: React.FC = () => {
                     style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '0.8rem', fontSize: '1.2rem', padding: '1.2rem' }}
                 >
                     <BookText size={24} />
-                    Vai alla Dashboard
+                    Vai alla Libreria
                     <ChevronRight size={24} />
                 </button>
             </motion.div>

@@ -49,7 +49,7 @@ export const PaymentCancel: React.FC = () => {
                         style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '0.8rem', fontSize: '1.1rem', padding: '1rem' }}
                     >
                         <ArrowLeft size={20} />
-                        Torna alla Dashboard
+                        Torna alla Libreria
                     </button>
                 </div>
             </motion.div>

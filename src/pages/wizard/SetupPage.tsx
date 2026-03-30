@@ -1,25 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Loader2 } from 'lucide-react';
+import { BookOpen, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
-import { supabase } from '../lib/api';
-import { getGenresByCategory } from '../data/genres';
-import { useWallet } from '../lib/useWallet';
-import { usePricing } from '../lib/usePricing';
+import { supabase } from '../../lib/api';
+import { getGenresByCategory } from '../../data/genres';
+import { useWallet } from '../../lib/useWallet';
+import { usePricing } from '../../lib/usePricing';
 
-const Dashboard: React.FC = () => {
+const SetupPage: React.FC = () => {
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
     const [author, setAuthor] = useState('');
     const [pages, setPages] = useState('50');
     const [theme, setTheme] = useState('Giallo e Thriller');
-    const [showForm, setShowForm] = useState(false);
 
     // --- Gatekeeping Logic ---
     const { loading: walletLoading, getBalance } = useWallet();
     const { config, calculateTotal } = usePricing();
-    const [showTokenAlert, setShowTokenAlert] = useState(false);
 
     const PAGE_OPTIONS = config
         ? Array.from(
@@ -98,27 +96,6 @@ const Dashboard: React.FC = () => {
                         opacity: 0.2
                     }}
                 />
-                <motion.div
-                    className="bg-dot"
-                    style={{
-                        width: '300px',
-                        height: '300px',
-                        right: 100,
-                        bottom: 100,
-                        background: 'var(--accent)',
-                        opacity: 0.1,
-                        scale: 1.2
-                    }}
-                    animate={{
-                        y: [0, 50, 0],
-                        scale: [1, 1.1, 1]
-                    }}
-                    transition={{
-                        duration: 10,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                    }}
-                />
             </div>
 
             <div className="container-narrow fade-in" style={{ height: '100%', overflowY: 'auto', padding: '4rem 0', position: 'relative' }}>
@@ -129,92 +106,30 @@ const Dashboard: React.FC = () => {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.8 }}
                     >
-                        {!showForm ? (
-                            <>
+                        {/* Always show the form now, but keep the gatekeeping logic */}
+                        {(!canStartForm && !walletLoading) ? (
+                            <div style={{ padding: '4rem 0' }}>
                                 <motion.div
                                     style={{
-                                        background: 'rgba(0, 242, 255, 0.05)',
+                                        background: 'rgba(251, 113, 133, 0.05)',
                                         display: 'inline-flex',
                                         padding: '2rem',
                                         borderRadius: '30px',
                                         marginBottom: '2rem',
-                                        border: '1px solid rgba(0, 242, 255, 0.1)'
+                                        border: '1px solid rgba(251, 113, 133, 0.1)'
                                     }}
-                                    whileHover={{ rotate: 5, scale: 1.1 }}
                                 >
-                                    <BookOpen size={64} color="var(--primary)" />
+                                    <BookOpen size={64} color="var(--error)" />
                                 </motion.div>
-
-                                <h1 style={{ fontSize: '4rem', marginBottom: '1.5rem', lineHeight: 1.1, letterSpacing: '-0.05em' }}>
-                                    Scrivi il tuo <br />
-                                    <span style={{
-                                        background: 'linear-gradient(to right, var(--text-main), var(--primary))',
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        filter: 'drop-shadow(0 0 10px rgba(0, 242, 255, 0.3))'
-                                    }}>
-                                        Capolavoro
-                                    </span>
-                                </h1>
-
-                                <p style={{ color: 'var(--text-muted)', fontSize: '1.4rem', marginBottom: '4rem', lineHeight: 1.6, maxWidth: '600px', margin: '0 auto 4rem' }}>
-                                    L'intelligenza artificiale al servizio della tua creatività. <br />
-                                    Dallo schema alla bozza finale.
+                                <h1 style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>Credito Necessario</h1>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', marginBottom: '3rem' }}>
+                                    Il costo base per iniziare un nuovo libro è di {baseCost}€. <br />
+                                    Il tuo saldo attuale è di {getBalance()}€.
                                 </p>
-
-                                <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '4rem', flexDirection: 'column', alignItems: 'center' }}>
-                                    <motion.button
-                                        whileHover={!walletLoading ? { scale: 1.05, y: -5 } : {}}
-                                        whileTap={!walletLoading ? { scale: 0.95 } : {}}
-                                        className="btn-primary"
-                                        style={{ fontSize: '1.2rem', padding: '1.4rem 3rem' }}
-                                        onClick={() => {
-                                            if (walletLoading) return;
-                                            if (canStartForm) {
-                                                setShowForm(true);
-                                                setShowTokenAlert(false);
-                                            } else {
-                                                setShowTokenAlert(true);
-                                            }
-                                        }}
-                                        disabled={walletLoading}
-                                    >
-                                        {walletLoading ? <Loader2 className="animate-spin" /> : <><Plus size={24} /> Inizia Ora</>}
-                                    </motion.button>
-
-                                    {/* Gatekeeping Alert */}
-                                    {showTokenAlert && (
-                                        <motion.div
-                                            initial={{ opacity: 0, scale: 0.9 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            style={{
-                                                background: 'rgba(251, 113, 133, 0.1)',
-                                                border: '1px solid rgba(251, 113, 133, 0.3)',
-                                                padding: '1.5rem',
-                                                borderRadius: '16px',
-                                                maxWidth: '500px',
-                                                textAlign: 'center'
-                                            }}
-                                        >
-                                            <p style={{ color: 'var(--text-main)', marginBottom: '1rem', fontWeight: 600 }}>
-                                                Credito Insufficiente.
-                                            </p>
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                                                Il costo minimo per generare un libro è di {baseCost}€, ma il tuo saldo attuale è di {getBalance()}€. Ricarica il tuo Wallet per iniziare.
-                                            </p>
-                                            <button
-                                                onClick={() => navigate('/pricing')}
-                                                className="btn-primary"
-                                                style={{ padding: '0.8rem 2rem', fontSize: '1rem' }}
-                                            >
-                                                Ricarica Credito
-                                            </button>
-                                        </motion.div>
-                                    )}
-                                </div>
-
-
-                            </>
+                                <button onClick={() => navigate('/pricing')} className="btn-primary" style={{ padding: '1rem 3rem' }}>
+                                    Ricarica Credito
+                                </button>
+                            </div>
                         ) : (
                             <motion.form
                                 initial={{ opacity: 0, y: 40 }}
@@ -225,12 +140,12 @@ const Dashboard: React.FC = () => {
                             >
                                 <button
                                     type="button"
-                                    onClick={() => setShowForm(false)}
+                                    onClick={() => navigate('/')}
                                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', marginBottom: '2rem', cursor: 'pointer', padding: 0, fontSize: '1rem' }}
                                 >
-                                    ← Torna alla Dashboard
+                                    ← Torna alla Libreria
                                 </button>
-                                <h2 style={{ marginBottom: '2rem', fontSize: '2rem' }}>Nuovo Progetto</h2>
+                                <h2 style={{ marginBottom: '2rem', fontSize: '2rem' }}>Nuovo Libro</h2>
 
                                 <div style={{ marginBottom: '2rem' }}>
                                     <label style={{ display: 'block', marginBottom: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>Titolo</label>
@@ -264,7 +179,6 @@ const Dashboard: React.FC = () => {
                                             value={pages}
                                             onChange={e => {
                                                 setPages(e.target.value);
-                                                setShowTokenAlert(false);
                                             }}
                                             style={{ width: '100%', borderColor: !hasEnoughCredit ? 'var(--error)' : undefined }}
                                         >
@@ -301,7 +215,7 @@ const Dashboard: React.FC = () => {
                                 </button>
                                 {!hasEnoughCredit && (
                                     <p style={{ color: 'var(--error)', textAlign: 'center', marginTop: '1rem', fontWeight: 500, fontSize: '0.9rem' }}>
-                                        Credito insufficiente per generare {pages} pagine. Riduci le pagine o ricarica il wallet.
+                                        Credito insufficiente per generare {pages} pagine.
                                     </p>
                                 )}
                             </motion.form>
@@ -313,4 +227,4 @@ const Dashboard: React.FC = () => {
     );
 };
 
-export default Dashboard;
+export default SetupPage;

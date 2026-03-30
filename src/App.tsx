@@ -5,7 +5,8 @@ import AuthGuard from './components/AuthGuard';
 import { ToastProvider } from './context/ToastContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import MainLayout from './layouts/MainLayout';
-import Dashboard from './pages/Dashboard';
+import Library from './pages/Library';
+import SetupPage from './pages/wizard/SetupPage';
 import ConceptPage from './pages/wizard/ConceptPage';
 import ConfigurationPage from './pages/wizard/ConfigurationPage';
 import BlueprintPage from './pages/wizard/BlueprintPage';
@@ -48,9 +49,10 @@ const App: React.FC = () => {
 
               {/* Protected routes */}
               <Route path="/" element={<AuthGuard><MainLayout /></AuthGuard>}>
-                <Route index element={<Dashboard />} />
+                <Route index element={<Library />} />
 
                 <Route path="create">
+                  <Route index element={<SetupPage />} />
                   <Route path="concept" element={<ConceptPage />} />
                   <Route path="configuration" element={<ConfigurationPage />} />
                   <Route path="blueprint" element={<BlueprintPage />} />

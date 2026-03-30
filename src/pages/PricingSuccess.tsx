@@ -63,8 +63,8 @@ export const PricingSuccess: React.FC = () => {
                 </div>
             </div>
 
-            <Link to="/dashboard" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 2rem' }}>
-                Vai alla Dashboard <ArrowRight size={18} />
+            <Link to="/" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 2rem' }}>
+                Vai alla Libreria <ArrowRight size={18} />
             </Link>
         </div>
     );
