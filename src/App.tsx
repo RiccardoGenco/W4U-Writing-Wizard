@@ -12,8 +12,7 @@ import ConfigurationPage from './pages/wizard/ConfigurationPage';
 import BlueprintPage from './pages/wizard/BlueprintPage';
 import ScaffoldRevisionPage from './pages/wizard/ScaffoldRevisionPage';
 import ProductionPage from './pages/wizard/ProductionPage';
-import CoverPage from './pages/wizard/CoverPage';
-import ExportPage from './pages/wizard/ExportPage';
+import FinalizePage from './pages/wizard/FinalizePage';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
@@ -58,8 +57,7 @@ const App: React.FC = () => {
                   <Route path="blueprint" element={<BlueprintPage />} />
                   <Route path="scaffold" element={<ScaffoldRevisionPage />} />
                   <Route path="production" element={<ProductionPage />} />
-                  <Route path="cover" element={<CoverPage />} />
-                  <Route path="export" element={<ExportPage />} />
+                  <Route path="finalize" element={<FinalizePage />} />
                 </Route>
 
                 {/* Payment & Pricing Routes */}
