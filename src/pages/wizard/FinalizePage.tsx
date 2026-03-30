@@ -285,17 +285,19 @@ const FinalizePage: React.FC = () => {
                 {/* --- Left: Interactive Preview --- */}
                 <div style={{ perspective: '1000px' }}>
                     <div style={{ position: 'sticky', top: '2rem' }}>
-                        {isReadyForExport && (
-                             <motion.button
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                onClick={downloadCombinedCover}
-                                className="btn-secondary"
-                                style={{ position: 'absolute', top: '-3rem', right: 0, fontSize: '0.8rem', padding: '0.5rem 1rem' }}
-                             >
-                                <Download size={14} /> Scarica Immagini Copertina
-                             </motion.button>
-                        )}
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem', minHeight: '38px' }}>
+                            {isReadyForExport && (
+                                <motion.button
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    onClick={downloadCombinedCover}
+                                    className="btn-secondary"
+                                    style={{ fontSize: '0.8rem', padding: '0.5rem 1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', borderRadius: '20px', opacity: 0.8 }}
+                                >
+                                    <Download size={14} /> Scarica Immagini Copertina
+                                </motion.button>
+                            )}
+                        </div>
                         <motion.div
                             animate={{ rotateY: isFlipped ? 180 : 0 }}
                             transition={{ type: 'spring', stiffness: 260, damping: 20 }}
@@ -360,11 +362,11 @@ const FinalizePage: React.FC = () => {
                             </div>
                         </motion.div>
 
-                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem', gap: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '2rem' }}>
                             <button 
                                 onClick={() => setIsFlipped(!isFlipped)} 
                                 className="btn-secondary" 
-                                style={{ borderRadius: '30px', padding: '0.6rem 2rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+                                style={{ borderRadius: '30px', padding: '0.6rem 2.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}
                             >
                                 <RotateCcw size={18} /> Gira Libro
                             </button>
@@ -379,7 +381,7 @@ const FinalizePage: React.FC = () => {
                     <div className="glass-panel" style={{ padding: '2rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem' }}>
                             <Zap size={22} color="var(--primary)" />
-                            <h3 style={{ fontSize: '1.4rem' }}>Identità Visiva</h3>
+                            <h3 style={{ fontSize: '1.4rem' }}>Genera Copertina</h3>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>

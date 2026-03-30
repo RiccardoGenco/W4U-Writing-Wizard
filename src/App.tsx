@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import MainLayout from './layouts/MainLayout';
 import Library from './pages/Library';
 import SetupPage from './pages/wizard/SetupPage';
+import Account from './pages/Account';
 import ConceptPage from './pages/wizard/ConceptPage';
 import ConfigurationPage from './pages/wizard/ConfigurationPage';
 import BlueprintPage from './pages/wizard/BlueprintPage';
@@ -47,8 +48,9 @@ const App: React.FC = () => {
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Protected routes */}
-              <Route path="/" element={<AuthGuard><MainLayout /></AuthGuard>}>
-                <Route index element={<Library />} />
+                <Route path="/" element={<AuthGuard><MainLayout /></AuthGuard>}>
+                  <Route index element={<Library />} />
+                  <Route path="account" element={<Account />} />
 
                 <Route path="create">
                   <Route index element={<SetupPage />} />

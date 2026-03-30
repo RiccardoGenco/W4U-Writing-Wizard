@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, Plus, History, Settings, LogOut, User, AlertCircle, Sun, Moon, Shield, CreditCard, BookOpen } from 'lucide-react';
+import { Book, Plus, History, LogOut, User, AlertCircle, Sun, Moon, Shield, CreditCard, BookOpen } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../lib/auth';
@@ -132,9 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                         <Shield size={18} /> <span>Amministrazione</span>
                     </div>
                 )}
-                <div className="sidebar-item">
-                    <Settings size={18} /> <span>Impostazioni</span>
-                </div>
+
                 <div className="sidebar-item" onClick={toggleTheme} style={{ cursor: 'pointer' }}>
                     {isDark ? <Sun size={18} /> : <Moon size={18} />}
                     <span>{isDark ? 'Tema Chiaro' : 'Tema Scuro'}</span>
@@ -147,10 +145,15 @@ const Sidebar: React.FC<SidebarProps> = ({ projects, onSelectProject, activeProj
                         paddingTop: '1rem',
                         borderTop: '1px solid var(--glass-border)'
                     }}>
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: '0.6rem',
-                            padding: '0.5rem 0.5rem', marginBottom: '0.5rem'
-                        }}>
+                        <div 
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.6rem',
+                                padding: '0.5rem 0.5rem', marginBottom: '0.5rem',
+                                cursor: 'pointer',
+                                transition: 'opacity 0.2s'
+                            }}
+                            onClick={() => navigate('/account')}
+                        >
                             <div style={{
                                 width: '28px', height: '28px', borderRadius: '50%',
                                 background: 'rgba(0, 242, 255, 0.1)',

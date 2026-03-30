@@ -55,6 +55,9 @@ interface AuthContextType {
     resendConfirmationEmail: (email: string) => Promise<{ error: string | null }>;
     resetPasswordForEmail: (email: string) => Promise<{ error: string | null }>;
     updatePassword: (password: string) => Promise<{ error: string | null }>;
+    updateEmail: (email: string) => Promise<{ error: string | null }>;
+    updateMetadata: (metadata: Record<string, any>) => Promise<{ error: string | null }>;
+    updatePreferences: (preferences: Record<string, any>) => Promise<{ error: string | null }>;
     clearAuthError: () => void;
 }
 
@@ -251,11 +254,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const updateEmail = async (email: string) => {
+        try {
+            const { error } = await supabase.auth.updateUser({ email });
+            if (error) return { error: translateError(error) };
+            return { error: null };
+        } catch (err: any) {
+            return { error: translateError(err) };
+        }
+    };
+
+    const updateMetadata = async (metadata: Record<string, any>) => {
+        try {
+            // 1. Update Auth Metadata
+            const { error: authError } = await supabase.auth.updateUser({ data: metadata });
+            if (authError) return { error: translateError(authError) };
+
+            // 2. Sync with profiles table if author_name is present
+            if (user && metadata.author_name !== undefined) {
+                const { error: dbError } = await supabase
+                    .from('profiles')
+                    .update({ full_name: metadata.author_name })
+                    .eq('id', user.id);
+                
+                if (dbError) {
+                    console.warn('[Auth] Profile sync failed:', dbError.message);
+                    // We don't block the whole operation if sync fails, but we log it
+                }
+            }
+
+            return { error: null };
+        } catch (err: any) {
+            return { error: translateError(err) };
+        }
+    };
+
+    const updatePreferences = async (preferences: Record<string, any>) => {
+        try {
+            if (!user) return { error: 'Sessione non valida' };
+            const { error } = await supabase
+                .from('profiles')
+                .update({ preferences })
+                .eq('id', user.id);
+            
+            if (error) return { error: translateError(error) };
+            return { error: null };
+        } catch (err: any) {
+            return { error: translateError(err) };
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
             user, session, loading, isAdmin, authError,
             signIn, signUp, signOut, resendConfirmationEmail,
-            resetPasswordForEmail, updatePassword, clearAuthError
+            resetPasswordForEmail, updatePassword, updateEmail, updateMetadata, updatePreferences, clearAuthError
         }}>
             {children}
         </AuthContext.Provider>
