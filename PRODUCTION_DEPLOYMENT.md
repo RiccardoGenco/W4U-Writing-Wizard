@@ -152,13 +152,54 @@ Dovrai creare un file `.env` sul server. Ecco le variabili principali da migrare
 
 ---
 
-## 6. Considerazioni Critiche
+## 7. Gestione Concorrenza e Scalabilità (Multi-Utente)
 
-1.  **Timeout**: Le funzioni orizzontali di Vercel hanno un timeout spesso limitato (10-60s). Su un server dedicato puoi estenderlo per la generazione di libri lunghi.
-2.  **Variabili d'Ambiente**: Assicurati che `VITE_APP_URL` punti al nuovo dominio nel file `.env` prima della build del frontend.
-3.  **Memoria**: Puppeteer consuma molta RAM. Assicurati che il server abbia almeno 2-4GB di RAM per gestire generazioni multiple.
-4.  **SSL**: Usa `certbot` per ottenere certificati HTTPS gratuiti (Let's Encrypt).
-5.  **Puppeteer Configuration**: Sul server dedicato, potresti dover modificare l'avvio di Puppeteer in `server/index.cjs` per usare il browser di sistema invece di quello integrato in `@sparticuz/chromium`.
+In un ambiente di produzione, la gestione di richieste simultanee (specialmente quelle "pesanti" come la generazione di libri o PDF) è critica. Ecco le strategie professionali per garantire stabilità:
 
-> [!IMPORTANT]
-> Sul nuovo server, dovrai impostare `VERCEL=false` (o semplicemente non impostarla) per far sì che `app.listen()` si attivi automaticamente all'avvio del processo.
+### A. PM2 Cluster Mode
+Invece di eseguire un singolo processo, usa il Cluster Mode per distribuire il carico su tutti i core della CPU disponibili:
+```bash
+# Avvia il backend sfruttando tutti i core
+pm2 start server/index.cjs -i max --name "w4u-backend"
+```
+
+### B. n8n Queue Mode (L'approccio Enterprise)
+Se n8n gestisce la logica di scrittura/generazione, non farlo girare in modalità "single process". In produzione si usa il **Queue Mode**:
+1.  **Main Instance**: Gestisce l'editor e la dashboard.
+2.  **Redis**: Usato come message broker per le code.
+3.  **Workers**: Processi separati che eseguono i workflow. Puoi scalare aggiungendo più Worker se le richieste aumentano.
+*Riferimento: [n8n Queue Mode Documentation](https://docs.n8n.io/hosting/scaling/queue-mode/)*
+
+### C. Gestione Code (Background Tasks)
+Per evitare che il frontend rimanga in attesa (rischiando timeout del browser), implementa un pattern asincrono:
+1.  Il backend riceve la richiesta e risponde subito con un `202 Accepted` e un `job_id`.
+2.  Il task viene inserito in una coda (es. **BullMQ** con Redis).
+3.  L'utente vede una barra di caricamento che interroga il backend (polling) o riceve un segnale (WebSocket) a lavoro finito.
+4.  Questo previene il crash del server perché la coda processa solo X libri alla volta (es. 2 alla volta) in base alle risorse disponibili.
+
+### D. Limitazione Risorse Puppeteer
+Puppeteer è estremamente energivoro (RAM). Se il tuo backend avvia Puppeteer direttamente:
+-   Usa un **Browser Pool**: non aprire un nuovo browser per ogni richiesta, riutilizza le istanze o limita rigorosamente il numero di pagine (`tabs`) aperte simultaneamente.
+-   Imposta `--disable-dev-shm-usage` e `--no-sandbox` nei `launch arguments`.
+
+### E. Rate Limiting (Nginx)
+Previeni attacchi o sovraccarichi limitando il numero di richieste per IP:
+```nginx
+limit_req_zone $binary_remote_addr zone=mylimit:10m rate=10r/s;
+
+server {
+    location /api/ {
+        limit_req zone=mylimit burst=20 nodelay;
+        proxy_pass http://localhost:3001;
+    }
+}
+```
+
+---
+
+## 8. Monitoraggio e Log
+
+Per gestire il progetto in modo professionale, devi sapere cosa succede:
+-   **PM2 Logs**: `pm2 logs w4u-backend` per vedere errori in tempo reale.
+-   **Uptime Monitoring**: Usa servizi come *UptimeRobot* o *Better Stack* per ricevere avvisi se il server cade.
+-   **Error Tracking**: Integra **Sentry** nel backend per ricevere notifiche immediate su bug che colpiscono gli utenti.

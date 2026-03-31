@@ -7,8 +7,6 @@ import {
     Save, 
     Loader2, 
     LifeBuoy, 
-    ArrowDownLeft, 
-    ArrowUpRight, 
     Clock, 
     Zap, 
     BookOpen, 
@@ -222,12 +220,12 @@ const AccountPage: React.FC = () => {
                         <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
                             <User size={20} />
                         </div>
-                        <h3 style={{ fontSize: '1.4rem' }}>Identità Artistica</h3>
+                        <h3 style={{ fontSize: '1.4rem' }}>Firma</h3>
                     </div>
                     
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', alignItems: 'flex-end' }}>
                         <div className="form-group">
-                            <label className="input-label">Nome d'arte predefinito</label>
+                            <label className="input-label">Firma predefinita</label>
                             <input 
                                 type="text"
                                 className="input-field" 
@@ -242,7 +240,7 @@ const AccountPage: React.FC = () => {
                             onClick={handleUpdateProfile}
                             disabled={isUpdatingProfile}
                         >
-                            {isUpdatingProfile ? <Loader2 className="animate-spin" size={20} /> : (profileSuccess ? <><CheckCircle size={18} /> Salvato</> : <><Save size={18} /> Salva Nome</>)}
+                            {isUpdatingProfile ? <Loader2 className="animate-spin" size={20} /> : (profileSuccess ? <><CheckCircle size={18} /> Salvato</> : <><Save size={18} /> Salva Firma</>)}
                         </button>
                     </div>
                 </div>
@@ -335,21 +333,20 @@ const AccountPage: React.FC = () => {
                                     <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--glass-border)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                                         <th style={{ padding: '0.5rem 1rem' }}>DATA</th>
                                         <th style={{ padding: '0.5rem 1rem' }}>DESCRIZIONE</th>
-                                        <th style={{ padding: '0.5rem 1rem' }}>TIPO</th>
                                         <th style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>IMPORTO</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {loadingTransactions ? (
                                         <tr>
-                                            <td colSpan={4} style={{ textAlign: 'center', padding: '3rem' }}>
+                                            <td colSpan={3} style={{ textAlign: 'center', padding: '3rem' }}>
                                                 <Loader2 className="animate-spin" style={{ margin: '0 auto' }} />
                                             </td>
                                         </tr>
                                     ) : (
                                         transactions.length === 0 ? (
                                             <tr>
-                                                <td colSpan={4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                                <td colSpan={3} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                                                     Nessun movimento registrato.
                                                 </td>
                                             </tr>
@@ -360,17 +357,7 @@ const AccountPage: React.FC = () => {
                                                         {new Date(t.created_at).toLocaleDateString('it-IT')}
                                                     </td>
                                                     <td style={{ padding: '1rem', fontWeight: 500 }}>{t.description || 'Transazione generica'}</td>
-                                                    <td style={{ padding: '1rem' }}>
-                                                        {t.amount > 0 ? (
-                                                            <span style={{ color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
-                                                                <ArrowUpRight size={14} /> RICARICA
-                                                            </span>
-                                                        ) : (
-                                                            <span style={{ color: 'var(--error)', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em' }}>
-                                                                <ArrowDownLeft size={14} /> SPESA
-                                                            </span>
-                                                        )}
-                                                    </td>
+
                                                     <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 800, color: t.amount > 0 ? 'var(--success)' : 'inherit', borderRadius: '0 12px 12px 0' }}>
                                                         {(t.amount > 0 ? '+' : '')}{(t.amount ?? 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
                                                     </td>
