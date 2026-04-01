@@ -1412,9 +1412,10 @@ app.post("/export/docx", async (req, res) => {
             const fullTitle = formatChapterTitle(index, rawTitle);
 
             const introHtml = ch.exportCompiledContent ? marked.parse(normalizeText(removeEmojis(ch.exportCompiledContent))) : "";
-            const subchapters = ch.exportParagraphs.map(p => ({
+            const subchapters = ch.exportParagraphs.map((p, pIndex) => ({
                 title: p.title ? editorialCasing(normalizeText(removeEmojis(p.title))) : "",
-                htmlContent: p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : ""
+                htmlContent: p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "",
+                bookmarkId: `chapter_${index + 1}_sub_${pIndex + 1}`
             }));
 
             return {
@@ -1541,6 +1542,30 @@ app.post("/export/docx", async (req, res) => {
                     alignment: AlignmentType.LEFT
                 })
             );
+
+            // Subchapters (Paragrafi) in TOC
+            ch.subchapters.forEach(sub => {
+                if (sub.title) {
+                    children.push(
+                        new Paragraph({
+                            children: [
+                                new InternalHyperlink({
+                                    children: [
+                                        new TextRun({
+                                            text: sub.title,
+                                            font: { name: "Garamond", size: 20 }
+                                        })
+                                    ],
+                                    anchor: sub.bookmarkId
+                                })
+                            ],
+                            spacing: { after: 80 },
+                            indent: { left: 720 }, // Indent 0.5 inches
+                            alignment: AlignmentType.LEFT
+                        })
+                    );
+                }
+            });
         });
 
         children.push(new Paragraph({ text: "", pageBreakBefore: true }));
@@ -1581,7 +1606,8 @@ app.post("/export/docx", async (req, res) => {
                                 })
                             ],
                             heading: HeadingLevel.HEADING_2,
-                            spacing: { before: 300, after: 200 }
+                            spacing: { before: 300, after: 200 },
+                            bookmark: { id: sub.bookmarkId }
                         })
                     );
                 }
@@ -1809,7 +1835,8 @@ app.post("/export/pdf", async (req, res) => {
                 .toc { page-break-after: always; padding: 1em 0; }
                 .toc h1 { text-align: center; font-size: 2.2em; margin-bottom: 1.5em; }
                 .toc-item { margin: 0.6em 0; font-size: 1.1em; }
-                .toc-item a { text-decoration: none; color: #333; border-bottom: 1px dotted #aaa; display: flex; justify-content: space-between; }
+                .toc-subitem { margin: 0.4em 0; font-size: 0.95em; padding-left: 1.5em; }
+                .toc-item a, .toc-subitem a { text-decoration: none; color: #333; border-bottom: 1px dotted #aaa; display: flex; justify-content: space-between; }
                 
                 .chapter { page-break-before: always; padding-top: 1em; }
                 .chapter-title { text-align: center; font-size: 2.2em; margin-top: 2em; margin-bottom: 2em; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 0.5em; }
@@ -1855,6 +1882,11 @@ app.post("/export/pdf", async (req, res) => {
                     <div class="toc-item">
                         <a href="#ch${i + 1}">${formatChapterTitle(i, ch.title || "Senza titolo")}</a>
                     </div>
+                    ${ch.exportParagraphs ? ch.exportParagraphs.filter(p => p.title).map((p, pi) => `
+                    <div class="toc-subitem">
+                        <a href="#ch${i + 1}p${pi + 1}">${p.title}</a>
+                    </div>
+                    `).join('') : ''}
                 `).join('')}
             </div>
             
@@ -1871,8 +1903,8 @@ app.post("/export/pdf", async (req, res) => {
                 chapterHtml += `<div class="chapter-intro">${marked.parse(normalizeText(removeEmojis(ch.exportCompiledContent)))}</div>`;
             }
 
-            ch.exportParagraphs.forEach(p => {
-                const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
+            ch.exportParagraphs.forEach((p, pi) => {
+                const subTitle = p.title ? `<h2 id="ch${i + 1}p${pi + 1}">${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
                 const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
                 chapterHtml += `<div class="subchapter">${subTitle}${subContent}</div>`;
             });
