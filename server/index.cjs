@@ -1224,7 +1224,7 @@ app.post("/export/epub", async (req, res) => {
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
-        const epubDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
+        const epubDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati. Le strategie/informazioni sono frutto di studi ma non garantiscono risultati certi (importante dato che parli di apprendimento e IA). L'autore non si assume responsabilità per le scelte fatte dal lettore.";
         const epubDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
 
         const templateData = {
@@ -1387,7 +1387,7 @@ app.post("/export/docx", async (req, res) => {
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "W4U Writing Wizard";
         const publisher = "W4U";
-        const docxDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
+        const docxDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati. Le strategie/informazioni sono frutto di studi ma non garantiscono risultati certi (importante dato che parli di apprendimento e IA). L'autore non si assume responsabilità per le scelte fatte dal lettore.";
         const docxDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
         const backCoverBlurb = getBackCoverBlurb(book);
 
@@ -1436,98 +1436,90 @@ app.post("/export/docx", async (req, res) => {
                     children: [
                         new ImageRun({
                             data: coverBuffer,
-                            transformation: { width: 500, height: 750 }
+                            transformation: { width: 450, height: 650 } // Adjusted for A5
                         })
                     ],
                     alignment: AlignmentType.CENTER,
                     spacing: { after: 200 }
                 }),
-                new Paragraph({ text: "", pageBreakBefore: true }),
                 new Paragraph({ text: "", pageBreakBefore: true })
             );
         }
 
-        // --- TITLE PAGE ---
+        // --- PAGE 2: TITLE PAGE ---
         children.push(
-            new Paragraph({ text: "", spacing: { after: 2400 } }),
+            new Paragraph({ text: "", spacing: { after: 2400 }, pageBreakBefore: (normalizedEdition === 'paperback') }),
             new Paragraph({
                 text: cleanBookTitle,
                 heading: HeadingLevel.TITLE,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
-                font: { name: "Georgia", size: 64 }
+                font: { name: "Garamond", size: 64 }
             }),
             new Paragraph({ text: "", spacing: { after: 800 } }),
             new Paragraph({
-                text: `di ${cleanAuthor}`,
+                text: `${cleanAuthor}`,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 200 },
-                font: { name: "Georgia", size: 28 }
-            }),
-            new Paragraph({ text: "", spacing: { after: 1600 } }),
-            new Paragraph({
-                text: docxDesc,
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 20 },
-                italics: true
+                font: { name: "Garamond", size: 32 }
             }),
             new Paragraph({ text: "", pageBreakBefore: true })
         );
 
-        // --- COPYRIGHT PAGE ---
+        // --- PAGE 3: COPYRIGHT PAGE ---
         children.push(
             new Paragraph({ text: "", spacing: { after: 1200 } }),
             new Paragraph({
                 text: cleanBookTitle,
                 alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 36, bold: true },
+                font: { name: "Garamond", size: 36, bold: true },
                 spacing: { after: 200 }
             }),
             new Paragraph({
-                text: `${cleanBookTitle} - ${docxDesc.substring(0, 50)}...`,
+                text: `${cleanBookTitle}`,
                 alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24 },
+                font: { name: "Garamond", size: 24 },
                 spacing: { after: 400 }
             }),
             new Paragraph({
                 text: cleanAuthor,
                 alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 32 },
+                font: { name: "Garamond", size: 32 },
                 spacing: { after: 1200 }
             }),
             new Paragraph({
-                text: "Editore:",
+                text: "Note Legali:",
                 alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24, bold: true }
-            }),
-            new Paragraph({
-                text: publisher,
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24 }
-            }),
-            new Paragraph({
-                text: "mail@write4you.com",
-                alignment: AlignmentType.CENTER,
-                font: { name: "Georgia", size: 24 },
-                spacing: { after: 1200 }
+                font: { name: "Garamond", size: 24, bold: true }
             }),
             new Paragraph({
                 text: docxDisclaimer,
                 alignment: AlignmentType.BOTH,
-                font: { name: "Georgia", size: 20 },
-                spacing: { line: 360 }
+                font: { name: "Garamond", size: 22 },
+                spacing: { line: 276 } // 1.15 line spacing
+            }),
+            new Paragraph({
+                text: "Contatti:",
+                alignment: AlignmentType.CENTER,
+                font: { name: "Garamond", size: 24, bold: true },
+                spacing: { before: 800 }
+            }),
+            new Paragraph({
+                text: "Write4You - mail@write4you.com",
+                alignment: AlignmentType.CENTER,
+                font: { name: "Garamond", size: 24 }
             }),
             new Paragraph({ text: "", pageBreakBefore: true })
         );
 
-        // --- TABLE OF CONTENTS ---
+        // --- PAGE 4: TABLE OF CONTENTS ---
         children.push(
             new Paragraph({
                 text: "Indice",
                 heading: HeadingLevel.HEADING_1,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
-                font: { name: "Georgia", size: 36 }
+                font: { name: "Garamond", size: 36 }
             })
         );
 
@@ -1539,7 +1531,7 @@ app.post("/export/docx", async (req, res) => {
                             children: [
                                 new TextRun({
                                     text: ch.title,
-                                    font: { name: "Georgia", size: 24 }
+                                    font: { name: "Garamond", size: 24 }
                                 })
                             ],
                             anchor: ch.bookmarkId
@@ -1561,7 +1553,7 @@ app.post("/export/docx", async (req, res) => {
                         new TextRun({
                             text: ch.title,
                             bold: true,
-                            font: { name: "Georgia", size: 48 }
+                            font: { name: "Garamond", size: 48 }
                         })
                     ],
                     heading: HeadingLevel.HEADING_1,
@@ -1585,7 +1577,7 @@ app.post("/export/docx", async (req, res) => {
                                 new TextRun({
                                     text: sub.title,
                                     bold: true,
-                                    font: { name: "Georgia", size: 32 }
+                                    font: { name: "Garamond", size: 32 }
                                 })
                             ],
                             heading: HeadingLevel.HEADING_2,
@@ -1618,7 +1610,8 @@ app.post("/export/docx", async (req, res) => {
                 new Paragraph({
                     text: `${cleanAuthor}`,
                     alignment: AlignmentType.CENTER,
-                    spacing: { before: 600, after: 300 }
+                    spacing: { before: 600, after: 300 },
+                    font: { name: "Garamond" }
                 }),
                 new Paragraph({
                     text: "AREA BARCODE",
@@ -1648,10 +1641,10 @@ app.post("/export/docx", async (req, res) => {
                         children: [
                             new TextRun({
                                 text: text,
-                                font: { name: "Georgia", size: 24 }
+                                font: { name: "Garamond", size: 24 }
                             })
                         ],
-                        spacing: { after: 240, line: 360 },
+                        spacing: { after: 240, line: 276 }, // 1.15 spacing
                         indent: { firstLine: 360 }
                     })
                 );
@@ -1667,12 +1660,17 @@ app.post("/export/docx", async (req, res) => {
             sections: [{
                 properties: {
                     page: {
+                        size: {
+                            width: 8391, // A5 Width (approx 14.8cm)
+                            height: 11906, // A5 Height (approx 21.0cm)
+                        },
                         margin: {
-                            top: convertInchesToTwip(1),
-                            right: convertInchesToTwip(1),
-                            bottom: convertInchesToTwip(1),
-                            left: convertInchesToTwip(1)
-                        }
+                            top: 1134, // 2cm
+                            bottom: 1134, // 2cm
+                            left: 1134, // 2cm (Inner)
+                            right: 850, // 1.5cm (Outer)
+                        },
+                        mirrorMargins: true
                     }
                 },
                 headers: {
@@ -1682,7 +1680,7 @@ app.post("/export/docx", async (req, res) => {
                                 children: [
                                     new TextRun({
                                         text: `${cleanAuthor} - ${cleanBookTitle}`,
-                                        font: { name: "Georgia", size: 20 },
+                                        font: { name: "Garamond", size: 20 },
                                         italics: true
                                     })
                                 ],
@@ -1699,7 +1697,7 @@ app.post("/export/docx", async (req, res) => {
                                     children: [
                                         new TextRun({
                                             children: [PageNumber.CURRENT],
-                                            font: { name: "Georgia", size: 20 }
+                                            font: { name: "Garamond", size: 20 }
                                         })
                                     ],
                                     alignment: AlignmentType.CENTER
@@ -1772,7 +1770,7 @@ app.post("/export/pdf", async (req, res) => {
 
         const cleanBookTitle = editorialCasing(normalizeText(removeEmojis(book.title || "Libro")));
         const cleanAuthor = book.author || "Autore";
-        const pdfDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati...";
+        const pdfDisclaimer = prompts['courtesy_disclaimer'] || "Tutti i diritti sono riservati. Le strategie/informazioni sono frutto di studi ma non garantiscono risultati certi (importante dato che parli di apprendimento e IA). L'autore non si assume responsabilità per le scelte fatte dal lettore.";
         const pdfDesc = book.plot_summary ? (book.plot_summary.substring(0, 300) + "...") : "Un libro scritto con W4U";
 
         const templateData = {
@@ -1791,32 +1789,39 @@ app.post("/export/pdf", async (req, res) => {
             <meta charset="UTF-8">
             <style>
                 @page {
-                    margin: 2.5cm;
-                    size: A4;
+                    size: A5;
+                    margin: 2cm 1.5cm 2cm 2cm;
                 }
-                body { font-family: 'Georgia', serif; line-height: 1.8; color: #1a1a1a; }
+                body { 
+                    font-family: 'Garamond', 'EB Garamond', 'Times New Roman', serif; 
+                    line-height: 1.15; 
+                    font-size: 12pt;
+                    color: #1a1a1a; 
+                }
                 .cover-page { page-break-after: always; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
                 .cover-page img { width: 100%; max-height: 100vh; object-fit: contain; }
                 .title-page { text-align: center; margin-top: 18%; page-break-after: always; }
-                h1.book-title { font-size: 3.5em; margin-bottom: 0.2em; color: #000; }
-                h2.author { font-size: 1.6em; font-weight: normal; color: #444; margin-bottom: 3em; }
+                h1.book-title { font-size: 3em; margin-bottom: 0.2em; color: #000; }
+                h2.author { font-size: 1.4em; font-weight: normal; color: #444; margin-bottom: 3em; }
+                
+                .copyright-page { page-break-after: always; font-size: 10pt; line-height: 1.4; }
                 
                 .toc { page-break-after: always; padding: 1em 0; }
                 .toc h1 { text-align: center; font-size: 2.2em; margin-bottom: 1.5em; }
-                .toc-item { margin: 0.8em 0; font-size: 1.1em; }
+                .toc-item { margin: 0.6em 0; font-size: 1.1em; }
                 .toc-item a { text-decoration: none; color: #333; border-bottom: 1px dotted #aaa; display: flex; justify-content: space-between; }
                 
                 .chapter { page-break-before: always; padding-top: 1em; }
-                .chapter-title { text-align: center; font-size: 2.4em; margin-top: 2em; margin-bottom: 2em; font-weight: bold; border-bottom: 2px solid #eee; padding-bottom: 1em; }
+                .chapter-title { text-align: center; font-size: 2.2em; margin-top: 2em; margin-bottom: 2em; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 0.5em; }
                 
-                .chapter-intro { font-style: italic; color: #555; margin-bottom: 3em; font-size: 1.1em; line-height: 1.6; padding: 0 1em; border-left: 3px solid #eee; }
+                .chapter-intro { font-style: italic; color: #555; margin-bottom: 2em; font-size: 1.1em; line-height: 1.4; padding: 0 1em; border-left: 3px solid #eee; }
                 
-                .subchapter { margin-bottom: 3em; }
-                .subchapter h2 { font-size: 1.6em; margin-top: 2em; margin-bottom: 1em; color: #222; border-left: 4px solid #fecaca; padding-left: 15px; }
+                .subchapter { margin-bottom: 2em; }
+                .subchapter h2 { font-size: 1.4em; margin-top: 1.5em; margin-bottom: 0.8em; color: #222; border-left: 4px solid #fecaca; padding-left: 12px; }
                 
-                .content p { text-indent: 1.5em; margin-bottom: 1em; text-align: justify; widows: 3; orphans: 3; }
+                .content p { text-indent: 1.2em; margin-bottom: 0.8em; text-align: justify; widows: 3; orphans: 3; }
                 .content p:first-of-type { text-indent: 0; }
-                .content h3 { font-size: 1.3em; margin-top: 1.5em; }
+                .content h3 { font-size: 1.2em; margin-top: 1.2em; }
             </style>
         </head>
         <body>
@@ -1828,19 +1833,18 @@ app.post("/export/pdf", async (req, res) => {
                 ${renderTemplate(prompts['courtesy_title_page'], templateData) || `
                 <h1 class="book-title">${cleanBookTitle}</h1>
                 <h2 class="author">di ${cleanAuthor}</h2>
-                <p style="margin-top: 2em; font-style: italic; font-size: 1.2em;">${pdfDesc}</p>
                 `}
             </div>
-            <div class="title-page" style="margin-top: 10%;">
+            <div class="copyright-page" style="margin-top: 10%;">
                 ${renderTemplate(prompts['courtesy_copyright_page'], templateData) || `
-                <h2 style="font-size: 2em; margin-bottom: 0.5em; font-weight: normal;">${cleanBookTitle}</h2>
-                <p style="font-size: 1.2em;">${cleanBookTitle} - ${pdfDesc.substring(0, 50)}...</p>
-                <h3 style="margin-top: 1em; font-size: 1.5em; font-weight: normal;">${cleanAuthor}</h3>
-                <div style="margin-top: 4em;">
-                    <p><strong>Editore:</strong><br/>Write4You<br/>mail@write4you.com</p>
+                <h2 style="font-size: 1.8em; margin-bottom: 0.5em; font-weight: normal;">${cleanBookTitle}</h2>
+                <h3 style="margin-top: 1em; font-size: 1.4em; font-weight: normal;">${cleanAuthor}</h3>
+                <div style="margin-top: 3em;">
+                    <p><strong>Note Legali:</strong></p>
+                    <p style="text-align: justify;">${pdfDisclaimer}</p>
                 </div>
-                <div style="margin-top: 5em; text-align: justify; font-size: 0.9em; line-height: 1.8; padding: 0 3em;">
-                    <p>${pdfDisclaimer}</p>
+                <div style="margin-top: 2em;">
+                    <p><strong>Contatti:</strong><br/>Write4You - mail@write4you.com</p>
                 </div>
                 `}
             </div>
@@ -1904,9 +1908,9 @@ app.post("/export/pdf", async (req, res) => {
 
         await page.pdf({
             path: outputPath,
-            format: 'A4',
+            format: 'A5',
             displayHeaderFooter: false,
-            margin: { top: '2cm', bottom: '2cm', right: '2cm', left: '2cm' },
+            margin: { top: '2cm', bottom: '2cm', right: '1.5cm', left: '2cm' },
             printBackground: true
         });
 

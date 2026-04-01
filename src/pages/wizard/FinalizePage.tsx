@@ -36,10 +36,10 @@ const EXPORT_OPTIONS: ExportOption[] = [
         format: 'DOCX',
         edition: 'ebook',
         icon: FileText,
-        title: 'Word eBook',
-        label: 'Word per eBook',
+        title: 'Word (A5)',
+        label: 'Formato A5 Professionale',
         filename: (bookId) => `libro_${bookId}_ebook.docx`,
-        progress: 'Il server sta preparando il Word per eBook...'
+        progress: 'Il server sta preparando il Word in formato A5...'
     },
     {
         id: 'EPUB_EBOOK',
@@ -48,9 +48,9 @@ const EXPORT_OPTIONS: ExportOption[] = [
         edition: 'ebook',
         icon: Smartphone,
         title: 'EPUB eBook',
-        label: 'EPUB senza copertina',
+        label: 'EPUB (senza copertina)',
         filename: (bookId) => `libro_${bookId}.epub`,
-        progress: "Il server sta preparando l'EPUB senza copertina..."
+        progress: "Il server sta preparando l'EPUB..."
     },
     {
         id: 'PDF_EBOOK',
@@ -58,10 +58,10 @@ const EXPORT_OPTIONS: ExportOption[] = [
         format: 'PDF',
         edition: 'ebook',
         icon: FileText,
-        title: 'PDF eBook',
-        label: 'PDF con copertina front',
+        title: 'PDF (A5)',
+        label: 'PDF con copertina (A5)',
         filename: (bookId) => `libro_${bookId}_ebook.pdf`,
-        progress: 'Il server sta impaginando il PDF eBook...'
+        progress: 'Il server sta impaginando il PDF in formato A5...'
     },
     {
         id: 'DOCX_PAPERBACK',
@@ -69,10 +69,10 @@ const EXPORT_OPTIONS: ExportOption[] = [
         format: 'DOCX',
         edition: 'paperback',
         icon: FileText,
-        title: 'Word Cartaceo',
-        label: 'Word con blank page, numeri pagina, fronte e retro',
+        title: 'Manoscritto Cartaceo',
+        label: 'Word A5 con margini speculari',
         filename: (bookId) => `libro_${bookId}_cartaceo.docx`,
-        progress: 'Il server sta preparando il Word per il cartaceo...'
+        progress: 'Il server sta preparando il manoscritto per la stampa...'
     }
 ];
 
