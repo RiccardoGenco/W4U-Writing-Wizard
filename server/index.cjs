@@ -1392,14 +1392,11 @@ app.post("/export/docx", async (req, res) => {
         const backCoverBlurb = getBackCoverBlurb(book);
 
         let coverBuffer = null;
-        if (normalizedEdition === 'paperback') {
-            if (!book.cover_url) {
-                throw new Error("Paperback export requires a book cover. Please generate one first.");
-            }
+        if (book.cover_url) {
             try {
                 coverBuffer = await fetchRemoteBuffer(book.cover_url);
             } catch (err) {
-                throw new Error("Failed to download book cover for paperback export. Please check the cover image or retry.");
+                console.warn("[Backend] Failed to fetch cover buffer:", err);
             }
         }
 
@@ -1431,7 +1428,7 @@ app.post("/export/docx", async (req, res) => {
 
         // --- CONSTANTS ---
 
-        if (normalizedEdition === 'paperback' && coverBuffer) {
+        if (coverBuffer) {
             children.push(
                 new Paragraph({
                     children: [
@@ -1442,14 +1439,13 @@ app.post("/export/docx", async (req, res) => {
                     ],
                     alignment: AlignmentType.CENTER,
                     spacing: { after: 200 }
-                }),
-                new Paragraph({ text: "", pageBreakBefore: true })
+                })
             );
         }
 
         // --- PAGE 2: TITLE PAGE ---
         children.push(
-            new Paragraph({ text: "", spacing: { after: 2400 }, pageBreakBefore: (normalizedEdition === 'paperback') }),
+            new Paragraph({ text: "", spacing: { after: 2400 }, pageBreakBefore: !!coverBuffer }),
             new Paragraph({
                 text: cleanBookTitle,
                 heading: HeadingLevel.TITLE,
@@ -1818,14 +1814,27 @@ app.post("/export/pdf", async (req, res) => {
                     size: A5;
                     margin: 2cm 1.5cm 2cm 2cm;
                 }
+                @page :first {
+                    margin: 0;
+                }
                 body { 
                     font-family: 'Garamond', 'EB Garamond', 'Times New Roman', serif; 
                     line-height: 1.15; 
                     font-size: 12pt;
                     color: #1a1a1a; 
                 }
-                .cover-page { page-break-after: always; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-                .cover-page img { width: 100%; max-height: 100vh; object-fit: contain; }
+                .cover-page { 
+                    page-break-after: always; 
+                    margin: 0; 
+                    padding: 0; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    height: 100vh; 
+                    width: 100vw;
+                    background-color: #000;
+                }
+                .cover-page img { width: 100%; height: 100%; object-fit: cover; }
                 .title-page { text-align: center; margin-top: 18%; page-break-after: always; }
                 h1.book-title { font-size: 3em; margin-bottom: 0.2em; color: #000; }
                 h2.author { font-size: 1.4em; font-weight: normal; color: #444; margin-bottom: 3em; }
@@ -1942,7 +1951,7 @@ app.post("/export/pdf", async (req, res) => {
             path: outputPath,
             format: 'A5',
             displayHeaderFooter: false,
-            margin: { top: '2cm', bottom: '2cm', right: '1.5cm', left: '2cm' },
+            margin: { top: 0, bottom: 0, right: 0, left: 0 }, // Let CSS @page handle it
             printBackground: true
         });
 
