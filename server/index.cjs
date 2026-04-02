@@ -1240,14 +1240,15 @@ app.post("/export/epub", async (req, res) => {
             const fullTitle = formatChapterTitle(index, ch.title || "Senza titolo");
 
             // Build semantic HTML content
-            let chapterHtml = `<div lang="it"><h1>${fullTitle}</h1>`;
+            let chapterHtml = `<div lang="it">`;
 
             if (ch.exportCompiledContent) {
                 chapterHtml += `<div class="chapter-content">${marked.parse(normalizeText(removeEmojis(ch.exportCompiledContent)))}</div>`;
             }
 
             ch.exportParagraphs.forEach(p => {
-                const subTitle = p.title ? `<h2>${editorialCasing(normalizeText(removeEmojis(p.title)))}</h2>` : "";
+                const cleanSubTitle = p.title ? normalizeText(removeEmojis(p.title)).replace(/<\/?[^>]+(>|$)/g, "") : "";
+                const subTitle = cleanSubTitle ? `<h2>${editorialCasing(cleanSubTitle)}</h2>` : "";
                 const subContent = p.content ? marked.parse(normalizeText(removeEmojis(p.content))) : "";
                 chapterHtml += `<section class="subchapter">${subTitle}${subContent}</section>`;
             });
@@ -1833,11 +1834,54 @@ app.post("/export/pdf", async (req, res) => {
                     height: 100vh; 
                     width: 100vw;
                     background-color: #fff;
+                    position: relative;
                 }
-                .cover-page img { 
-                    width: 12.8cm; 
-                    height: 19cm; 
+                .cover-container {
+                    position: relative;
+                    width: 12.8cm;
+                    height: 19cm;
+                    overflow: hidden;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                    background-color: #f9f9f9;
+                }
+                .cover-container img { 
+                    width: 100%; 
+                    height: 100%; 
                     object-fit: cover; 
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                }
+                .cover-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    padding: 1.5cm 1cm;
+                    box-sizing: border-box;
+                    text-align: center;
+                    z-index: 10;
+                    /* Subtle gradient for text readability if image is busy */
+                    background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 20%, rgba(0,0,0,0) 80%, rgba(0,0,0,0.2) 100%);
+                }
+                .cover-title {
+                    font-size: 2.4em;
+                    color: #fff;
+                    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+                    margin: 0;
+                    font-weight: bold;
+                    line-height: 1.2;
+                }
+                .cover-author {
+                    font-size: 1.4em;
+                    color: #fff;
+                    text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+                    margin: 0;
+                    font-weight: normal;
                 }
                 .title-page { text-align: center; margin-top: 18%; page-break-after: always; }
                 h1.book-title { font-size: 3em; margin-bottom: 0.2em; color: #000; }
@@ -1867,7 +1911,13 @@ app.post("/export/pdf", async (req, res) => {
         <body>
             ${book.cover_url ? `
             <div class="cover-page">
-                <img src="${book.cover_url}" alt="Copertina frontale" />
+                <div class="cover-container">
+                    <img src="${book.cover_url}" alt="Copertina frontale" />
+                    <div class="cover-overlay">
+                        <h1 class="cover-title">${cleanBookTitle}</h1>
+                        <h2 class="cover-author">${cleanAuthor}</h2>
+                    </div>
+                </div>
             </div>` : ''}
             <div class="title-page">
                 ${renderTemplate(prompts['courtesy_title_page'], templateData) || `
