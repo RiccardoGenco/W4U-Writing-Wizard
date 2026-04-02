@@ -1250,8 +1250,8 @@ const generateCoverBuffer = async (book, title, author) => {
                 body { margin: 0; padding: 0; font-family: 'serif'; background: #fff; }
                 .cover-container {
                     position: relative;
-                    width: 794px; /* Approx 21cm at 96dpi, scaled */
-                    height: 1123px; /* A4/A5 ratio */
+                    width: 559px; /* A5 width at 96dpi */
+                    height: 794px; /* A5 height at 96dpi */
                     overflow: hidden;
                     background-color: #f9f9f9;
                 }
@@ -1266,12 +1266,12 @@ const generateCoverBuffer = async (book, title, author) => {
                     position: absolute;
                     top: 0; left: 0; width: 100%; height: 100%;
                     display: flex; flex-direction: column; justify-content: space-between;
-                    padding: 80px 40px; box-sizing: border-box; text-align: center;
+                    padding: 60px 30px; box-sizing: border-box; text-align: center;
                     color: #fff; z-index: 10;
                     background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 75%, rgba(0,0,0,0.3) 100%);
                 }
-                .cover-title { font-size: 64px; text-shadow: 3px 3px 6px rgba(0,0,0,0.8); margin: 0; font-weight: bold; line-height: 1.1; }
-                .cover-author { font-size: 36px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin: 0; font-weight: normal; }
+                .cover-title { font-size: 42px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin: 0; font-weight: bold; line-height: 1.1; }
+                .cover-author { font-size: 24px; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); margin: 0; font-weight: normal; }
             </style>
         </head>
         <body>
@@ -1527,7 +1527,7 @@ app.post("/export/docx", async (req, res) => {
                     children: [
                         new ImageRun({
                             data: coverBuffer,
-                            transformation: { width: 450, height: 650 } // Adjusted for A5
+                            transformation: { width: 363, height: 538 } // 12.8cm x 19cm in points
                         })
                     ],
                     alignment: AlignmentType.CENTER,
