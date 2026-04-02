@@ -1239,8 +1239,8 @@ const generateCoverBuffer = async (book, title, author) => {
 
         const page = await browser.newPage();
         
-        // Define viewport to match A5-ish cover size at high DPI
-        await page.setViewport({ width: 800, height: 1200, deviceScaleFactor: 2 });
+        // Viewport A5 nativo (14.8 x 21 cm @ 96dpi = 559 x 794 px)
+        await page.setViewport({ width: 559, height: 794, deviceScaleFactor: 2 });
 
         const html = `
         <!DOCTYPE html>
@@ -1250,8 +1250,8 @@ const generateCoverBuffer = async (book, title, author) => {
                 body { margin: 0; padding: 0; font-family: 'serif'; background: #fff; }
                 .cover-container {
                     position: relative;
-                    width: 559px; /* A5 width at 96dpi */
-                    height: 794px; /* A5 height at 96dpi */
+                    width: 559px; /* A5 nativo */
+                    height: 794px;
                     overflow: hidden;
                     background-color: #f9f9f9;
                 }
@@ -1266,7 +1266,7 @@ const generateCoverBuffer = async (book, title, author) => {
                     position: absolute;
                     top: 0; left: 0; width: 100%; height: 100%;
                     display: flex; flex-direction: column; justify-content: space-between;
-                    padding: 60px 30px; box-sizing: border-box; text-align: center;
+                    padding: 50px 30px; box-sizing: border-box; text-align: center;
                     color: #fff; z-index: 10;
                     background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 75%, rgba(0,0,0,0.3) 100%);
                 }
@@ -1903,35 +1903,38 @@ app.post("/export/pdf", async (req, res) => {
         <head>
             <meta charset="UTF-8">
             <style>
+                /* IMPOSTAZIONI PAGINA (Gestate via Javascript per precisione) */
                 @page {
                     size: A5;
-                    margin: 2cm 1.5cm 2cm 2cm;
+                    margin: 0; /* JS forzerà qui il margine di 1cm */
                 }
-                @page :first {
-                    margin: 0;
-                }
+
                 body { 
                     font-family: 'Garamond', 'EB Garamond', 'Times New Roman', serif; 
                     line-height: 1.15; 
-                    font-size: 9.6pt;
+                    font-size: 9.6pt; /* DIMENSIONE TESTO (80% di 12pt) */
                     color: #1a1a1a; 
+                    padding: 0;
+                    margin: 0;
                 }
+
+                /* CONTAINER COPERTINA - Occupa tutto lo spazio utile tra i margini JS */
                 .cover-page { 
                     page-break-after: always; 
-                    margin: 0; 
-                    padding: 0; 
                     display: flex; 
                     align-items: center; 
                     justify-content: center; 
-                    height: 100vh; 
-                    width: 100vw;
+                    height: 100%; 
+                    width: 100%;
                     background-color: #fff;
                     position: relative;
                 }
+
+                /* BOX COPERTINA - Riempie l'area utile (A5 - 2cm totali di margine) */
                 .cover-container {
                     position: relative;
-                    width: 12.8cm;
-                    height: 19cm;
+                    width: 100%; 
+                    height: 100%;
                     overflow: hidden;
                     box-shadow: 0 4px 15px rgba(0,0,0,0.1);
                     background-color: #f9f9f9;
@@ -1988,7 +1991,16 @@ app.post("/export/pdf", async (req, res) => {
                 .toc-item a, .toc-subitem a { text-decoration: none; color: #333; border-bottom: 1px dotted #aaa; display: flex; justify-content: space-between; }
                 
                 .chapter { page-break-before: always; padding-top: 1em; }
-                .chapter-title { text-align: center; font-size: 2.2em; margin-top: 2em; margin-bottom: 2em; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 0.5em; }
+                /* TITOLO CAPITOLO */
+                .chapter-title { 
+                    text-align: center; 
+                    font-size: 1.76em; /* Modifica per dimensione titoli capitoli */
+                    margin-top: 2em; 
+                    margin-bottom: 2em; 
+                    font-weight: bold; 
+                    border-bottom: 1px solid #eee; 
+                    padding-bottom: 0.5em; 
+                }
                 
                 .chapter-intro { font-style: italic; color: #555; margin-bottom: 2em; font-size: 1.1em; line-height: 1.4; padding: 0 1em; border-left: 3px solid #eee; }
                 
@@ -2011,12 +2023,8 @@ app.post("/export/pdf", async (req, res) => {
                     </div>
                 </div>
             </div>` : ''}
-            <div class="title-page">
-                ${renderTemplate(prompts['courtesy_title_page'], templateData) || `
-                <h1 class="book-title">${cleanBookTitle}</h1>
-                <h2 class="author">di ${cleanAuthor}</h2>
-                `}
-            </div>
+            
+            <!-- NOTA: La Title Page (pagina bianca con titolo) è stata rimossa per tua richiesta -->
             <div class="copyright-page" style="margin-top: 10%;">
                 ${renderTemplate(prompts['courtesy_copyright_page'], templateData) || `
                 <h2 style="font-size: 1.8em; margin-bottom: 0.5em; font-weight: normal;">${cleanBookTitle}</h2>
@@ -2097,7 +2105,13 @@ app.post("/export/pdf", async (req, res) => {
             path: outputPath,
             format: 'A5',
             displayHeaderFooter: false,
-            margin: { top: 0, bottom: 0, right: 0, left: 0 }, // Let CSS @page handle it
+            // MARGINI PDF: Modificabili qui (Azione Rapida)
+            margin: { 
+                top: '1cm', 
+                bottom: '1cm', 
+                right: '1cm', 
+                left: '1cm' 
+            },
             printBackground: true
         });
 
