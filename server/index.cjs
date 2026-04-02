@@ -1292,9 +1292,9 @@ app.post("/export/epub", async (req, res) => {
             lang: "it",
             css: `
         body { font-family: serif; line-height: 1.5; text-align: justify; }
-        h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: bold; font-size: 1.5em; page-break-before: always; }
-        h2 { font-size: 1.3em; margin-top: 1.5em; }
-        p { margin-bottom: 0.8em; text-indent: 0; }
+        h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: bold; font-size: 1.2em; page-break-before: always; }
+        h2 { font-size: 1.04em; margin-top: 1.5em; }
+        p { margin-bottom: 0.8em; text-indent: 0; font-size: 0.8em; }
         p + p { text-indent: 1.5em; margin-top: 0; }
         ul, ol { margin-bottom: 1em; }
         li { margin-bottom: 0.4em; }
@@ -1451,14 +1451,14 @@ app.post("/export/docx", async (req, res) => {
                 heading: HeadingLevel.TITLE,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
-                font: { name: "Garamond", size: 64 }
+                font: { name: "Garamond", size: 51 }
             }),
             new Paragraph({ text: "", spacing: { after: 800 } }),
             new Paragraph({
                 text: `${cleanAuthor}`,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 200 },
-                font: { name: "Garamond", size: 32 }
+                font: { name: "Garamond", size: 26 }
             }),
             new Paragraph({ text: "", pageBreakBefore: true })
         );
@@ -1469,7 +1469,7 @@ app.post("/export/docx", async (req, res) => {
             new Paragraph({
                 text: cleanBookTitle,
                 alignment: AlignmentType.CENTER,
-                font: { name: "Garamond", size: 36, bold: true },
+                font: { name: "Garamond", size: 29, bold: true },
                 spacing: { after: 200 }
             }),
             new Paragraph({
@@ -1481,7 +1481,7 @@ app.post("/export/docx", async (req, res) => {
             new Paragraph({
                 text: cleanAuthor,
                 alignment: AlignmentType.CENTER,
-                font: { name: "Garamond", size: 32 },
+                font: { name: "Garamond", size: 26 },
                 spacing: { after: 1200 }
             }),
             new Paragraph({
@@ -1516,7 +1516,7 @@ app.post("/export/docx", async (req, res) => {
                 heading: HeadingLevel.HEADING_1,
                 alignment: AlignmentType.CENTER,
                 spacing: { after: 400 },
-                font: { name: "Garamond", size: 36 }
+                font: { name: "Garamond", size: 29 }
             })
         );
 
@@ -1528,7 +1528,7 @@ app.post("/export/docx", async (req, res) => {
                             children: [
                                 new TextRun({
                                     text: ch.title,
-                                    font: { name: "Garamond", size: 24 }
+                                    font: { name: "Garamond", size: 19 }
                                 })
                             ],
                             anchor: ch.bookmarkId
@@ -1574,7 +1574,7 @@ app.post("/export/docx", async (req, res) => {
                         new TextRun({
                             text: ch.title,
                             bold: true,
-                            font: { name: "Garamond", size: 48 }
+                            font: { name: "Garamond", size: 38 }
                         })
                     ],
                     heading: HeadingLevel.HEADING_1,
@@ -1598,7 +1598,7 @@ app.post("/export/docx", async (req, res) => {
                                 new TextRun({
                                     text: sub.title,
                                     bold: true,
-                                    font: { name: "Garamond", size: 32 }
+                                    font: { name: "Garamond", size: 26 }
                                 })
                             ],
                             heading: HeadingLevel.HEADING_2,
@@ -1663,7 +1663,7 @@ app.post("/export/docx", async (req, res) => {
                         children: [
                             new TextRun({
                                 text: text,
-                                font: { name: "Garamond", size: 24 }
+                                font: { name: "Garamond", size: 19 }
                             })
                         ],
                         spacing: { after: 240, line: 276 }, // 1.15 spacing
@@ -1820,7 +1820,7 @@ app.post("/export/pdf", async (req, res) => {
                 body { 
                     font-family: 'Garamond', 'EB Garamond', 'Times New Roman', serif; 
                     line-height: 1.15; 
-                    font-size: 12pt;
+                    font-size: 9.6pt;
                     color: #1a1a1a; 
                 }
                 .cover-page { 
@@ -1832,9 +1832,13 @@ app.post("/export/pdf", async (req, res) => {
                     justify-content: center; 
                     height: 100vh; 
                     width: 100vw;
-                    background-color: #000;
+                    background-color: #fff;
                 }
-                .cover-page img { width: 100%; height: 100%; object-fit: cover; }
+                .cover-page img { 
+                    width: 12.8cm; 
+                    height: 19cm; 
+                    object-fit: cover; 
+                }
                 .title-page { text-align: center; margin-top: 18%; page-break-after: always; }
                 h1.book-title { font-size: 3em; margin-bottom: 0.2em; color: #000; }
                 h2.author { font-size: 1.4em; font-weight: normal; color: #444; margin-bottom: 3em; }
