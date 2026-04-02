@@ -1209,6 +1209,95 @@ const fetchRemoteBuffer = async (url) => {
 };
 
 
+// --- HELPER: Generate Stamped Cover Image ---
+const generateCoverBuffer = async (book, title, author) => {
+    if (!book.cover_url) return null;
+
+    let puppeteer;
+    let chromium;
+
+    if (process.env.VERCEL) {
+        puppeteer = require("puppeteer-core");
+        chromium = require("@sparticuz/chromium");
+    } else {
+        puppeteer = require("puppeteer");
+    }
+
+    let browser;
+    try {
+        if (process.env.VERCEL) {
+            browser = await puppeteer.launch({
+                args: chromium.args,
+                defaultViewport: chromium.defaultViewport,
+                executablePath: await chromium.executablePath(),
+                headless: chromium.headless,
+                ignoreHTTPSErrors: true,
+            });
+        } else {
+            browser = await puppeteer.launch({ headless: 'new' });
+        }
+
+        const page = await browser.newPage();
+        
+        // Define viewport to match A5-ish cover size at high DPI
+        await page.setViewport({ width: 800, height: 1200, deviceScaleFactor: 2 });
+
+        const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { margin: 0; padding: 0; font-family: 'serif'; background: #fff; }
+                .cover-container {
+                    position: relative;
+                    width: 794px; /* Approx 21cm at 96dpi, scaled */
+                    height: 1123px; /* A4/A5 ratio */
+                    overflow: hidden;
+                    background-color: #f9f9f9;
+                }
+                .cover-bg {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    position: absolute;
+                    top: 0; left: 0;
+                }
+                .cover-overlay {
+                    position: absolute;
+                    top: 0; left: 0; width: 100%; height: 100%;
+                    display: flex; flex-direction: column; justify-content: space-between;
+                    padding: 80px 40px; box-sizing: border-box; text-align: center;
+                    color: #fff; z-index: 10;
+                    background: linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 75%, rgba(0,0,0,0.3) 100%);
+                }
+                .cover-title { font-size: 64px; text-shadow: 3px 3px 6px rgba(0,0,0,0.8); margin: 0; font-weight: bold; line-height: 1.1; }
+                .cover-author { font-size: 36px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin: 0; font-weight: normal; }
+            </style>
+        </head>
+        <body>
+            <div class="cover-container" id="cover">
+                <img src="${book.cover_url}" class="cover-bg" />
+                <div class="cover-overlay">
+                    <h1 class="cover-title">${title}</h1>
+                    <h2 class="cover-author">${author}</h2>
+                </div>
+            </div>
+        </body>
+        </html>`;
+
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        const element = await page.$('#cover');
+        const buffer = await element.screenshot({ type: 'png' });
+        
+        await browser.close();
+        return buffer;
+    } catch (err) {
+        console.error("[generateCoverBuffer] Error:", err);
+        if (browser) await browser.close();
+        return null;
+    }
+};
+
 // --- EPUB EXPORT ENDPOINT ---
 
 app.post("/export/epub", async (req, res) => {
@@ -1291,6 +1380,7 @@ app.post("/export/epub", async (req, res) => {
             publisher: "W4U",
             appendChapterTitles: false,
             lang: "it",
+            cover: book.cover_url ? await generateCoverBuffer(book, cleanBookTitle, cleanAuthor) : null,
             css: `
         body { font-family: serif; line-height: 1.5; text-align: justify; }
         h1 { text-align: center; margin-top: 2em; margin-bottom: 1em; font-weight: bold; font-size: 1.2em; page-break-before: always; }
@@ -1395,9 +1485,11 @@ app.post("/export/docx", async (req, res) => {
         let coverBuffer = null;
         if (book.cover_url) {
             try {
-                coverBuffer = await fetchRemoteBuffer(book.cover_url);
+                coverBuffer = await generateCoverBuffer(book, cleanBookTitle, cleanAuthor);
             } catch (err) {
-                console.warn("[Backend] Failed to fetch cover buffer:", err);
+                console.warn("[Backend] Failed to generate stamped cover:", err);
+                // Last fallback: raw buffer
+                coverBuffer = await fetchRemoteBuffer(book.cover_url).catch(() => null);
             }
         }
 
